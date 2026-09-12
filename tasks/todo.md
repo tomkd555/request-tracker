@@ -82,9 +82,9 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Estimated scope:** Medium
 
 ## Checkpoint A: Foundation
-- [ ] `npm run typecheck` and `npx vitest run` pass
-- [ ] First-launch and second-launch flows work as in Task 4
-- [ ] Review with human before Phase 2
+- [x] `npm run typecheck` and `npx vitest run` pass
+- [x] First-launch and second-launch flows work as in Task 4
+- [ ] Review with human before Phase 2 (auto run; review pending)
 
 ## Phase 2: Issues
 
@@ -356,11 +356,11 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Package with `npm run build` followed by `npx electron-builder --win portable` and run the exe on a machine without Node or the repo.
 
 **Acceptance criteria:**
-- [ ] One `.exe` under `dist/` runs on a clean Windows 11 machine and reaches the issue list
-- [ ] Packaging steps and the Developer Mode / symlink note are in `SPEC.md` Commands
+- [ ] One `.exe` under `dist/` runs on a clean Windows 11 machine and reaches the issue list (runs on the build machine and shows the first-launch screen; a clean machine is still to be tried)
+- [x] Packaging steps and the Developer Mode / symlink note are in `SPEC.md` Commands
 
 **Verification:**
-- [ ] Build succeeds: `npm run build` then `npx electron-builder --win portable`
+- [x] Build succeeds: `npm run build` then `npx electron-builder --win portable` (dist/RequestTracker-0.1.0.exe, 2026-09-12)
 - [ ] Manual check: clean machine
 
 **Dependencies:** Tasks 1–17

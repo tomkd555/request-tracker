@@ -38,7 +38,7 @@ Build:    npm run build
 Package:  npm run build && npx electron-builder --win portable
 ```
 
-`npm run typecheck` runs `tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json`.
+`npm run typecheck` runs `tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json`. `npm run package` is the build plus the electron-builder step; the result is `dist/RequestTracker-<version>.exe`, a portable build with no installer and no code signing. If electron-builder fails while extracting `winCodeSign` (a symlink permission error), enable Windows Developer Mode or run that step once from an administrator shell. `npm run dev:second` starts a second instance with its own user data for two-client checks.
 
 ## Project Structure
 
