@@ -402,3 +402,14 @@
 .issue-detail__desc {
   margin: 0;
 }
+
+.related {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.related__item {
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border-row);
+}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
+import { mentionedKeys } from "../app/linkIssueKeys";
 import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
@@ -9,6 +10,21 @@ import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor"
 import { HistoryList } from "./HistoryList";
 import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
 import { useIssues } from "./useIssues";
+
+/** Issues this one mentions in its description, then issues whose description mentions this one; parent and children excluded. */
+function relatedIssues(issue: Issue, byKey: Map<string, Issue>): Issue[] {
+  const family = new Set([issue.key, issue.parentKey ?? ""]);
+  const out: Issue[] = [];
+  for (const k of mentionedKeys(issue.description)) {
+    const i = byKey.get(k);
+    if (i && !family.has(k) && i.parentKey !== issue.key) out.push(i);
+  }
+  for (const i of byKey.values()) {
+    if (family.has(i.key) || i.parentKey === issue.key || out.includes(i)) continue;
+    if (mentionedKeys(i.description).includes(issue.key)) out.push(i);
+  }
+  return out;
+}
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
   const { me, users } = useSession();
@@ -20,6 +36,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   if (!issue) return <p>課題 {issueKey} は見つかりません。</p>;
   const parent = issue.parentKey ? byKey.get(issue.parentKey) : undefined;
   const children = [...byKey.values()].filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
+  const related = relatedIssues(issue, byKey);
 
   // ponytail: last write wins, no stale-write check; history keeps the overwritten version
   const save = async (patch: Partial<Issue>): Promise<void> => {
@@ -146,6 +163,19 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               </tbody>
             </table>
           )}
+        </section>
+      )}
+      {related.length > 0 && (
+        <section>
+          <h2>関連課題</h2>
+          <ul className="related">
+            {related.map((r) => (
+              <li key={r.key} className="related__item">
+                <a href={`#/issues/${r.key}`}>{r.key}</a> {r.summary}{" "}
+                <span className={statusClass(r.status)}>{STATUS_LABEL[r.status]}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
       <Attachments issueKey={issue.key} />
