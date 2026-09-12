@@ -48,13 +48,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Local `config.json` (`rootDir`), folder picker, `project.json` init with fiscal year start month, `users/<username>.json` with `os.userInfo`, and the typed IPC surface from `SPEC-store.md` wired through `ipc.ts` and `preload/index.ts` into `window.api`. Handlers for issues, comments, attachments and wiki may throw "not implemented" until their tasks. `ipc.ts` and `index.ts` are the only files that import `electron`; `config.ts` receives the userData path and `chooseRoot` receives the dialog result as arguments, so `tests/main/store` runs without an electron mock.
 
 **Acceptance criteria:**
-- [ ] `window.api.config.get()` returns `null` on a fresh userData and the saved root after `chooseRoot`
-- [ ] `project.init(4)` creates `project.json` and all collection directories
-- [ ] `users.me()` returns `null` until `users.register(displayName)` writes the file
+- [x] `window.api.config.get()` returns `null` on a fresh userData and the saved root after `chooseRoot`
+- [x] `project.init(4)` creates `project.json` and all collection directories
+- [x] `users.me()` returns `null` until `users.register(displayName)` writes the file
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store`
-- [ ] Manual check: call the api from DevTools console in `npm run dev`
+- [x] Tests pass: `npx vitest run tests/main/store`
+- [x] Manual check: call the api from DevTools console in `npm run dev`
 
 **Dependencies:** Task 2
 

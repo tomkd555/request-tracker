@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
+import { registerIpc } from "./ipc";
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -32,6 +33,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId("jp.tomkd.request-tracker");
+  registerIpc();
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);
