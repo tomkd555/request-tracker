@@ -39,12 +39,15 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const related = relatedIssues(issue, byKey);
 
   // ponytail: last write wins, no stale-write check; history keeps the overwritten version
+  const put = async (patch: Partial<Issue>): Promise<void> => {
+    await window.api.issues.put({ ...issue, ...patch, key: issue.key, updatedAt: new Date().toISOString(), updatedBy: me.username });
+    await refreshOne(issue.key);
+    setVersion((v) => v + 1);
+  };
   const save = async (patch: Partial<Issue>): Promise<void> => {
     setError(null);
     try {
-      await window.api.issues.put({ ...issue, ...patch, key: issue.key, updatedAt: new Date().toISOString(), updatedBy: me.username });
-      await refreshOne(issue.key);
-      setVersion((v) => v + 1);
+      await put(patch);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -179,7 +182,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
         </section>
       )}
       <Attachments issueKey={issue.key} />
-      <Comments issueKey={issue.key} />
+      <Comments issue={issue} version={version} onStatus={(status) => put({ status })} />
       <section>
         <h2>履歴</h2>
         <HistoryList

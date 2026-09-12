@@ -413,3 +413,12 @@
   padding: var(--space-1) 0;
   border-bottom: 1px solid var(--border-row);
 }
+
+.comments__item--change {
+  color: var(--text-muted);
+}
+
+.comments__changes {
+  margin: 0;
+  padding-left: var(--space-4);
+}
