@@ -233,12 +233,12 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** 削除 on the detail: refused with a message when children exist; otherwise the record moves to `trash/issues/` and the app returns to the list. Attachments folder stays in place.
 
 **Acceptance criteria:**
-- [ ] Deleting a parent with children shows 「子課題があるため削除できません」 and changes nothing
-- [ ] Deleting a leaf moves `issues/<KEY>.json` to `trash/issues/` and removes it from both instances' lists
+- [x] Deleting a parent with children shows 「子課題があるため削除できません」 and changes nothing
+- [x] Deleting a leaf moves `issues/<KEY>.json` to `trash/issues/` and removes it from both instances' lists
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store`
-- [ ] Manual check: two instances
+- [x] Tests pass: `npx vitest run tests/main/store`
+- [x] Manual check: two instances
 
 **Dependencies:** Task 6
 

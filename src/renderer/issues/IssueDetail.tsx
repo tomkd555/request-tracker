@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/UserContext";
+import { navigate } from "../app/useHashRoute";
 import { Attachments } from "./Attachments";
 import { Comments } from "./Comments";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
@@ -34,6 +35,22 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
 
   const userOptions = [{ value: "", label: "未設定" }, ...users.map((u) => ({ value: u.username, label: u.displayName }))];
 
+  const remove = async (): Promise<void> => {
+    if (children.length > 0) {
+      setError("子課題があるため削除できません");
+      return;
+    }
+    if (!window.confirm(`${issue.key} ${issue.summary} を削除しますか`)) return;
+    try {
+      await window.api.issues.remove(issue.key);
+      await refreshOne(issue.key);
+      navigate("/issues");
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      setError(m.includes("has-children") ? "子課題があるため削除できません" : m);
+    }
+  };
+
   return (
     <div className="issue-detail">
       <div className="issue-head">
@@ -44,6 +61,9 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           options={ISSUE_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
           onSave={(status) => save({ status })}
         />
+        <button type="button" className="head-action" onClick={() => void remove()}>
+          削除
+        </button>
       </div>
       <TextField className="summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
       {error && <p className="error">{error}</p>}

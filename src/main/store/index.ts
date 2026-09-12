@@ -4,7 +4,7 @@ import type { StoreApi } from "../../shared/api";
 import { addAttachments, listAttachments, removeAttachment } from "./attachments";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
-import { createIssue, issuesCollection } from "./issues";
+import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
 import { initProject, readProject } from "./project";
 import { registerUser, usersCollection } from "./users";
@@ -67,7 +67,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         return createIssue(need(), project, draft);
       },
       put: async (issue) => issuesCollection(need()).put(issue.key, issue),
-      remove: async (key) => issuesCollection(need()).remove(key),
+      remove: async (key) => removeIssue(need(), key),
       history: async (key) => issuesCollection(need()).history(key),
     },
     summary: { exportCsv: notImplemented("summary.exportCsv") },

@@ -18,6 +18,15 @@ async function keysIn(dir: string): Promise<string[]> {
   }
 }
 
+export const HAS_CHILDREN = "has-children";
+
+/** Moves the record to trash; refused while any issue still names it as parent. The attachments folder stays. */
+export async function removeIssue(l: Layout, key: string): Promise<void> {
+  const c = issuesCollection(l);
+  if ((await c.list()).some((i) => i.parentKey === key)) throw new Error(HAS_CHILDREN);
+  await c.remove(key);
+}
+
 /** Allocates the key from issues/ and trash/issues/, creates the record exclusively, and makes the attachments folder. */
 export async function createIssue(l: Layout, project: Project, draft: IssueDraft): Promise<Issue> {
   const yy = fiscalYy(fiscalYearOf(draft.createdAt, project.fiscalYearStartMonth));

@@ -114,6 +114,21 @@ test("concurrent creates from two stores get distinct keys", async () => {
   expect(new Set(keys).size).toBe(3);
 });
 
+test("issues.remove refuses a parent with children and trashes a leaf", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.issues.create(draft());
+  await s.issues.create(draft({ parentKey: "26-0001" }));
+  await expect(s.issues.remove("26-0001")).rejects.toThrow("has-children");
+  await s.issues.remove("26-0002");
+  expect((await s.issues.list()).map((i) => i.key)).toEqual(["26-0001"]);
+  await s.issues.remove("26-0001");
+  expect(await s.issues.list()).toEqual([]);
+  expect((await fsp.readdir(join(shared, "trash", "issues"))).sort()).toEqual(["26-0001.json", "26-0002.json"]);
+  expect((await fsp.stat(join(shared, "attachments", "26-0001"))).isDirectory()).toBe(true);
+});
+
 test("comments are one file each and list in creation order", async () => {
   const s = store(shared);
   await s.config.chooseRoot();

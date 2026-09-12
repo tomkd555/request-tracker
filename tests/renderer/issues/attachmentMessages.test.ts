@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { messageFor, refusalMessages } from "../../../src/renderer/issues/Attachments";
+import { messageFor, refusalMessages } from "../../../src/renderer/issues/attachmentMessages";
 
 test("refusals become one message per reason naming the files", () => {
   expect(
