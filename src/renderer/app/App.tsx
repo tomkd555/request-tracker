@@ -9,6 +9,7 @@ import { IssueCreate } from "../issues/IssueCreate";
 import { IssueDetail } from "../issues/IssueDetail";
 import { IssueList } from "../issues/IssueList";
 import { IssuesProvider } from "../issues/useIssues";
+import { Summary } from "../issues/Summary";
 import "./app.css";
 import "../issues/issues.css";
 
@@ -77,7 +78,7 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   // Placeholders; the module tasks replace each branch.
   if (path.startsWith("/wiki")) return <h1>Wiki</h1>;
   if (path.startsWith("/gantt")) return <h1>ガントチャート</h1>;
-  if (path.startsWith("/summary")) return <h1>集計</h1>;
+  if (path.startsWith("/summary")) return <Summary />;
   if (path === "/issues/new") return <IssueCreate key={query.get("parent") ?? ""} parentKey={query.get("parent")} />;
   const m = /^\/issues\/([^/]+)$/.exec(path);
   if (m) return <IssueDetail key={m[1]} issueKey={m[1]} />;

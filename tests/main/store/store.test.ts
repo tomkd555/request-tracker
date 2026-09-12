@@ -24,6 +24,7 @@ const store = (chosen: string | null) =>
     chooseDirectory: async () => chosen,
     chooseFiles: async () => null,
     openPath: async () => "",
+    saveTextFile: async () => true,
   });
 
 test("config.get is null on fresh userData and returns the root after chooseRoot", async () => {

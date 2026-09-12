@@ -251,13 +251,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `countByMonth(issues, yyyyMm)` returning counts by reporter, assignee and status; the 集計 screen with month picker and three tables; CSV export through the IPC method `summary.exportCsv(csv: string): Promise<boolean>` (defined in `SPEC-store.md`), which opens `dialog.showSaveDialog` and writes UTF-8 with BOM.
 
 **Acceptance criteria:**
-- [ ] Three issues from two reporters in one month produce the expected rows and totals
-- [ ] The exported CSV opens in Excel with Japanese intact
-- [ ] Issues from other months are excluded
+- [x] Three issues from two reporters in one month produce the expected rows and totals
+- [x] The exported CSV opens in Excel with Japanese intact
+- [x] Issues from other months are excluded
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/renderer/issues/countByMonth.test.ts`
-- [ ] Manual check: export and open in Excel
+- [x] Tests pass: `npx vitest run tests/renderer/issues/countByMonth.test.ts`
+- [x] Manual check: export and open in Excel
 
 **Dependencies:** Task 6
 

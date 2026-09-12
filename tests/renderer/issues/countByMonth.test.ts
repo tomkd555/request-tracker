@@ -1,0 +1,73 @@
+import { expect, test } from "vitest";
+import { countByMonth, monthOf, toCsv } from "../../../src/renderer/issues/countByMonth";
+import type { Issue } from "../../../src/shared/types";
+
+const issue = (over: Partial<Issue>): Issue => ({
+  key: "26-0001",
+  summary: "",
+  description: "",
+  status: "open",
+  priority: "normal",
+  assignee: null,
+  reporter: "alice",
+  parentKey: null,
+  startDate: null,
+  dueDate: null,
+  createdAt: "2026-09-10T03:00:00.000Z",
+  updatedAt: "",
+  updatedBy: "",
+  ...over,
+});
+
+const all = [
+  issue({ key: "26-0001", reporter: "alice", assignee: "bob", status: "open" }),
+  issue({ key: "26-0002", reporter: "alice", assignee: "bob", status: "closed" }),
+  issue({ key: "26-0003", reporter: "carol", assignee: null, status: "open" }),
+  issue({ key: "26-0004", reporter: "carol", createdAt: "2026-08-31T03:00:00.000Z" }),
+];
+
+test("month of a timestamp in local time", () => {
+  expect(monthOf("2026-09-10T03:00:00.000Z")).toBe("2026-09");
+});
+
+test("three issues from two reporters in one month; other months excluded", () => {
+  const c = countByMonth(all, "2026-09");
+  expect(c.total).toBe(3);
+  expect(c.byReporter).toEqual([
+    { key: "alice", count: 2 },
+    { key: "carol", count: 1 },
+  ]);
+  expect(c.byAssignee).toEqual([
+    { key: "bob", count: 2 },
+    { key: "", count: 1 },
+  ]);
+  expect(c.byStatus).toEqual([
+    { key: "open", count: 2 },
+    { key: "closed", count: 1 },
+  ]);
+  expect(countByMonth(all, "2026-07").total).toBe(0);
+});
+
+test("csv has CRLF rows, quoted names when needed, and labels", () => {
+  const csv = toCsv(countByMonth(all, "2026-09"), {
+    user: (u) => (u === "alice" ? "山田, 花子" : u),
+    status: (s) => (s === "open" ? "未対応" : "完了"),
+  });
+  expect(csv.split("\r\n")).toEqual([
+    "対象月,2026-09",
+    "合計,3",
+    "",
+    "登録者,件数",
+    '"山田, 花子",2',
+    "carol,1",
+    "",
+    "担当者,件数",
+    "bob,2",
+    "未設定,1",
+    "",
+    "状態,件数",
+    "未対応,2",
+    "完了,1",
+    "",
+  ]);
+});

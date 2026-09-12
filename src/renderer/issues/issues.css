@@ -305,6 +305,35 @@ section textarea {
   margin-left: auto;
 }
 
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.summary-table tbody tr {
+  cursor: default;
+}
+
+.summary-table tbody tr:hover td {
+  background: var(--bg-row);
+}
+
+.summary-table .num {
+  text-align: right;
+}
+
+.summary-table .total td {
+  font-weight: 600;
+  background: var(--bg-panel);
+}
+
+.toolbar input[type="month"] {
+  font-size: var(--text-md);
+  padding: var(--space-1) var(--space-2);
+}
+
 .pill {
   display: inline-block;
   padding: 0 var(--space-3);

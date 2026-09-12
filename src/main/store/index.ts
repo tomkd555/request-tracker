@@ -18,6 +18,8 @@ export type StoreDeps = {
   chooseFiles(): Promise<string[] | null>;
   /** Opens a file or folder with the OS; resolves to an error message, or "" on success (shell.openPath). */
   openPath(path: string): Promise<string>;
+  /** Save dialog plus write; false when cancelled. */
+  saveTextFile(defaultName: string, text: string): Promise<boolean>;
 };
 
 const notImplemented = (name: string) => (): never => {
@@ -70,7 +72,9 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       remove: async (key) => removeIssue(need(), key),
       history: async (key) => issuesCollection(need()).history(key),
     },
-    summary: { exportCsv: notImplemented("summary.exportCsv") },
+    summary: {
+      exportCsv: (csv) => deps.saveTextFile(`summary-${new Date().toISOString().slice(0, 10)}.csv`, "﻿" + csv),
+    },
     comments: {
       list: async (key) => commentsCollection(need(), key).list(),
       add: async (c) => addComment(need(), c),

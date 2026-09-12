@@ -1,0 +1,70 @@
+import { useState } from "react";
+import type { IssueStatus } from "../../shared/types";
+import { displayNameOf, useSession } from "../app/UserContext";
+import { countByMonth, monthOf, toCsv, type Count } from "./countByMonth";
+import { STATUS_LABEL } from "./labels";
+import { useIssues } from "./useIssues";
+
+export function Summary(): React.JSX.Element {
+  const { users } = useSession();
+  const { issues } = useIssues();
+  const [month, setMonth] = useState(monthOf(new Date().toISOString()));
+  const [message, setMessage] = useState<string | null>(null);
+  const counts = countByMonth(issues, month);
+  const user = (u: string): string => displayNameOf(users, u);
+  const status = (s: IssueStatus): string => STATUS_LABEL[s];
+
+  const exportCsv = async (): Promise<void> => {
+    setMessage(null);
+    try {
+      const saved = await window.api.summary.exportCsv(toCsv(counts, { user, status }));
+      setMessage(saved ? "CSV を保存しました" : null);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const table = (title: string, rows: Count[], label: (k: string) => string): React.JSX.Element => (
+    <table className="issue-table summary-table">
+      <thead>
+        <tr>
+          <th>{title}</th>
+          <th className="num">件数</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.key}>
+            <td>{label(r.key)}</td>
+            <td className="num">{r.count}</td>
+          </tr>
+        ))}
+        <tr className="total">
+          <td>合計</td>
+          <td className="num">{counts.total}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+
+  return (
+    <div>
+      <div className="toolbar">
+        <h1>集計</h1>
+        <div className="form-actions">
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          <button type="button" onClick={() => void exportCsv()}>
+            CSV に出力
+          </button>
+        </div>
+      </div>
+      {message && <p className="muted">{message}</p>}
+      <p className="muted">{month} に登録した課題</p>
+      <div className="summary-grid">
+        {table("登録者", counts.byReporter, user)}
+        {table("担当者", counts.byAssignee, (k) => (k === "" ? "未設定" : user(k)))}
+        {table("状態", counts.byStatus, (k) => status(k as IssueStatus))}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,50 @@
+import type { Issue, IssueStatus } from "../../shared/types";
+
+export type Count = { key: string; count: number };
+export type MonthlyCounts = { month: string; total: number; byReporter: Count[]; byAssignee: Count[]; byStatus: Count[] };
+
+/** "YYYY-MM" of an ISO timestamp in local time. */
+export function monthOf(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function tally(keys: string[]): Count[] {
+  const m = new Map<string, number>();
+  for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
+  return [...m.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
+/** Counts of issues created in `month` (YYYY-MM) by reporter, assignee ("" = unassigned) and status. */
+export function countByMonth(issues: Issue[], month: string): MonthlyCounts {
+  const inMonth = issues.filter((i) => monthOf(i.createdAt) === month);
+  return {
+    month,
+    total: inMonth.length,
+    byReporter: tally(inMonth.map((i) => i.reporter)),
+    byAssignee: tally(inMonth.map((i) => i.assignee ?? "")),
+    byStatus: tally(inMonth.map((i) => i.status)),
+  };
+}
+
+const cell = (v: string | number): string => {
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+/** CSV body (no BOM) with three sections; `nameOf` renders usernames and status ids for display. */
+export function toCsv(
+  c: MonthlyCounts,
+  nameOf: { user(username: string): string; status(status: IssueStatus): string },
+): string {
+  const lines: string[] = [[cell("対象月"), cell(c.month)].join(","), [cell("合計"), cell(c.total)].join(","), ""];
+  const section = (title: string, rows: Count[], label: (k: string) => string): void => {
+    lines.push(cell(title) + ",件数");
+    for (const r of rows) lines.push([cell(label(r.key)), cell(r.count)].join(","));
+    lines.push("");
+  };
+  section("登録者", c.byReporter, nameOf.user);
+  section("担当者", c.byAssignee, (k) => (k === "" ? "未設定" : nameOf.user(k)));
+  section("状態", c.byStatus, (k) => nameOf.status(k as IssueStatus));
+  return lines.join("\r\n");
+}

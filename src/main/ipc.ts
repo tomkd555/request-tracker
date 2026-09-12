@@ -1,3 +1,4 @@
+import { promises as fsp } from "node:fs";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { API_METHODS, type StoreApi } from "../shared/api";
 import { createStore } from "./store";
@@ -20,6 +21,12 @@ export function registerIpc(): ReturnType<typeof createStore> {
       return r.canceled ? null : r.filePaths;
     },
     openPath: (path) => shell.openPath(path),
+    async saveTextFile(defaultName, text) {
+      const r = await dialog.showSaveDialog({ defaultPath: defaultName, filters: [{ name: "CSV", extensions: ["csv"] }] });
+      if (r.canceled || !r.filePath) return false;
+      await fsp.writeFile(r.filePath, text, "utf8");
+      return true;
+    },
   });
 
   for (const group of Object.keys(API_METHODS) as (keyof StoreApi)[]) {
