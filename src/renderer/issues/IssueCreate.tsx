@@ -6,16 +6,23 @@ import { navigate } from "../app/useHashRoute";
 import { PRIORITY_LABEL } from "./labels";
 import { useIssues } from "./useIssues";
 
-export function IssueCreate({ parentKey }: { parentKey: string | null }): React.JSX.Element {
+interface Props {
+  parentKey: string | null;
+  /** Key of an issue whose fields prefill the form (複製). */
+  copyFrom: string | null;
+}
+
+export function IssueCreate({ parentKey, copyFrom }: Props): React.JSX.Element {
   const { me, users } = useSession();
   const { byKey, issues, refreshOne } = useIssues();
-  const [summary, setSummary] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<IssuePriority>("normal");
-  const [assignee, setAssignee] = useState<string>("");
+  const source = copyFrom !== null ? byKey.get(copyFrom) : undefined;
+  const [summary, setSummary] = useState(source?.summary ?? "");
+  const [description, setDescription] = useState(source?.description ?? "");
+  const [priority, setPriority] = useState<IssuePriority>(source?.priority ?? "normal");
+  const [assignee, setAssignee] = useState<string>(source?.assignee ?? "");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [parent, setParent] = useState<string>(parentKey ?? "");
+  const [parent, setParent] = useState<string>(parentKey ?? source?.parentKey ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

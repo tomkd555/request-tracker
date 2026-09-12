@@ -93,7 +93,9 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   if (path.startsWith("/wiki")) return <WikiList />;
   if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
-  if (path === "/issues/new") return <IssueCreate key={query.get("parent") ?? ""} parentKey={query.get("parent")} />;
+  if (path === "/issues/new") {
+    return <IssueCreate key={query.get("parent") ?? query.get("copy") ?? ""} parentKey={query.get("parent")} copyFrom={query.get("copy")} />;
+  }
   const m = /^\/issues\/([^/]+)$/.exec(path);
   if (m) return <IssueDetail key={m[1]} issueKey={m[1]} />;
   return <IssueList />;

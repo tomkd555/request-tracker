@@ -89,3 +89,16 @@ button:disabled {
   padding: var(--space-6);
   color: var(--text-muted);
 }
+
+.nav__badge {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--bg-panel);
+  color: var(--brand);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: center;
+}

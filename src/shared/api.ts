@@ -18,7 +18,7 @@ export type StoreApi = {
     remove(key: string): Promise<void>;
     history(key: string): Promise<Issue[]>;
   };
-  summary: { exportCsv(csv: string): Promise<boolean> };
+  summary: { exportCsv(csv: string, defaultName: string): Promise<boolean> };
   comments: { list(key: string): Promise<Comment[]>; add(c: Comment): Promise<void> };
   attachments: {
     list(key: string): Promise<Attachment[]>;

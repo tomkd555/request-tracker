@@ -17,7 +17,7 @@ export function Summary(): React.JSX.Element {
   const exportCsv = async (): Promise<void> => {
     setMessage(null);
     try {
-      const saved = await window.api.summary.exportCsv(toCsv(counts, { user, status }));
+      const saved = await window.api.summary.exportCsv(toCsv(counts, { user, status }), `summary-${month}.csv`);
       setMessage(saved ? "CSV を保存しました" : null);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));

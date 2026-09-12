@@ -27,7 +27,7 @@ export function countByMonth(issues: Issue[], month: string): MonthlyCounts {
   };
 }
 
-const cell = (v: string | number): string => {
+export const cell = (v: string | number): string => {
   const raw = String(v);
   const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw; // a display name starting with "=" must never run as an Excel formula
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

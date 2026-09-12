@@ -6,7 +6,9 @@ import { dueTone } from "./dueTone";
 import { FilterBar } from "./FilterBar";
 import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "./filterIssues";
 import { groupByParent } from "./groupByParent";
+import { defaultStatusName, issuesToCsv } from "./issuesToCsv";
 import { formatDate, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { isUnseen } from "./seen";
 import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "./sortIssues";
 import { useIssues } from "./useIssues";
 
@@ -21,22 +23,39 @@ const COLUMNS: { key: SortKey; label: string }[] = [
 ];
 
 export function IssueList(): React.JSX.Element {
-  const { users } = useSession();
+  const { me, users } = useSession();
   const { issues, loaded } = useIssues();
   const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
+  const [message, setMessage] = useState<string | null>(null);
   const day = today();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
   const rows = groupByParent(filterIssues(issues, filter, day), issueComparator(sort, nameOf));
+
+  const exportCsv = async (): Promise<void> => {
+    setMessage(null);
+    try {
+      const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: defaultStatusName }), `issues-${day}.csv`);
+      setMessage(saved ? "CSV を保存しました" : null);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   return (
     <div>
       <header className="toolbar">
         <h1 className="toolbar__heading">課題</h1>
-        <a className="link-button" href="#/issues/new">
-          課題を追加
-        </a>
+        <div className="form-actions">
+          <button type="button" onClick={() => void exportCsv()}>
+            CSV に出力
+          </button>
+          <a className="link-button" href="#/issues/new">
+            課題を追加
+          </a>
+        </div>
       </header>
+      {message && <p className="text--muted">{message}</p>}
       <FilterBar filter={filter} users={users} onChange={setFilter} />
       <table className="issue-table">
         <thead>
@@ -63,7 +82,10 @@ export function IssueList(): React.JSX.Element {
                 className={`issue-table__row${depth === 1 ? " issue-table__row--child" : ""}`}
                 onClick={() => navigate(`/issues/${i.key}`)}
               >
-                <td className="issue-table__cell issue-table__cell--key">{i.key}</td>
+                <td className="issue-table__cell issue-table__cell--key">
+                  {isUnseen(i, me.username) && <span className="issue-table__unseen" aria-label="更新あり" />}
+                  {i.key}
+                </td>
                 <td className="issue-table__cell">{i.summary}</td>
                 <td className="issue-table__cell">{nameOf(i.assignee)}</td>
                 <td className="issue-table__cell">

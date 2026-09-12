@@ -194,7 +194,7 @@ test("opening a refused extension placed in the folder by hand is refused", asyn
 
 test("summary.exportCsv writes UTF-8 with BOM to the chosen path", async () => {
   const s = store(shared);
-  expect(await s.summary.exportCsv("a,b")).toBe(true);
+  expect(await s.summary.exportCsv("a,b", "summary.csv")).toBe(true);
   const bytes = await fsp.readFile(join(userData, "out.csv"));
   expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
   expect(bytes.subarray(3).toString("utf8")).toBe("a,b");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
 import { mentionedKeys } from "../app/linkIssueKeys";
 import { Markdown } from "../app/Markdown";
@@ -9,6 +9,7 @@ import { Comments } from "./Comments";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
 import { HistoryList } from "./HistoryList";
 import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { markSeen } from "./seen";
 import { useIssues } from "./useIssues";
 
 /** Issues this one mentions in its description, then issues whose description mentions this one; parent and children excluded. */
@@ -32,6 +33,9 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const issue = byKey.get(issueKey);
+  useEffect(() => {
+    if (issue) markSeen(issue);
+  }, [issue]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
   if (!issue) return <p>課題 {issueKey} は見つかりません。</p>;
   const parent = issue.parentKey ? byKey.get(issue.parentKey) : undefined;
@@ -82,9 +86,14 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           options={ISSUE_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
           onSave={(status) => save({ status })}
         />
-        <button type="button" className="issue-detail__action" onClick={() => void remove()}>
-          削除
-        </button>
+        <div className="issue-detail__actions">
+          <a className="link-button" href={`#/issues/new?copy=${issue.key}`}>
+            複製
+          </a>
+          <button type="button" onClick={() => void remove()}>
+            削除
+          </button>
+        </div>
       </div>
       <TextField className="issue-detail__summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
       {error && <p className="text--error">{error}</p>}

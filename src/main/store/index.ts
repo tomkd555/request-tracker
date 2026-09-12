@@ -70,8 +70,8 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       history: async (key) => issuesCollection(need()).history(key),
     },
     summary: {
-      async exportCsv(csv) {
-        const path = await deps.chooseSavePath(`summary-${new Date().toISOString().slice(0, 10)}.csv`);
+      async exportCsv(csv, defaultName) {
+        const path = await deps.chooseSavePath(defaultName);
         if (path === null) return false;
         await fsp.writeFile(path, "﻿" + csv, "utf8");
         return true;
