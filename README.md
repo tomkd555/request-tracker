@@ -14,7 +14,9 @@ Screenshots: to be added.
 - Wiki pages in Markdown
 - Gantt chart of issue start and due dates
 - Monthly counts by reporter, assignee, status and category, with CSV export that opens in Excel
-- Live refresh across clients: every client polls the shared folder every 5 seconds
+- Live refresh across clients: every client polls the shared folder every 5 seconds by default
+- Colour presets (Backlog green, blue, grey, dark) with a free accent colour per machine, and a colour per category shared by the team
+- Settings screen: appearance, due-soon window and poll interval for this machine; display name; shared folder; the category list with colours
 
 ## How it works
 
@@ -22,7 +24,7 @@ There is no server and no database. The shared folder is the database:
 
 ```
 <root>/
-  project.json                         fiscal year start month, categories
+  project.json                         fiscal year start month, categories and their colours
   users/<username>.json
   issues/<KEY>.json
   comments/<KEY>/<stamp>-<username>.json
@@ -39,7 +41,7 @@ There is no server and no database. The shared folder is the database:
 - A record is written to a temp file in the same directory and renamed over the target, so a client that dies mid-write leaves the old file intact.
 - The previous version is copied to `history/` before every overwrite. Deletion moves the file to `trash/`.
 - Issue keys are `YY-NNNN`: the two-digit fiscal year and a sequence within it (`26-0001`). The key is claimed with an exclusive create, so two clients creating at the same moment get distinct keys with no counter file.
-- Change detection polls `stat` of the collection directories every 5 seconds. SMB shares deliver no file-watch events reliably, so there is no watcher.
+- Change detection polls `stat` of the collection directories every 5 seconds by default (2–60 seconds, set per machine). SMB shares deliver no file-watch events reliably, so there is no watcher.
 - The current user is the OS username; the display name is asked once on first launch and stored in `users/`.
 - Every record read from the shared folder is validated; a corrupt file is skipped and logged, and never blocks the list.
 
@@ -54,7 +56,7 @@ There is no server and no database. The shared folder is the database:
 2. Run it. Pick the shared folder. If the folder is empty, set the fiscal year start month (default April); the app creates `project.json` and the directories.
 3. Enter a display name. The issue list opens; the next launch opens it directly.
 
-The chosen folder is stored in `%APPDATA%\request-tracker\config.json`. Delete that file to pick another folder.
+The chosen folder is stored in `%APPDATA%\request-tracker\config.json`, together with the colour preset, accent colour, due-soon window and poll interval. The settings screen changes any of them, including the folder.
 
 ## Development
 

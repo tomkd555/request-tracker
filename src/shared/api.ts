@@ -1,4 +1,4 @@
-import type { Attachment, Comment, Issue, Project, User, WikiPage } from "./types";
+import type { Attachment, Comment, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
@@ -7,12 +7,17 @@ export interface ChangeEvent { collection: string; id: string }
 
 // IPC surface between renderer and main. Each group.method maps to the channel "group:method".
 export type StoreApi = {
-  config: { get(): Promise<{ rootDir: string } | null>; chooseRoot(): Promise<string | null> };
+  config: {
+    get(): Promise<LocalConfig | null>;
+    chooseRoot(): Promise<string | null>;
+    /** Replaces the per-machine settings; rootDir stays. */
+    put(settings: LocalSettings): Promise<LocalConfig>;
+  };
   project: {
     get(): Promise<Project | null>;
     init(fiscalYearStartMonth: number): Promise<Project>;
-    /** Replaces the 種別 list; other fields stay as on disk. */
-    put(categories: string[]): Promise<Project>;
+    /** Replaces the 種別 list and its colours; other fields stay as on disk. */
+    put(categories: string[], categoryColors: Record<string, string>): Promise<Project>;
   };
   users: { me(): Promise<User | null>; register(displayName: string): Promise<User>; list(): Promise<User[]> };
   issues: {
@@ -49,7 +54,7 @@ export type Api = StoreApi & {
 };
 
 export const API_METHODS = {
-  config: ["get", "chooseRoot"],
+  config: ["get", "chooseRoot", "put"],
   project: ["get", "init", "put"],
   users: ["me", "register", "list"],
   issues: ["list", "get", "create", "put", "remove", "history"],

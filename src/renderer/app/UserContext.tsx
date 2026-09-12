@@ -1,13 +1,17 @@
 import { createContext, useContext } from "react";
-import type { Project, User } from "../../shared/types";
+import type { LocalConfig, Project, User } from "../../shared/types";
 
 export interface Session {
   me: User;
   users: User[];
   project: Project;
+  config: LocalConfig;
+  /** Re-reads users/ and the current user, after a rename here or a change seen by the poller. */
   refreshUsers(): Promise<void>;
   /** Re-reads project.json (種別 list) after a save here or a change seen by the poller. */
   refreshProject(): Promise<void>;
+  /** Re-reads config.json after a save on the settings screen. */
+  refreshConfig(): Promise<void>;
 }
 
 export const SessionContext = createContext<Session | null>(null);

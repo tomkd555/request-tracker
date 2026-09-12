@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createStore } from "../../../src/main/store";
 import { collectionDirs, layout } from "../../../src/main/store/paths";
 import type { IssueDraft } from "../../../src/shared/api";
+import { DEFAULT_LOCAL_SETTINGS } from "../../../src/shared/types";
 
 let userData: string;
 let shared: string;
@@ -32,8 +33,8 @@ test("config.get is null on fresh userData and returns the root after chooseRoot
   const s = store(shared);
   expect(await s.config.get()).toBeNull();
   expect(await s.config.chooseRoot()).toBe(shared);
-  expect(await s.config.get()).toEqual({ rootDir: shared });
-  expect(await store(null).config.get()).toEqual({ rootDir: shared });
+  expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
+  expect(await store(null).config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
 });
 
 test("chooseRoot cancelled leaves config untouched", async () => {
@@ -218,8 +219,48 @@ test("records and project.json written before category existed load with default
   expect((await s.issues.list())[0].category).toBe("");
   await s.issues.put({ ...old, category: "依頼" });
   expect((await s.issues.history("26-0001"))[0].category).toBe("");
-  const p = await s.project.put([" 相談 ", "", "不具合", "相談"]);
+  const p = await s.project.put([" 相談 ", "", "不具合", "相談"], {});
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
   expect(await fsp.readdir(l.historyProject)).toHaveLength(1);
-  await expect(s.project.put(["", " "])).rejects.toThrow();
+  await expect(s.project.put(["", " "], {})).rejects.toThrow();
+});
+
+test("config.json holding only rootDir loads with default settings; config.put validates and chooseRoot keeps the saved settings", async () => {
+  const s = store(shared);
+  await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, dueSoonDays: 99 }), "utf8");
+  expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
+  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, pollIntervalMs: 2000 };
+  expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
+  expect(s.settings()).toEqual(next);
+  expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
+  await expect(s.config.put({ ...next, accent: "red" })).rejects.toThrow("accent");
+  await expect(s.config.put({ ...next, pollIntervalMs: 1000 })).rejects.toThrow("pollIntervalMs");
+  await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
+  const other = await fsp.mkdtemp(join(tmpdir(), "rt-shared2-"));
+  try {
+    expect(await store(other).config.chooseRoot()).toBe(other);
+    expect(await store(null).config.get()).toEqual({ ...next, rootDir: other });
+  } finally {
+    await fsp.rm(other, { recursive: true, force: true });
+  }
+});
+
+test("project.put keeps colours of surviving 種別 only and rejects a colour outside #rrggbb", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const p = await s.project.put(["相談", "不具合"], { 相談: "#FF0000", 依頼: "#00ff00" });
+  expect(p.categoryColors).toEqual({ 相談: "#ff0000" });
+  expect((await s.project.get())?.categoryColors).toEqual({ 相談: "#ff0000" });
+  await expect(s.project.put(["相談"], { 相談: "red" })).rejects.toThrow("#rrggbb");
+});
+
+test("users.register a second time renames and keeps createdAt", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const first = await s.users.register("Alice");
+  const second = await s.users.register("Alice B");
+  expect(second).toEqual({ ...first, displayName: "Alice B" });
+  expect(await s.users.me()).toEqual(second);
 });

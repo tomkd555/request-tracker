@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { textOn, TYPE_PILL_DEFAULT } from "../app/theme";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { today } from "./dates";
@@ -24,7 +25,7 @@ const COLUMNS: { key: SortKey; label: string }[] = [
 ];
 
 export function IssueList(): React.JSX.Element {
-  const { me, users } = useSession();
+  const { me, users, project, config } = useSession();
   const { issues, loaded } = useIssues();
   const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
@@ -73,7 +74,8 @@ export function IssueList(): React.JSX.Element {
         </thead>
         <tbody>
           {rows.map(({ issue: i, depth }) => {
-            const tone = dueTone(i, day);
+            const tone = dueTone(i, day, config.dueSoonDays);
+            const categoryColor = project.categoryColors[i.category] ?? TYPE_PILL_DEFAULT;
             return (
               <tr
                 key={i.key}
@@ -85,7 +87,13 @@ export function IssueList(): React.JSX.Element {
                   {i.key}
                 </td>
                 <td className="issue-table__cell">{i.summary}</td>
-                <td className="issue-table__cell">{i.category}</td>
+                <td className="issue-table__cell">
+                  {i.category !== "" && (
+                    <span className="pill" style={{ background: categoryColor, color: textOn(categoryColor) }}>
+                      {i.category}
+                    </span>
+                  )}
+                </td>
                 <td className="issue-table__cell">{nameOf(i.assignee)}</td>
                 <td className="issue-table__cell">
                   <span className={statusClass(i.status)}>{STATUS_LABEL[i.status]}</span>

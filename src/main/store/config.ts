@@ -1,16 +1,17 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
+import { localSettingsFrom, type LocalConfig } from "../../shared/types";
 import { writeAtomic } from "./collection";
-
-export interface LocalConfig { rootDir: string }
 
 const file = (userDataDir: string): string => join(userDataDir, "config.json");
 
+/** A config.json holding only rootDir (every install before the settings existed) comes back with the default settings. */
 export async function loadConfig(userDataDir: string): Promise<LocalConfig | null> {
   try {
     const value: unknown = JSON.parse(await fsp.readFile(file(userDataDir), "utf8"));
     if (typeof value === "object" && value !== null && typeof (value as LocalConfig).rootDir === "string") {
-      return { rootDir: (value as LocalConfig).rootDir };
+      const v = value as Record<string, unknown>;
+      return { ...localSettingsFrom(v), rootDir: v.rootDir as string };
     }
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") console.error("config: unreadable, ignored", e);

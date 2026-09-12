@@ -46,7 +46,7 @@ test("diff reports added, changed and removed entries once per (collection, id)"
 
 test("touching a file in issues/ yields one store:changed within one cycle", async () => {
   const batches: ChangeEvent[][] = [];
-  stop = startPoller({ getLayout: () => l, intervalMs: 50, onChange: (e) => batches.push(e) });
+  stop = startPoller({ getLayout: () => l, intervalMs: () => 50, onChange: (e) => batches.push(e) });
   await sleep(120);
   await write(join(l.issues, "26-0001.json"), "{}");
   await sleep(200);
@@ -56,7 +56,7 @@ test("touching a file in issues/ yields one store:changed within one cycle", asy
 test("an unreachable root logs once per cycle, and changes made meanwhile arrive when it is back", async () => {
   const logs: string[] = [];
   const batches: ChangeEvent[][] = [];
-  stop = startPoller({ getLayout: () => l, intervalMs: 50, onChange: (e) => batches.push(e), log: (m) => logs.push(m) });
+  stop = startPoller({ getLayout: () => l, intervalMs: () => 50, onChange: (e) => batches.push(e), log: (m) => logs.push(m) });
   await sleep(120);
   const away = join(base, "away");
   await fsp.rename(root, away);

@@ -68,7 +68,8 @@ export function diff(before: Snapshot, after: Snapshot): ChangeEvent[] {
 
 export interface PollerOptions {
   getLayout(): Layout | null;
-  intervalMs: number;
+  /** Read before each cycle, so a saved interval applies from the next one. */
+  intervalMs(): number;
   onChange(events: ChangeEvent[]): void;
   log?: (message: string, error: unknown) => void;
 }
@@ -78,11 +79,10 @@ export function startPoller(opts: PollerOptions): () => void {
   const log = opts.log ?? ((m, e) => console.error(m, e));
   let last: Snapshot | null = null;
   let lastRoot: string | null = null;
-  let busy = false;
+  let stopped = false;
+  let timer: NodeJS.Timeout | null = null;
 
   const tick = async (): Promise<void> => {
-    if (busy) return;
-    busy = true;
     try {
       const l = opts.getLayout();
       if (l === null) return;
@@ -98,12 +98,17 @@ export function startPoller(opts: PollerOptions): () => void {
       last = next;
     } catch (e) {
       log("poller: scan failed, will retry", e);
-    } finally {
-      busy = false;
     }
   };
 
-  const timer = setInterval(() => void tick(), opts.intervalMs);
-  void tick();
-  return () => clearInterval(timer);
+  // One cycle at a time: the next timer is set only after the scan has finished.
+  const cycle = async (): Promise<void> => {
+    await tick();
+    if (!stopped) timer = setTimeout(() => void cycle(), opts.intervalMs());
+  };
+  void cycle();
+  return () => {
+    stopped = true;
+    if (timer !== null) clearTimeout(timer);
+  };
 }

@@ -1,7 +1,7 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import type { StoreApi } from "../../shared/api";
-import type { Issue } from "../../shared/types";
+import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalSettings } from "../../shared/types";
 import { addAttachments, assertName, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
@@ -28,8 +28,10 @@ export interface StoreDeps {
 const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "" });
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
-export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null } {
+export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings } {
   let l: Layout | null = null;
+  // The poller reads these from the first tick, before the renderer's config.get; defaults until then.
+  let settings: LocalSettings = DEFAULT_LOCAL_SETTINGS;
 
   const need = (): Layout => {
     if (l === null) throw new Error("shared folder is not configured");
@@ -38,24 +40,40 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
 
   return {
     current: () => l,
+    settings: () => settings,
     config: {
       async get() {
         const c = await loadConfig(deps.userDataDir);
-        if (c !== null) l = layout(c.rootDir);
+        if (c !== null) {
+          const { rootDir, ...rest } = c;
+          l = layout(rootDir);
+          settings = rest;
+        }
         return c;
       },
       async chooseRoot() {
         const dir = await deps.chooseDirectory();
         if (dir === null) return null;
-        await saveConfig(deps.userDataDir, { rootDir: dir });
+        const { rootDir: _previous, ...saved } = (await loadConfig(deps.userDataDir)) ?? { rootDir: dir, ...settings };
+        await saveConfig(deps.userDataDir, { ...saved, rootDir: dir });
+        settings = saved;
         l = layout(dir);
         return dir;
+      },
+      async put(next) {
+        const current = await loadConfig(deps.userDataDir);
+        if (current === null) throw new Error("shared folder is not configured");
+        assertLocalSettings(next);
+        const config = { ...next, rootDir: current.rootDir };
+        await saveConfig(deps.userDataDir, config);
+        settings = next;
+        return config;
       },
     },
     project: {
       get: async () => readProject(need()),
       init: async (month) => initProject(need(), month),
-      put: async (categories) => putCategories(need(), categories),
+      put: async (categories, categoryColors) => putCategories(need(), categories, categoryColors),
     },
     users: {
       me: async () => usersCollection(need()).get(deps.username),

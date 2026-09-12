@@ -4,8 +4,6 @@ import { createStore } from "./store";
 import { startPoller } from "./store/poller";
 import { currentUsername } from "./store/users";
 
-const POLL_INTERVAL_MS = 5000;
-
 /** Registers one ipcMain.handle per group.method of the store. The only path from renderer to the file system. */
 export function registerIpc(): ReturnType<typeof createStore> {
   const store = createStore({
@@ -35,7 +33,7 @@ export function registerIpc(): ReturnType<typeof createStore> {
 
   startPoller({
     getLayout: () => store.current(),
-    intervalMs: POLL_INTERVAL_MS,
+    intervalMs: () => store.settings().pollIntervalMs,
     onChange(events) {
       for (const w of BrowserWindow.getAllWindows()) for (const e of events) w.webContents.send("store:changed", e);
     },

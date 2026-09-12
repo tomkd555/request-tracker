@@ -38,3 +38,10 @@ test("none without a due date or once resolved or closed", () => {
   expect(dueTone(issue({ dueDate: "2026-09-01", status: "resolved" }), today)).toBe("none");
   expect(dueTone(issue({ dueDate: "2026-09-01", status: "closed" }), today)).toBe("none");
 });
+
+test("soonDays widens or removes the soon window", () => {
+  expect(dueTone(issue({ dueDate: "2026-09-19" }), today, 7)).toBe("soon");
+  expect(dueTone(issue({ dueDate: "2026-09-20" }), today, 7)).toBe("none");
+  expect(dueTone(issue({ dueDate: "2026-09-12" }), today, 0)).toBe("soon");
+  expect(dueTone(issue({ dueDate: "2026-09-13" }), today, 0)).toBe("none");
+});

@@ -1,9 +1,25 @@
-// Record types stored on the shared folder. This file is the schema.
+// Record types stored on the shared folder, and the per-machine config. This file is the schema.
+
+export type ThemeName = "backlog" | "blue" | "gray" | "dark";
+export const THEME_NAMES: ThemeName[] = ["backlog", "blue", "gray", "dark"];
+
+/** Per-machine preferences in %APPDATA%\request-tracker\config.json; a file written before a field existed gets the default on read. */
+export interface LocalSettings {
+  theme: ThemeName;
+  accent: string | null; // "#rrggbb"; null = the preset's own accent
+  dueSoonDays: number; // 0–30
+  pollIntervalMs: number; // 2000–60000
+}
+export interface LocalConfig extends LocalSettings { rootDir: string }
+
+export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "backlog", accent: null, dueSoonDays: 3, pollIntervalMs: 5000 };
+export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 export interface Project {
   fiscalYearStartMonth: number; // 1–12, default 4
   createdAt: string;
   categories: string[]; // 種別 choices, in display order; a project.json written before this field gets DEFAULT_CATEGORIES on read
+  categoryColors: Record<string, string>; // 種別 name -> "#rrggbb"; {} on files written before this field
 }
 
 export const DEFAULT_CATEGORIES: string[] = ["問い合わせ", "不具合", "依頼", "その他"];
@@ -60,10 +76,32 @@ const str = (v: unknown): v is string => typeof v === "string";
 const strOrNull = (v: unknown): v is string | null => v === null || typeof v === "string";
 const strOrAbsent = (v: unknown): v is string | undefined => v === undefined || typeof v === "string";
 const strArrayOrAbsent = (v: unknown): v is string[] | undefined => v === undefined || (Array.isArray(v) && v.every(str));
+const strMapOrAbsent = (v: unknown): v is Record<string, string> | undefined => v === undefined || (isRec(v) && Object.values(v).every(str));
 
-/** Accepts a project.json without `categories`; `readProject` fills the default list. */
+/** Accepts a project.json without `categories` or `categoryColors`; `readProject` fills the defaults. */
 export function isProject(v: unknown): v is Project {
-  return isRec(v) && Number.isInteger(v.fiscalYearStartMonth) && str(v.createdAt) && strArrayOrAbsent(v.categories);
+  return isRec(v) && Number.isInteger(v.fiscalYearStartMonth) && str(v.createdAt) && strArrayOrAbsent(v.categories) && strMapOrAbsent(v.categoryColors);
+}
+
+const intIn = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
+
+/** Throws on a value outside the documented ranges; the settings screen shows the message. */
+export function assertLocalSettings(s: LocalSettings): void {
+  if (!THEME_NAMES.includes(s.theme)) throw new Error(`unknown theme: ${String(s.theme)}`);
+  if (s.accent !== null && !(str(s.accent) && HEX_COLOR.test(s.accent))) throw new Error(`accent must be #rrggbb: ${String(s.accent)}`);
+  if (!intIn(s.dueSoonDays, 0, 30)) throw new Error(`dueSoonDays out of range: ${String(s.dueSoonDays)}`);
+  if (!intIn(s.pollIntervalMs, 2000, 60000)) throw new Error(`pollIntervalMs out of range: ${String(s.pollIntervalMs)}`);
+}
+
+/** Each optional field of config.json is taken when valid and otherwise falls back to its default, so an old or hand-edited file still loads. */
+export function localSettingsFrom(v: Record<string, unknown>): LocalSettings {
+  const d = DEFAULT_LOCAL_SETTINGS;
+  return {
+    theme: THEME_NAMES.includes(v.theme as ThemeName) ? (v.theme as ThemeName) : d.theme,
+    accent: str(v.accent) && HEX_COLOR.test(v.accent) ? v.accent : d.accent,
+    dueSoonDays: intIn(v.dueSoonDays, 0, 30) ? v.dueSoonDays : d.dueSoonDays,
+    pollIntervalMs: intIn(v.pollIntervalMs, 2000, 60000) ? v.pollIntervalMs : d.pollIntervalMs,
+  };
 }
 
 export function isUser(v: unknown): v is User {
