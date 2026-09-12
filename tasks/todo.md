@@ -113,13 +113,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `filterIssues`, `groupByParent`, and the list screen with the filter bar (状態 multi-select default all except 完了, 担当者, 登録者, keyword), parents sorted by key descending, children under their parent in ascending key order, row click to detail, and 子課題を追加 on the detail.
 
 **Acceptance criteria:**
-- [ ] A parent with two children renders as one parent row followed by two indented rows in ascending key order
-- [ ] Filters combine; clearing them restores the default set
-- [ ] The parent picker on the create form lists only issues with `parentKey === null`
+- [x] A parent with two children renders as one parent row followed by two indented rows in ascending key order
+- [x] Filters combine; clearing them restores the default set
+- [x] The parent picker on the create form lists only issues with `parentKey === null`
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/renderer/issues`
-- [ ] Manual check: create parent + children, filter by each field
+- [x] Tests pass: `npx vitest run tests/renderer/issues`
+- [x] Manual check: create parent + children, filter by each field
 
 **Dependencies:** Task 5
 

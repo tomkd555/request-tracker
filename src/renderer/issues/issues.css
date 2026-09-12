@@ -48,6 +48,75 @@ a.button {
   background: var(--bg-row-selected);
 }
 
+.issue-table tr.child td.col-key {
+  padding-left: calc(var(--space-3) + 24px);
+}
+
+.issue-table tr.child td.col-key::before {
+  content: "└ ";
+  color: var(--text-muted);
+}
+
+.col-key {
+  color: var(--link);
+  white-space: nowrap;
+}
+
+.priority-high {
+  color: var(--priority-high);
+}
+.priority-normal {
+  color: var(--priority-normal);
+}
+.priority-low {
+  color: var(--priority-low);
+}
+
+.empty,
+.muted {
+  color: var(--text-muted);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.filter-label {
+  color: var(--text-muted);
+}
+
+.filter-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.filter-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.filter-bar input[type="search"] {
+  font-size: var(--text-md);
+  padding: var(--space-1) var(--space-2);
+  min-width: 200px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .issue-form {
   max-width: 720px;
   background: var(--bg-panel);
