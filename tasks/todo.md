@@ -67,13 +67,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Renderer shell: left navigation (課題, Wiki, ガントチャート, 集計), `useHashRoute`, current-user context, and the first-launch sequence (folder picker → fiscal month → display name) that ends on an empty issue list.
 
 **Acceptance criteria:**
-- [ ] Fresh userData: the three first-launch screens appear in order, then the list
-- [ ] Second launch: the list appears directly, showing the display name in the header
-- [ ] Navigation switches between four placeholder screens by hash
+- [x] Fresh userData: the three first-launch screens appear in order, then the list
+- [x] Second launch: the list appears directly, showing the display name in the header
+- [x] Navigation switches between four placeholder screens by hash
 
 **Verification:**
-- [ ] Build succeeds: `npm run build`
-- [ ] Manual check: delete `config.json` under userData and relaunch
+- [x] Build succeeds: `npm run build`
+- [x] Manual check: delete `config.json` under userData and relaunch
 
 **Dependencies:** Task 3
 
