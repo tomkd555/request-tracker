@@ -1,14 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Issue } from "../../shared/types";
 
-export type IssuesState = {
+export interface IssuesState {
   issues: Issue[];
   byKey: Map<string, Issue>;
   loaded: boolean;
   reload(): Promise<void>;
   /** Re-reads one record from the store and patches the map (removes it when gone). */
   refreshOne(key: string): Promise<void>;
-};
+}
 
 const IssuesContext = createContext<IssuesState | null>(null);
 

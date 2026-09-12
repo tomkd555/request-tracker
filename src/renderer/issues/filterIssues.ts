@@ -1,11 +1,11 @@
 import type { Issue, IssueStatus } from "../../shared/types";
 
-export type IssueFilter = {
+export interface IssueFilter {
   statuses: IssueStatus[];
   assignee: string | null;
   reporter: string | null;
   keyword: string;
-};
+}
 
 export const DEFAULT_FILTER: IssueFilter = {
   statuses: ["open", "in_progress", "resolved"],

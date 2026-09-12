@@ -12,7 +12,7 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
   const { byId, loaded, refreshOne } = useWiki();
   const [error, setError] = useState<string | null>(null);
   const page = byId.get(id);
-  if (!loaded) return <div className="loading">読み込み中</div>;
+  if (!loaded) return <div className="text--loading">読み込み中</div>;
   if (!page) return <p>ページは見つかりません。</p>;
 
   const restore = async (old: WikiPage): Promise<void> => {
@@ -41,7 +41,7 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
       <div className="section-head">
         <h1>{page.title}</h1>
         <div className="form-actions">
-          <a className="button" href={`#/wiki/${page.id}/edit`}>
+          <a className="link-button" href={`#/wiki/${page.id}/edit`}>
             編集
           </a>
           <button type="button" onClick={() => void remove()}>
@@ -49,10 +49,10 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
           </button>
         </div>
       </div>
-      <p className="muted">
+      <p className="text--muted">
         更新 {formatDateTime(page.updatedAt)} {displayNameOf(users, page.updatedBy)}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="text--error">{error}</p>}
       <Markdown source={page.body} />
       <section>
         <h2>履歴</h2>

@@ -54,7 +54,8 @@ export function Attachments({ issueKey }: { issueKey: string }): React.JSX.Eleme
 
   return (
     <section
-      className={`attachments ${dragging ? "dragging" : ""}`}
+      className={`attachments${dragging ? " attachments--dragging" : ""}`}
+      aria-label="添付ファイル"
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -82,18 +83,18 @@ export function Attachments({ issueKey }: { issueKey: string }): React.JSX.Eleme
         </div>
       </div>
       {messages.map((m) => (
-        <p key={m} className="error">
+        <p key={m} className="text--error">
           {m}
         </p>
       ))}
       {items.length === 0 ? (
-        <p className="muted">ファイルをここにドロップするか、追加を押してください</p>
+        <p className="text--muted">添付ファイルはありません</p>
       ) : (
-        <table className="attachment-table">
+        <table className="attachments__table">
           <tbody>
             {items.map((a) => (
               <tr key={a.name}>
-                <td>
+                <td className="attachments__cell">
                   <a
                     href="#"
                     onClick={(e) => {
@@ -105,9 +106,9 @@ export function Attachments({ issueKey }: { issueKey: string }): React.JSX.Eleme
                     {a.name}
                   </a>
                 </td>
-                <td className="muted">{a.size === null ? "" : formatSize(a.size)}</td>
-                <td className="muted">{formatDateTime(a.addedAt)}</td>
-                <td>
+                <td className="attachments__cell text--muted">{a.size === null ? "" : formatSize(a.size)}</td>
+                <td className="attachments__cell text--muted">{formatDateTime(a.addedAt)}</td>
+                <td className="attachments__cell">
                   <button type="button" onClick={() => void remove(a.name)}>
                     削除
                   </button>

@@ -10,18 +10,18 @@ const ITEMS: { path: string; label: string }[] = [
 export function Nav({ current }: { current: string }): React.JSX.Element {
   const { me } = useSession();
   return (
-    <nav className="nav">
-      <div className="nav-title">Request Tracker</div>
-      <ul>
+    <nav className="nav" aria-label="主メニュー">
+      <div className="nav__title">Request Tracker</div>
+      <ul className="nav__list">
         {ITEMS.map((it) => (
           <li key={it.path}>
-            <a href={`#${it.path}`} className={current.startsWith(it.path) ? "active" : ""}>
+            <a href={`#${it.path}`} className={`nav__link${current.startsWith(it.path) ? " nav__link--active" : ""}`}>
               {it.label}
             </a>
           </li>
         ))}
       </ul>
-      <div className="nav-user">{me.displayName}</div>
+      <div className="nav__user">{me.displayName}</div>
     </nav>
   );
 }

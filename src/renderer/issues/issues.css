@@ -5,17 +5,17 @@
   margin-bottom: var(--space-4);
 }
 
-.toolbar h1 {
+.toolbar__heading {
   margin: 0;
 }
 
-a.button {
+.link-button {
   display: inline-block;
   padding: var(--space-1) var(--space-4);
   border: 1px solid var(--brand);
   border-radius: var(--radius);
   background: var(--brand);
-  color: #ffffff;
+  color: var(--text-on-brand);
   text-decoration: none;
 }
 
@@ -26,7 +26,7 @@ a.button {
   border: 1px solid var(--border-panel);
 }
 
-.issue-table th {
+.issue-table__header {
   text-align: left;
   color: var(--text-table-header);
   font-weight: 600;
@@ -34,46 +34,45 @@ a.button {
   border-bottom: 1px solid var(--border-row);
 }
 
-.issue-table td {
+.issue-table__cell {
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-row);
   background: var(--bg-row);
 }
 
-.issue-table tbody tr {
+.issue-table__row {
   cursor: pointer;
 }
 
-.issue-table tbody tr:hover td {
+.issue-table__row:hover .issue-table__cell {
   background: var(--bg-row-selected);
 }
 
-.issue-table tr.child td.col-key {
+.issue-table__row--child .issue-table__cell--key {
   padding-left: calc(var(--space-3) + 24px);
 }
 
-.issue-table tr.child td.col-key::before {
+.issue-table__row--child .issue-table__cell--key::before {
   content: "└ ";
   color: var(--text-muted);
 }
 
-.col-key {
+.issue-table__cell--key {
   color: var(--link);
   white-space: nowrap;
 }
 
-.priority-high {
+.priority--high {
   color: var(--priority-high);
 }
-.priority-normal {
+.priority--normal {
   color: var(--priority-normal);
 }
-.priority-low {
+.priority--low {
   color: var(--priority-low);
 }
 
-.empty,
-.muted {
+.text--muted {
   color: var(--text-muted);
 }
 
@@ -89,23 +88,18 @@ a.button {
   margin-bottom: var(--space-3);
 }
 
-.filter-label {
+.filter-bar__label {
   color: var(--text-muted);
 }
 
-.filter-check {
+.filter-bar__check,
+.filter-bar__field {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
 }
 
-.filter-bar label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.filter-bar input[type="search"] {
+.filter-bar__search {
   font-size: var(--text-md);
   padding: var(--space-1) var(--space-2);
   min-width: 200px;
@@ -117,7 +111,7 @@ a.button {
   justify-content: space-between;
 }
 
-.summary-input {
+.issue-detail__summary-input {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -131,21 +125,20 @@ a.button {
   background: transparent;
 }
 
-.summary-input:hover,
-.summary-input:focus {
+.issue-detail__summary-input:hover,
+.issue-detail__summary-input:focus {
   border-color: var(--border-button);
   background: var(--bg-panel);
 }
 
-select.pill {
+.pill--select {
   border: none;
   appearance: none;
   font-family: inherit;
   cursor: pointer;
 }
 
-.fields select,
-.fields input {
+.issue-detail__control {
   font-size: var(--text-md);
   font-family: inherit;
   padding: 2px var(--space-1);
@@ -160,7 +153,7 @@ select.pill {
   margin-top: 0;
 }
 
-.markdown-editor textarea {
+.markdown-editor__textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -170,15 +163,15 @@ select.pill {
   margin-bottom: var(--space-2);
 }
 
-.tabs {
+.markdown-editor__tabs {
   display: flex;
   gap: var(--space-1);
   margin-bottom: var(--space-2);
 }
 
-.tabs button.active {
+.markdown-editor__tab--active {
   background: var(--brand);
-  color: #ffffff;
+  color: var(--text-on-brand);
   border-color: var(--brand);
 }
 
@@ -186,12 +179,12 @@ select.pill {
   border-collapse: collapse;
 }
 
-.history td {
+.history__cell {
   padding: var(--space-1) var(--space-3) var(--space-1) 0;
   border-bottom: 1px solid var(--border-row);
 }
 
-.history-summary {
+.history__cell--summary {
   color: var(--text-muted);
 }
 
@@ -202,16 +195,16 @@ select.pill {
   margin: 0 calc(-1 * var(--space-2));
 }
 
-.attachments.dragging {
+.attachments--dragging {
   border-color: var(--brand);
   background: var(--bg-row);
 }
 
-.attachment-table {
+.attachments__table {
   border-collapse: collapse;
 }
 
-.attachment-table td {
+.attachments__cell {
   padding: var(--space-1) var(--space-3) var(--space-1) 0;
   border-bottom: 1px solid var(--border-row);
 }
@@ -222,22 +215,22 @@ select.pill {
   padding: 0;
 }
 
-.comments li {
+.comments__item {
   border-top: 1px solid var(--border-row);
   padding: var(--space-2) 0;
 }
 
-.comment-head {
+.comments__head {
   display: flex;
   gap: var(--space-3);
   margin-bottom: var(--space-1);
 }
 
-.comment-author {
+.comments__author {
   font-weight: 600;
 }
 
-section textarea {
+.comments__textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -255,14 +248,12 @@ section textarea {
   padding: var(--space-6);
 }
 
-.issue-form label {
+.issue-form__field {
   display: block;
   margin-bottom: var(--space-3);
 }
 
-.issue-form input,
-.issue-form select,
-.issue-form textarea {
+.issue-form__control {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -290,41 +281,42 @@ section textarea {
   padding: var(--space-6);
 }
 
-.issue-head {
+.issue-detail__head {
   display: flex;
   gap: var(--space-3);
   align-items: center;
   color: var(--text-muted);
 }
 
-.issue-key {
+.issue-detail__key {
   font-weight: 600;
 }
 
-.head-action {
+.issue-detail__action {
   margin-left: auto;
 }
 
-.summary-grid {
+.summary__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: start;
 }
 
-.summary-table tbody tr {
+.summary__row {
   cursor: default;
 }
 
-.summary-table tbody tr:hover td {
+.summary__row:hover .issue-table__cell {
   background: var(--bg-row);
 }
 
-.summary-table .num {
+.issue-table__cell--num,
+.issue-table__header--num {
   text-align: right;
 }
 
-.summary-table .total td {
+.summary__row--total .issue-table__cell {
   font-weight: 600;
   background: var(--bg-panel);
 }
@@ -333,7 +325,7 @@ section textarea {
   max-width: 960px;
 }
 
-.wiki-form textarea {
+.wiki-form__textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -343,7 +335,7 @@ section textarea {
   margin-bottom: var(--space-3);
 }
 
-.toolbar input[type="month"] {
+.summary__month-input {
   font-size: var(--text-md);
   padding: var(--space-1) var(--space-2);
 }
@@ -354,39 +346,33 @@ section textarea {
   border-radius: var(--radius-pill);
   color: var(--status-text);
   font-size: var(--text-sm);
-  line-height: 22px;
+  line-height: 24px;
 }
 
-.status-open {
+.pill--open {
   background: var(--status-open);
 }
-.status-in_progress {
+.pill--in-progress {
   background: var(--status-in-progress);
 }
-.status-resolved {
+.pill--resolved {
   background: var(--status-resolved);
 }
-.status-closed {
+.pill--closed {
   background: var(--status-closed);
 }
 
-.fields {
+.issue-detail__fields {
   display: grid;
   grid-template-columns: 6em 1fr 6em 1fr;
   gap: var(--space-2) var(--space-3);
   margin: var(--space-4) 0;
 }
 
-.fields dt {
+.issue-detail__term {
   color: var(--text-muted);
 }
 
-.fields dd {
-  margin: 0;
-}
-
-.description {
-  font-family: inherit;
-  white-space: pre-wrap;
+.issue-detail__desc {
   margin: 0;
 }

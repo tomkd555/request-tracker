@@ -2,9 +2,9 @@ import type { Issue } from "../../shared/types";
 import { groupByParent } from "../issues/groupByParent";
 
 export type Tone = "normal" | "overdue" | "muted";
-export type GanttRow = { key: string; summary: string; depth: 0 | 1; startCol: number; span: number; tone: Tone };
-export type GanttLayout = { days: string[]; rows: GanttRow[]; todayCol: number | null };
-export type DateRange = { start: string; end: string }; // YYYY-MM-DD, inclusive
+export interface GanttRow { key: string; summary: string; depth: 0 | 1; startCol: number; span: number; tone: Tone }
+export interface GanttLayout { days: string[]; rows: GanttRow[]; todayCol: number | null }
+export interface DateRange { start: string; end: string } // YYYY-MM-DD, inclusive
 
 const pad = (n: number): string => String(n).padStart(2, "0");
 export const ymd = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

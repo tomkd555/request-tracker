@@ -55,18 +55,18 @@ export function IssueCreate({ parentKey }: { parentKey: string | null }): React.
   return (
     <form className="issue-form" onSubmit={submit}>
       <h1>{parentKey ? "子課題の追加" : "課題の追加"}</h1>
-      <label>
+      <label className="issue-form__field">
         件名
-        <input value={summary} onChange={(e) => setSummary(e.target.value)} required autoFocus />
+        <input className="issue-form__control" value={summary} onChange={(e) => setSummary(e.target.value)} required autoFocus />
       </label>
-      <label>
+      <label className="issue-form__field">
         詳細
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} />
+        <textarea className="issue-form__control" value={description} onChange={(e) => setDescription(e.target.value)} rows={8} />
       </label>
       <div className="form-row">
-        <label>
+        <label className="issue-form__field">
           優先度
-          <select value={priority} onChange={(e) => setPriority(e.target.value as IssuePriority)}>
+          <select className="issue-form__control" value={priority} onChange={(e) => setPriority(e.target.value as IssuePriority)}>
             {ISSUE_PRIORITIES.map((p) => (
               <option key={p} value={p}>
                 {PRIORITY_LABEL[p]}
@@ -74,9 +74,9 @@ export function IssueCreate({ parentKey }: { parentKey: string | null }): React.
             ))}
           </select>
         </label>
-        <label>
+        <label className="issue-form__field">
           担当者
-          <select value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+          <select className="issue-form__control" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
             <option value="">未設定</option>
             {users.map((u) => (
               <option key={u.username} value={u.username}>
@@ -85,21 +85,21 @@ export function IssueCreate({ parentKey }: { parentKey: string | null }): React.
             ))}
           </select>
         </label>
-        <label>
+        <label className="issue-form__field">
           開始日
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <input className="issue-form__control" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </label>
-        <label>
+        <label className="issue-form__field">
           期限日
-          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <input className="issue-form__control" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </label>
       </div>
-      <label>
+      <label className="issue-form__field">
         親課題
         {presetParent ? (
-          <input value={`${presetParent.key} ${presetParent.summary}`} readOnly />
+          <input className="issue-form__control" value={`${presetParent.key} ${presetParent.summary}`} readOnly />
         ) : (
-          <select value={parent} onChange={(e) => setParent(e.target.value)}>
+          <select className="issue-form__control" value={parent} onChange={(e) => setParent(e.target.value)}>
             <option value="">なし</option>
             {parents.map((p) => (
               <option key={p.key} value={p.key}>
@@ -109,7 +109,7 @@ export function IssueCreate({ parentKey }: { parentKey: string | null }): React.
           </select>
         )}
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="text--error">{error}</p>}
       <div className="form-actions">
         <button type="submit" disabled={busy || summary.trim() === ""}>
           追加

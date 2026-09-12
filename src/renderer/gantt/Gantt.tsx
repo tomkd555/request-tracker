@@ -27,8 +27,8 @@ export function Gantt(): React.JSX.Element {
 
   return (
     <div>
-      <div className="toolbar">
-        <h1>ガントチャート</h1>
+      <header className="toolbar">
+        <h1 className="toolbar__heading">ガントチャート</h1>
         <div className="form-actions">
           <button type="button" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
             前月
@@ -39,32 +39,43 @@ export function Gantt(): React.JSX.Element {
           <button type="button" onClick={() => setMonth((m) => shiftMonth(m, 1))}>
             次月
           </button>
-          <span className="gantt-month">{month.replace("-", "/")}</span>
+          <span className="gantt__month">{month.replace("-", "/")}</span>
         </div>
-      </div>
+      </header>
       <FilterBar filter={filter} users={users} onChange={setFilter} />
-      <div className="gantt-scroll">
+      <div className="gantt__scroll">
         <div className="gantt" style={{ width: gridWidth, gridTemplateColumns: `${LABEL_PX}px repeat(${days.length}, ${DAY_PX}px)` }}>
-          <div className="gantt-corner">件名</div>
+          <div className="gantt__corner">件名</div>
           {days.map((d, i) => (
-            <div key={d} className={`gantt-day ${isWeekend(d) ? "weekend" : ""} ${i === todayCol ? "today" : ""}`}>
-              {d.slice(8) === "01" || i === 0 ? <span className="gantt-month-label">{d.slice(5, 7)}/</span> : null}
-              {Number(d.slice(8))}
+            <div
+              key={d}
+              className={`gantt__day${isWeekend(d) ? " gantt__day--weekend" : ""}${i === todayCol ? " gantt__day--today" : ""}`}
+            >
+              {d.slice(8) === "01" || i === 0 ? <span className="gantt__month-label">{Number(d.slice(5, 7))}/</span> : null}
+              <span>{Number(d.slice(8))}</span>
             </div>
           ))}
           {rows.map((r) => (
-            <div key={r.key} className="gantt-row" style={{ display: "contents" }} onClick={() => navigate(`/issues/${r.key}`)}>
-              <div className={`gantt-label depth-${r.depth}`}>
-                <span className="col-key">{r.key}</span> {r.summary}
+            <div key={r.key} className="gantt__row" style={{ display: "contents" }} onClick={() => navigate(`/issues/${r.key}`)}>
+              <div className={`gantt__label${r.depth === 1 ? " gantt__label--child" : ""}`}>
+                <span className="gantt__key">{r.key}</span> {r.summary}
               </div>
               {days.map((d, i) => (
-                <div key={d} className={`gantt-cell ${isWeekend(d) ? "weekend" : ""} ${i === todayCol ? "today" : ""}`}>
-                  {i === r.startCol && <div className={`gantt-bar tone-${r.tone}`} style={{ width: r.span * DAY_PX - 4 }} />}
+                <div
+                  key={d}
+                  className={`gantt__cell${isWeekend(d) ? " gantt__cell--weekend" : ""}${i === todayCol ? " gantt__cell--today" : ""}`}
+                >
+                  {i === r.startCol && (
+                    <div
+                      className={`gantt__bar${r.tone !== "normal" ? ` gantt__bar--${r.tone}` : ""}`}
+                      style={{ width: r.span * DAY_PX - 4 }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
           ))}
-          {rows.length === 0 && <div className="gantt-empty">期限日のある課題はありません</div>}
+          {rows.length === 0 && <div className="gantt__empty">期限日のある課題はありません</div>}
         </div>
       </div>
     </div>

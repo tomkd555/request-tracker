@@ -1,7 +1,7 @@
 import type { Issue, IssueStatus } from "../../shared/types";
 
-export type Count = { key: string; count: number };
-export type MonthlyCounts = { month: string; total: number; byReporter: Count[]; byAssignee: Count[]; byStatus: Count[] };
+export interface Count { key: string; count: number }
+export interface MonthlyCounts { month: string; total: number; byReporter: Count[]; byAssignee: Count[]; byStatus: Count[] }
 
 /** "YYYY-MM" of an ISO timestamp in local time. */
 export function monthOf(iso: string): string {

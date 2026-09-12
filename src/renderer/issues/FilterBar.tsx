@@ -21,24 +21,26 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
   );
   return (
     <div className="filter-bar">
-      <span className="filter-label">状態</span>
+      <span className="filter-bar__label">状態</span>
       {ISSUE_STATUSES.map((s) => (
-        <label key={s} className="filter-check">
+        <label key={s} className="filter-bar__check">
           <input type="checkbox" checked={filter.statuses.includes(s)} onChange={() => toggleStatus(s)} />
           {STATUS_LABEL[s]}
         </label>
       ))}
-      <label>
+      <label className="filter-bar__field">
         担当者
         {userSelect(filter.assignee, (v) => onChange({ ...filter, assignee: v }))}
       </label>
-      <label>
+      <label className="filter-bar__field">
         登録者
         {userSelect(filter.reporter, (v) => onChange({ ...filter, reporter: v }))}
       </label>
       <input
         type="search"
+        className="filter-bar__search"
         placeholder="キーワード"
+        aria-label="キーワード"
         value={filter.keyword}
         onChange={(e) => onChange({ ...filter, keyword: e.target.value })}
       />

@@ -333,10 +333,10 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 
 **Acceptance criteria:**
 - [ ] The user reviews each screen next to its Backlog counterpart and accepts it
-- [ ] `grep -rE "#[0-9a-fA-F]{3,6}\b" src/renderer --include=*.css --include=*.tsx` matches lines in `tokens.css` only
+- [x] `grep -rE "#[0-9a-fA-F]{3,6}\b" src/renderer --include=*.css --include=*.tsx` matches lines in `tokens.css` only
 
 **Verification:**
-- [ ] Build succeeds: `npm run build`
+- [x] Build succeeds: `npm run build`
 - [ ] Manual check: screen-by-screen review with the user
 
 **Dependencies:** Tasks 4–16

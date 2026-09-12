@@ -24,7 +24,6 @@ export function FirstLaunch({ step, onDone }: Props): React.JSX.Element {
       {step === "folder" && (
         <section>
           <h2>共有フォルダ</h2>
-          <p>課題を保存する共有フォルダを選んでください。</p>
           <button
             onClick={() =>
               run(async () => {
@@ -39,10 +38,9 @@ export function FirstLaunch({ step, onDone }: Props): React.JSX.Element {
       {step === "month" && (
         <section>
           <h2>年度の開始月</h2>
-          <p>課題キーの年度を決める月です。</p>
-          <label>
+          <label className="first-launch__label">
             開始月
-            <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+            <select className="first-launch__field" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m}>
                   {m} 月
@@ -56,17 +54,16 @@ export function FirstLaunch({ step, onDone }: Props): React.JSX.Element {
       {step === "name" && (
         <section>
           <h2>表示名</h2>
-          <p>課題やコメントに表示される名前です。</p>
-          <label>
+          <label className="first-launch__label">
             表示名
-            <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <input className="first-launch__field" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </label>
           <button disabled={name.trim() === ""} onClick={() => run(() => window.api.users.register(name))}>
             登録
           </button>
         </section>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="text--error">{error}</p>}
     </div>
   );
 }

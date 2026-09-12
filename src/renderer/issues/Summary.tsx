@@ -25,23 +25,23 @@ export function Summary(): React.JSX.Element {
   };
 
   const table = (title: string, rows: Count[], label: (k: string) => string): React.JSX.Element => (
-    <table className="issue-table summary-table">
+    <table className="issue-table">
       <thead>
         <tr>
-          <th>{title}</th>
-          <th className="num">件数</th>
+          <th className="issue-table__header">{title}</th>
+          <th className="issue-table__header issue-table__header--num">件数</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((r) => (
-          <tr key={r.key}>
-            <td>{label(r.key)}</td>
-            <td className="num">{r.count}</td>
+          <tr key={r.key} className="summary__row">
+            <td className="issue-table__cell">{label(r.key)}</td>
+            <td className="issue-table__cell issue-table__cell--num">{r.count}</td>
           </tr>
         ))}
-        <tr className="total">
-          <td>合計</td>
-          <td className="num">{counts.total}</td>
+        <tr className="summary__row summary__row--total">
+          <td className="issue-table__cell">合計</td>
+          <td className="issue-table__cell issue-table__cell--num">{counts.total}</td>
         </tr>
       </tbody>
     </table>
@@ -49,18 +49,17 @@ export function Summary(): React.JSX.Element {
 
   return (
     <div>
-      <div className="toolbar">
-        <h1>集計</h1>
+      <header className="toolbar">
+        <h1 className="toolbar__heading">集計</h1>
         <div className="form-actions">
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          <input type="month" className="summary__month-input" aria-label="対象月" value={month} onChange={(e) => setMonth(e.target.value)} />
           <button type="button" onClick={() => void exportCsv()}>
             CSV に出力
           </button>
         </div>
-      </div>
-      {message && <p className="muted">{message}</p>}
-      <p className="muted">{month} に登録した課題</p>
-      <div className="summary-grid">
+      </header>
+      {message && <p className="text--muted">{message}</p>}
+      <div className="summary__grid">
         {table("登録者", counts.byReporter, user)}
         {table("担当者", counts.byAssignee, (k) => (k === "" ? "未設定" : user(k)))}
         {table("状態", counts.byStatus, (k) => status(k as IssueStatus))}

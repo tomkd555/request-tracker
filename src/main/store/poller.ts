@@ -60,12 +60,12 @@ export function diff(before: Snapshot, after: Snapshot): ChangeEvent[] {
   return events;
 }
 
-export type PollerOptions = {
+export interface PollerOptions {
   getLayout(): Layout | null;
   intervalMs: number;
   onChange(events: ChangeEvent[]): void;
   log?: (message: string, error: unknown) => void;
-};
+}
 
 // ponytail: full rescan every cycle; switch to per-directory mtimes if the folder grows past a few thousand files
 export function startPoller(opts: PollerOptions): () => void {

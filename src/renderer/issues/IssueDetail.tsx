@@ -7,7 +7,7 @@ import { Attachments } from "./Attachments";
 import { Comments } from "./Comments";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
 import { HistoryList } from "./HistoryList";
-import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL } from "./labels";
+import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
 import { useIssues } from "./useIssues";
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
@@ -16,7 +16,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const issue = byKey.get(issueKey);
-  if (!loaded) return <div className="loading">読み込み中</div>;
+  if (!loaded) return <div className="text--loading">読み込み中</div>;
   if (!issue) return <p>課題 {issueKey} は見つかりません。</p>;
   const parent = issue.parentKey ? byKey.get(issue.parentKey) : undefined;
   const children = [...byKey.values()].filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
@@ -53,49 +53,58 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
 
   return (
     <div className="issue-detail">
-      <div className="issue-head">
-        <span className="issue-key">{issue.key}</span>
+      <div className="issue-detail__head">
+        <span className="issue-detail__key">{issue.key}</span>
         <SelectField
-          className={`pill status-${issue.status}`}
+          className={`${statusClass(issue.status)} pill--select`}
+          ariaLabel="状態"
           value={issue.status}
           options={ISSUE_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
           onSave={(status) => save({ status })}
         />
-        <button type="button" className="head-action" onClick={() => void remove()}>
+        <button type="button" className="issue-detail__action" onClick={() => void remove()}>
           削除
         </button>
       </div>
-      <TextField className="summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
-      {error && <p className="error">{error}</p>}
-      <dl className="fields">
-        <dt>優先度</dt>
-        <dd>
+      <TextField className="issue-detail__summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
+      {error && <p className="text--error">{error}</p>}
+      <dl className="issue-detail__fields">
+        <dt className="issue-detail__term">優先度</dt>
+        <dd className="issue-detail__desc">
           <SelectField
+            className="issue-detail__control"
+            ariaLabel="優先度"
             value={issue.priority}
             options={ISSUE_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
             onSave={(priority) => save({ priority })}
           />
         </dd>
-        <dt>担当者</dt>
-        <dd>
-          <SelectField value={issue.assignee ?? ""} options={userOptions} onSave={(v) => save({ assignee: v || null })} />
+        <dt className="issue-detail__term">担当者</dt>
+        <dd className="issue-detail__desc">
+          <SelectField
+            className="issue-detail__control"
+            ariaLabel="担当者"
+            value={issue.assignee ?? ""}
+            options={userOptions}
+            onSave={(v) => save({ assignee: v || null })}
+          />
         </dd>
-        <dt>開始日</dt>
-        <dd>
-          <DateField value={issue.startDate} onSave={(startDate) => save({ startDate })} />
+        <dt className="issue-detail__term">開始日</dt>
+        <dd className="issue-detail__desc">
+          <DateField className="issue-detail__control" ariaLabel="開始日" value={issue.startDate} onSave={(startDate) => save({ startDate })} />
         </dd>
-        <dt>期限日</dt>
-        <dd>
-          <DateField value={issue.dueDate} onSave={(dueDate) => save({ dueDate })} />
+        <dt className="issue-detail__term">期限日</dt>
+        <dd className="issue-detail__desc">
+          <DateField className="issue-detail__control" ariaLabel="期限日" value={issue.dueDate} onSave={(dueDate) => save({ dueDate })} />
         </dd>
-        <dt>登録者</dt>
-        <dd>{displayNameOf(users, issue.reporter)}</dd>
-        <dt>親課題</dt>
-        <dd>{parent ? <a href={`#/issues/${parent.key}`}>{parent.key} {parent.summary}</a> : "なし"}</dd>
-        <dt>登録日</dt>
-        <dd>{formatDateTime(issue.createdAt)}</dd>
-        <dt>更新日</dt>
-        <dd>
+        <dt className="issue-detail__term">登録者</dt>
+        <dd className="issue-detail__desc">{displayNameOf(users, issue.reporter)}</dd>
+        <dt className="issue-detail__term">親課題</dt>
+        <dd className="issue-detail__desc">{parent ? <a href={`#/issues/${parent.key}`}>{parent.key} {parent.summary}</a> : "なし"}</dd>
+        <dt className="issue-detail__term">登録日</dt>
+        <dd className="issue-detail__desc">{formatDateTime(issue.createdAt)}</dd>
+        <dt className="issue-detail__term">更新日</dt>
+        <dd className="issue-detail__desc">
           {formatDateTime(issue.updatedAt)} {displayNameOf(users, issue.updatedBy)}
         </dd>
       </dl>
@@ -107,31 +116,31 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
         <section>
           <div className="section-head">
             <h2>子課題</h2>
-            <a className="button" href={`#/issues/new?parent=${issue.key}`}>
+            <a className="link-button" href={`#/issues/new?parent=${issue.key}`}>
               子課題を追加
             </a>
           </div>
           {children.length === 0 ? (
-            <p className="muted">子課題はありません</p>
+            <p className="text--muted">子課題はありません</p>
           ) : (
             <table className="issue-table">
               <thead>
                 <tr>
-                  <th>キー</th>
-                  <th>件名</th>
-                  <th>状態</th>
-                  <th>担当者</th>
+                  <th className="issue-table__header">キー</th>
+                  <th className="issue-table__header">件名</th>
+                  <th className="issue-table__header">状態</th>
+                  <th className="issue-table__header">担当者</th>
                 </tr>
               </thead>
               <tbody>
                 {children.map((c) => (
-                  <tr key={c.key} onClick={() => (window.location.hash = `/issues/${c.key}`)}>
-                    <td className="col-key">{c.key}</td>
-                    <td>{c.summary}</td>
-                    <td>
-                      <span className={`pill status-${c.status}`}>{STATUS_LABEL[c.status]}</span>
+                  <tr key={c.key} className="issue-table__row" onClick={() => (window.location.hash = `/issues/${c.key}`)}>
+                    <td className="issue-table__cell issue-table__cell--key">{c.key}</td>
+                    <td className="issue-table__cell">{c.summary}</td>
+                    <td className="issue-table__cell">
+                      <span className={statusClass(c.status)}>{STATUS_LABEL[c.status]}</span>
                     </td>
-                    <td>{displayNameOf(users, c.assignee)}</td>
+                    <td className="issue-table__cell">{displayNameOf(users, c.assignee)}</td>
                   </tr>
                 ))}
               </tbody>

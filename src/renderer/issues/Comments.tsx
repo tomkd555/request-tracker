@@ -40,22 +40,22 @@ export function Comments({ issueKey }: { issueKey: string }): React.JSX.Element 
     <section>
       <h2>コメント</h2>
       {items.length === 0 ? (
-        <p className="muted">コメントはありません</p>
+        <p className="text--muted">コメントはありません</p>
       ) : (
         <ul className="comments">
           {items.map((c) => (
-            <li key={c.id}>
-              <div className="comment-head">
-                <span className="comment-author">{displayNameOf(users, c.author)}</span>
-                <span className="muted">{formatDateTime(c.createdAt)}</span>
+            <li key={c.id} className="comments__item">
+              <div className="comments__head">
+                <span className="comments__author">{displayNameOf(users, c.author)}</span>
+                <span className="text--muted">{formatDateTime(c.createdAt)}</span>
               </div>
               <Markdown source={c.body} />
             </li>
           ))}
         </ul>
       )}
-      <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} placeholder="コメントを書く" />
-      {error && <p className="error">{error}</p>}
+      <textarea className="comments__textarea" value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} placeholder="コメントを書く" />
+      {error && <p className="text--error">{error}</p>}
       <div className="form-actions">
         <button type="button" disabled={draft.trim() === ""} onClick={() => void post()}>
           投稿

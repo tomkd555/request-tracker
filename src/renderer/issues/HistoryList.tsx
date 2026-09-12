@@ -19,16 +19,16 @@ export function HistoryList({ issueKey, version, onRestore }: Props): React.JSX.
     };
   }, [issueKey, version]);
 
-  if (items.length === 0) return <p className="muted">履歴はありません</p>;
+  if (items.length === 0) return <p className="text--muted">履歴はありません</p>;
   return (
     <table className="history">
       <tbody>
         {items.map((h) => (
           <tr key={h.updatedAt}>
-            <td>{formatDateTime(h.updatedAt)}</td>
-            <td>{displayNameOf(users, h.updatedBy)}</td>
-            <td className="history-summary">{h.summary}</td>
-            <td>
+            <td className="history__cell">{formatDateTime(h.updatedAt)}</td>
+            <td className="history__cell">{displayNameOf(users, h.updatedBy)}</td>
+            <td className="history__cell history__cell--summary">{h.summary}</td>
+            <td className="history__cell">
               <button type="button" onClick={() => onRestore(h)}>
                 戻す
               </button>

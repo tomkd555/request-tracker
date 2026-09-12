@@ -63,12 +63,12 @@ tests/                   vitest; mirrors src/ paths (tests/main/store/…, tests
 // src/renderer/issues/filterIssues.ts
 import type { Issue, IssueStatus } from "../../shared/types";
 
-export type IssueFilter = {
+export interface IssueFilter {
   statuses: IssueStatus[];
   assignee: string | null;
   reporter: string | null;
   keyword: string;
-};
+}
 
 export function filterIssues(issues: Issue[], filter: IssueFilter): Issue[] {
   const kw = filter.keyword.trim().toLowerCase();
@@ -85,7 +85,8 @@ export function filterIssues(issues: Issue[], filter: IssueFilter): Issue[] {
 - Prettier defaults (2 spaces, double quotes, semicolons, trailing commas).
 - Named exports. One React component per file, function components, hooks prefixed `use`.
 - Pure logic (filters, counts, layout) is a plain function in its own file so vitest can import it without React.
-- Record types in `src/shared/types.ts` are the schema. Adding a field means editing that file and the module spec.
+- Record types in `src/shared/types.ts` are the schema, declared as `interface`; unions and aliases stay `type`. Adding a field means editing that file and the module spec. `any` is never used.
+- CSS class names follow BEM (`block__element--modifier`); colours live only in `tokens.css`. Body text is 16px and nothing goes below 14px, except an ASCII-only label of at most 24 characters, which may go down to 12px.
 - IPC channel names are `collection:verb` (`issues:put`, `store:changed`).
 - Timestamps are ISO 8601 strings with timezone; day-only dates are `YYYY-MM-DD`.
 - Identifiers in code are English. User-visible strings are Japanese and live in the component that renders them.

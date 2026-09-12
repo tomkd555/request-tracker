@@ -40,7 +40,7 @@ export function App(): React.JSX.Element {
     setBoot((b) => (b ? { ...b, users } : b));
   }, []);
 
-  if (boot === null) return <div className="loading">読み込み中</div>;
+  if (boot === null) return <div className="text--loading">読み込み中</div>;
   if (boot.step !== "ready" || boot.me === null || boot.project === null) {
     return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} onDone={load} />;
   }
@@ -73,7 +73,7 @@ function Shell(): React.JSX.Element {
   return (
     <div className="shell">
       <Nav current={route.path} />
-      <main className="content">
+      <main className="shell__content">
         <Screen route={route} />
       </main>
     </div>

@@ -10,7 +10,7 @@ import { initProject, readProject } from "./project";
 import { registerUser, usersCollection } from "./users";
 import { createPage, wikiCollection } from "./wiki";
 
-export type StoreDeps = {
+export interface StoreDeps {
   userDataDir: string;
   username: string;
   /** Opens the folder picker; null when cancelled. */
@@ -21,7 +21,7 @@ export type StoreDeps = {
   openPath(path: string): Promise<string>;
   /** Save dialog plus write; false when cancelled. */
   saveTextFile(defaultName: string, text: string): Promise<boolean>;
-};
+}
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
 export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null } {

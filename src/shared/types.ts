@@ -1,13 +1,13 @@
 // Record types stored on the shared folder. This file is the schema.
 
-export type Project = { fiscalYearStartMonth: number; createdAt: string }; // 1–12, default 4
+export interface Project { fiscalYearStartMonth: number; createdAt: string } // 1–12, default 4
 
-export type User = { username: string; displayName: string; createdAt: string };
+export interface User { username: string; displayName: string; createdAt: string }
 
 export type IssueStatus = "open" | "in_progress" | "resolved" | "closed";
 export type IssuePriority = "high" | "normal" | "low";
 
-export type Issue = {
+export interface Issue {
   key: string; // "26-0012": fiscal year (two digits) - sequence within that year (four digits)
   summary: string;
   description: string; // Markdown
@@ -21,17 +21,17 @@ export type Issue = {
   createdAt: string;
   updatedAt: string;
   updatedBy: string;
-};
+}
 
-export type Comment = {
+export interface Comment {
   id: string; // `${createdAt file stamp}-${author}`
   issueKey: string;
   author: string;
   body: string; // Markdown
   createdAt: string;
-};
+}
 
-export type WikiPage = {
+export interface WikiPage {
   id: string; // file stamp at creation
   title: string;
   body: string; // Markdown
@@ -39,10 +39,10 @@ export type WikiPage = {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
-};
+}
 
 // Derived from stat, never stored; size is null for a folder.
-export type Attachment = { name: string; kind: "file" | "folder"; size: number | null; addedAt: string };
+export interface Attachment { name: string; kind: "file" | "folder"; size: number | null; addedAt: string }
 
 export const ISSUE_STATUSES: IssueStatus[] = ["open", "in_progress", "resolved", "closed"];
 export const ISSUE_PRIORITIES: IssuePriority[] = ["high", "normal", "low"];

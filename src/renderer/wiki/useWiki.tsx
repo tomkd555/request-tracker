@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { WikiPage } from "../../shared/types";
 
-export type WikiState = {
+export interface WikiState {
   pages: WikiPage[];
   byId: Map<string, WikiPage>;
   loaded: boolean;
   reload(): Promise<void>;
   refreshOne(id: string): Promise<void>;
-};
+}
 
 const WikiContext = createContext<WikiState | null>(null);
 

@@ -1,6 +1,6 @@
 import type { Issue } from "../../shared/types";
 
-export type IssueRow = { issue: Issue; depth: 0 | 1 };
+export interface IssueRow { issue: Issue; depth: 0 | 1 }
 
 const desc = (a: Issue, b: Issue): number => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0);
 const asc = (a: Issue, b: Issue): number => -desc(a, b);

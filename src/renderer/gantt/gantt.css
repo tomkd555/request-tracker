@@ -1,9 +1,9 @@
-.gantt-month {
+.gantt__month {
   font-weight: 600;
   margin-left: var(--space-2);
 }
 
-.gantt-scroll {
+.gantt__scroll {
   overflow-x: auto;
   background: var(--bg-panel);
   border: 1px solid var(--border-panel);
@@ -12,11 +12,11 @@
 
 .gantt {
   display: grid;
-  grid-auto-rows: 36px;
+  grid-auto-rows: 40px;
 }
 
-.gantt-corner,
-.gantt-day {
+.gantt__corner,
+.gantt__day {
   position: sticky;
   top: 0;
   background: var(--bg-panel);
@@ -28,18 +28,28 @@
   justify-content: center;
 }
 
-.gantt-corner {
+.gantt__corner {
   justify-content: flex-start;
   padding-left: var(--space-3);
   font-weight: 600;
 }
 
-.gantt-month-label {
-  color: var(--text-muted);
-  margin-right: 1px;
+.gantt__day {
+  flex-direction: column;
+  line-height: 1.1;
 }
 
-.gantt-label {
+.gantt__month-label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.gantt__key {
+  color: var(--link);
+  white-space: nowrap;
+}
+
+.gantt__label {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -51,40 +61,40 @@
   cursor: pointer;
 }
 
-.gantt-label.depth-1 {
+.gantt__label--child {
   padding-left: calc(var(--space-3) + 24px);
 }
 
-.gantt-label.depth-1::before {
+.gantt__label--child::before {
   content: "└";
   color: var(--text-muted);
 }
 
-.gantt-cell {
+.gantt__cell {
   position: relative;
   border-bottom: 1px solid var(--border-row);
   border-left: 1px solid var(--gantt-grid);
   cursor: pointer;
 }
 
-.gantt-cell.weekend,
-.gantt-day.weekend {
+.gantt__cell--weekend,
+.gantt__day--weekend {
   background: var(--gantt-weekend);
 }
 
-.gantt-cell.today,
-.gantt-day.today {
+.gantt__cell--today,
+.gantt__day--today {
   background: var(--gantt-today);
 }
 
-.gantt-row:hover .gantt-label,
-.gantt-row:hover .gantt-cell {
+.gantt__row:hover .gantt__label,
+.gantt__row:hover .gantt__cell {
   background: var(--bg-row-selected);
 }
 
-.gantt-bar {
+.gantt__bar {
   position: absolute;
-  top: 8px;
+  top: 10px;
   left: 2px;
   height: 20px;
   border-radius: var(--radius);
@@ -92,15 +102,15 @@
   z-index: 1;
 }
 
-.gantt-bar.tone-overdue {
+.gantt__bar--overdue {
   background: var(--gantt-bar-overdue);
 }
 
-.gantt-bar.tone-muted {
+.gantt__bar--muted {
   background: var(--gantt-bar-muted);
 }
 
-.gantt-empty {
+.gantt__empty {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;

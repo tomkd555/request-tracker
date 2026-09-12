@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { Project, User } from "../../shared/types";
 
-export type Session = { me: User; users: User[]; project: Project; refreshUsers(): Promise<void> };
+export interface Session { me: User; users: User[]; project: Project; refreshUsers(): Promise<void> }
 
 export const SessionContext = createContext<Session | null>(null);
 

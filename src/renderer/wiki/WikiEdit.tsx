@@ -15,7 +15,7 @@ export function WikiEdit({ id }: { id: string | null }): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (id !== null && !loaded) return <div className="loading">読み込み中</div>;
+  if (id !== null && !loaded) return <div className="text--loading">読み込み中</div>;
   if (id !== null && !existing) return <p>ページは見つかりません。</p>;
 
   const save = async (): Promise<void> => {
@@ -49,26 +49,26 @@ export function WikiEdit({ id }: { id: string | null }): React.JSX.Element {
       }}
     >
       <h1>{existing ? "ページの編集" : "新規ページ"}</h1>
-      <label>
+      <label className="issue-form__field">
         タイトル
-        <input value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
+        <input className="issue-form__control" value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
       </label>
-      <div className="tabs">
-        <button type="button" className={tab === "edit" ? "active" : ""} onClick={() => setTab("edit")}>
+      <div className="markdown-editor__tabs">
+        <button type="button" className={tab === "edit" ? "markdown-editor__tab--active" : ""} onClick={() => setTab("edit")}>
           編集
         </button>
-        <button type="button" className={tab === "preview" ? "active" : ""} onClick={() => setTab("preview")}>
+        <button type="button" className={tab === "preview" ? "markdown-editor__tab--active" : ""} onClick={() => setTab("preview")}>
           プレビュー
         </button>
       </div>
       {tab === "edit" ? (
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={20} />
+        <textarea className="issue-form__control wiki-form__textarea" value={body} onChange={(e) => setBody(e.target.value)} rows={20} />
       ) : (
         <div className="markdown-view">
           <Markdown source={body} />
         </div>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="text--error">{error}</p>}
       <div className="form-actions">
         <button type="submit" disabled={busy || title.trim() === ""}>
           保存

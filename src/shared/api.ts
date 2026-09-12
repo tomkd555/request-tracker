@@ -1,9 +1,9 @@
 import type { Attachment, Comment, Issue, Project, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
-export type AttachmentRefusal = { path: string; reason: "size" | "extension" };
-export type AddAttachmentsResult = { added: string[]; refused: AttachmentRefusal[] };
-export type ChangeEvent = { collection: string; id: string };
+export interface AttachmentRefusal { path: string; reason: "size" | "extension" }
+export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
+export interface ChangeEvent { collection: string; id: string }
 
 // IPC surface from SPEC-store.md. Each group.method maps to the channel "group:method".
 export type StoreApi = {

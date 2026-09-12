@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import { writeAtomic } from "./collection";
 
-export type LocalConfig = { rootDir: string };
+export interface LocalConfig { rootDir: string }
 
 const file = (userDataDir: string): string => join(userDataDir, "config.json");
 

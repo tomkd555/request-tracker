@@ -24,6 +24,7 @@
   /* brand */
   --brand: #52987c; /* issue list: selected filter chip, count badge */
   --brand-border: #44987b; /* parent/child tree: parent row left border */
+  --text-on-brand: #ffffff; /* text on the brand colour */
 
   /* status pills (board: column dots; issue list: pills) */
   --status-open: #ed8276; /* 未対応 */
@@ -59,10 +60,10 @@
 
   /* type scale */
   --font-body: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
-  --text-sm: 13px;
-  --text-md: 14px;
-  --text-lg: 16px;
-  --text-xl: 20px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
 }
 
 html,
@@ -76,4 +77,9 @@ body {
 
 a {
   color: var(--link);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }

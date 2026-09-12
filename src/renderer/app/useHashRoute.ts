@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type Route = { path: string; query: URLSearchParams };
+export interface Route { path: string; query: URLSearchParams }
 
 export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, "") || "/issues";

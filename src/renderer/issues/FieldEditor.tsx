@@ -37,11 +37,12 @@ type SelectProps<T extends string> = {
   options: { value: T; label: string }[];
   onSave(v: T): void;
   className?: string;
+  ariaLabel?: string;
 };
 
-export function SelectField<T extends string>({ value, options, onSave, className }: SelectProps<T>): React.JSX.Element {
+export function SelectField<T extends string>({ value, options, onSave, className, ariaLabel }: SelectProps<T>): React.JSX.Element {
   return (
-    <select className={className} value={value} onChange={(e) => onSave(e.target.value as T)}>
+    <select className={className} aria-label={ariaLabel} value={value} onChange={(e) => onSave(e.target.value as T)}>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -51,8 +52,18 @@ export function SelectField<T extends string>({ value, options, onSave, classNam
   );
 }
 
-export function DateField({ value, onSave }: { value: string | null; onSave(v: string | null): void }): React.JSX.Element {
-  return <input type="date" value={value ?? ""} onChange={(e) => onSave(e.target.value || null)} />;
+type DateProps = { value: string | null; onSave(v: string | null): void; className?: string; ariaLabel?: string };
+
+export function DateField({ value, onSave, className, ariaLabel }: DateProps): React.JSX.Element {
+  return (
+    <input
+      type="date"
+      className={className}
+      aria-label={ariaLabel}
+      value={value ?? ""}
+      onChange={(e) => onSave(e.target.value || null)}
+    />
+  );
 }
 
 type TextAreaProps = { value: string; onSave(v: string): void; preview(v: string): React.ReactNode };
@@ -69,7 +80,7 @@ export function MarkdownField({ value, onSave, preview }: TextAreaProps): React.
   if (!editing) {
     return (
       <div>
-        <div className="markdown-view">{value.trim() === "" ? <span className="muted">（なし）</span> : preview(value)}</div>
+        <div className="markdown-view">{value.trim() === "" ? <span className="text--muted">（なし）</span> : preview(value)}</div>
         <button type="button" onClick={() => setEditing(true)}>
           編集
         </button>
@@ -77,17 +88,17 @@ export function MarkdownField({ value, onSave, preview }: TextAreaProps): React.
     );
   }
   return (
-    <div className="markdown-editor">
-      <div className="tabs">
-        <button type="button" className={tab === "edit" ? "active" : ""} onClick={() => setTab("edit")}>
+    <div>
+      <div className="markdown-editor__tabs">
+        <button type="button" className={tab === "edit" ? "markdown-editor__tab--active" : ""} onClick={() => setTab("edit")}>
           編集
         </button>
-        <button type="button" className={tab === "preview" ? "active" : ""} onClick={() => setTab("preview")}>
+        <button type="button" className={tab === "preview" ? "markdown-editor__tab--active" : ""} onClick={() => setTab("preview")}>
           プレビュー
         </button>
       </div>
       {tab === "edit" ? (
-        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={12} autoFocus />
+        <textarea className="markdown-editor__textarea" value={draft} onChange={(e) => setDraft(e.target.value)} rows={12} autoFocus />
       ) : (
         <div className="markdown-view">{preview(draft)}</div>
       )}
