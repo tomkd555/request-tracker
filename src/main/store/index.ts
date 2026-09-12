@@ -1,5 +1,6 @@
 import type { StoreApi } from "../../shared/api";
 import { loadConfig, saveConfig } from "./config";
+import { createIssue, issuesCollection } from "./issues";
 import { layout, type Layout } from "./paths";
 import { initProject, readProject } from "./project";
 import { registerUser, usersCollection } from "./users";
@@ -50,12 +51,16 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       list: async () => usersCollection(need()).list(),
     },
     issues: {
-      list: notImplemented("issues.list"),
-      get: notImplemented("issues.get"),
-      create: notImplemented("issues.create"),
-      put: notImplemented("issues.put"),
-      remove: notImplemented("issues.remove"),
-      history: notImplemented("issues.history"),
+      list: async () => issuesCollection(need()).list(),
+      get: async (key) => issuesCollection(need()).get(key),
+      async create(draft) {
+        const project = await readProject(need());
+        if (project === null) throw new Error("project.json is missing");
+        return createIssue(need(), project, draft);
+      },
+      put: async (issue) => issuesCollection(need()).put(issue.key, issue),
+      remove: async (key) => issuesCollection(need()).remove(key),
+      history: async (key) => issuesCollection(need()).history(key),
     },
     summary: { exportCsv: notImplemented("summary.exportCsv") },
     comments: { list: notImplemented("comments.list"), add: notImplemented("comments.add") },

@@ -1,0 +1,146 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.toolbar h1 {
+  margin: 0;
+}
+
+a.button {
+  display: inline-block;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--brand);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.issue-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+}
+
+.issue-table th {
+  text-align: left;
+  color: var(--text-table-header);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-row);
+}
+
+.issue-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-row);
+  background: var(--bg-row);
+}
+
+.issue-table tbody tr {
+  cursor: pointer;
+}
+
+.issue-table tbody tr:hover td {
+  background: var(--bg-row-selected);
+}
+
+.issue-form {
+  max-width: 720px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+  padding: var(--space-6);
+}
+
+.issue-form label {
+  display: block;
+  margin-bottom: var(--space-3);
+}
+
+.issue-form input,
+.issue-form select,
+.issue-form textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--space-1);
+  font-size: var(--text-md);
+  font-family: inherit;
+  padding: var(--space-1) var(--space-2);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.issue-detail {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+  padding: var(--space-6);
+}
+
+.issue-head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.issue-key {
+  font-weight: 600;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--status-text);
+  font-size: var(--text-sm);
+  line-height: 22px;
+}
+
+.status-open {
+  background: var(--status-open);
+}
+.status-in_progress {
+  background: var(--status-in-progress);
+}
+.status-resolved {
+  background: var(--status-resolved);
+}
+.status-closed {
+  background: var(--status-closed);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 6em 1fr 6em 1fr;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.fields dt {
+  color: var(--text-muted);
+}
+
+.fields dd {
+  margin: 0;
+}
+
+.description {
+  font-family: inherit;
+  white-space: pre-wrap;
+  margin: 0;
+}

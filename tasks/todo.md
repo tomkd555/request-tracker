@@ -93,14 +93,14 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `fiscalYearOf(date, startMonth)` and `allocateKey(existingKeys, yy)` as pure functions in `src/main/store/`. `issues.create(draft)` in the main process allocates the key from the union of `issues/` and `trash/issues/`, retries on `EEXIST`, creates `attachments/<KEY>/`, and returns the created record; the renderer sends the draft without a key. `useIssues()` loads the map through `window.api` (the `store:changed` patching comes in Task 8). The create form (`/issues/new`, `?parent=`) and a read-only detail screen showing every field.
 
 **Acceptance criteria:**
-- [ ] Creating on 2027-03-15 with start month 4 yields `26-0001`; the next issue is `26-0002`
-- [ ] A key whose issue sits in `trash/issues/` is never reallocated
-- [ ] The create form requires 件名 and defaults 優先度 to 中; submit opens `/issues/<key>`
-- [ ] `attachments/<KEY>/` exists after creation
+- [x] Creating on 2027-03-15 with start month 4 yields `26-0001`; the next issue is `26-0002`
+- [x] A key whose issue sits in `trash/issues/` is never reallocated
+- [x] The create form requires 件名 and defaults 優先度 to 中; submit opens `/issues/<key>`
+- [x] `attachments/<KEY>/` exists after creation
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store`
-- [ ] Manual check: create two issues, inspect the shared folder
+- [x] Tests pass: `npx vitest run tests/main/store`
+- [x] Manual check: create two issues, inspect the shared folder
 
 **Dependencies:** Task 4
 

@@ -4,8 +4,13 @@ import { nextStep, type BootStep } from "./boot";
 import { FirstLaunch } from "./FirstLaunch";
 import { Nav } from "./Nav";
 import { SessionContext } from "./UserContext";
-import { useHashRoute } from "./useHashRoute";
+import { useHashRoute, type Route } from "./useHashRoute";
+import { IssueCreate } from "../issues/IssueCreate";
+import { IssueDetail } from "../issues/IssueDetail";
+import { IssueList } from "../issues/IssueList";
+import { IssuesProvider } from "../issues/useIssues";
 import "./app.css";
+import "../issues/issues.css";
 
 type Boot = { step: BootStep; project: Project | null; me: User | null; users: User[] };
 
@@ -34,7 +39,9 @@ export function App(): React.JSX.Element {
   };
   return (
     <SessionContext.Provider value={{ me: boot.me, users: boot.users, project: boot.project, refreshUsers }}>
-      <Shell />
+      <IssuesProvider>
+        <Shell />
+      </IssuesProvider>
     </SessionContext.Provider>
   );
 }
@@ -45,16 +52,20 @@ function Shell(): React.JSX.Element {
     <div className="shell">
       <Nav current={route.path} />
       <main className="content">
-        <Screen path={route.path} />
+        <Screen route={route} />
       </main>
     </div>
   );
 }
 
-function Screen({ path }: { path: string }): React.JSX.Element {
+function Screen({ route }: { route: Route }): React.JSX.Element {
+  const { path, query } = route;
   // Placeholders; the module tasks replace each branch.
   if (path.startsWith("/wiki")) return <h1>Wiki</h1>;
   if (path.startsWith("/gantt")) return <h1>ガントチャート</h1>;
   if (path.startsWith("/summary")) return <h1>集計</h1>;
-  return <h1>課題</h1>;
+  if (path === "/issues/new") return <IssueCreate key={query.get("parent") ?? ""} parentKey={query.get("parent")} />;
+  const m = /^\/issues\/([^/]+)$/.exec(path);
+  if (m) return <IssueDetail key={m[1]} issueKey={m[1]} />;
+  return <IssueList />;
 }
