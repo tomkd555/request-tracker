@@ -373,3 +373,24 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 - [ ] All `SPEC.md` success criteria met
 - [ ] `npm run typecheck` and `npx vitest run` pass
 - [ ] Ready for distribution
+
+## Phase 5: Improvements from Backlog, Jira, ServiceNow and LMIS (2026-09-12)
+
+Plan: `~/.claude/plans/jira-serene-cherny.md` (comparison table, decisions, deferred items). One commit per item.
+
+- [x] A1 Overdue and due-soon tones on the list (`dueTone.ts`, tokens `--text-overdue`, `--text-due-soon`)
+- [x] A2 Filters: 期限, 自分の担当 / 自分が登録, keyword over description (`filterIssues` takes `today` and `me`)
+- [x] A3 Column sort with children kept under their parent (`sortIssues.ts`)
+- [x] A4 Issue keys link in Markdown (`linkIssueKeys.ts`)
+- [x] A5 Change lines merged into the comment feed (`diffVersions.ts`)
+- [x] A6 Status change together with a comment
+- [x] A7 Unseen-update dot and nav badge (localStorage per machine)
+- [x] A8 Issue list CSV (`issuesToCsv.ts`; `exportCsv(csv, defaultName)`)
+- [x] A9 複製 (`/issues/new?copy=KEY`)
+- [x] A10 Monthly counts: closed in the month
+- [x] A11 関連課題 derived from key mentions
+- [x] B3 確認して完了にする for the reporter; 確認待ち filter
+- [x] B1 種別: `Issue.category`, `Project.categories`, `/settings`, `project.put`, poller watches `project.json`
+- [ ] Declined 2026-09-12: 完了理由, 保留 status
+
+**Verification (2026-09-12, two dev instances on a scratch share):** old records without `category` load with ""; overdue cell renders `--text-overdue`; dot and badge appear; key link and 関連課題 render; status change with comment yields one change line and one comment; 確認して完了にする closes a 処理済み issue; 複製 prefills; 集計 shows 種別 and 完了 tables; a category list saved in one instance appears in the other's create form within 7 s. Still to check: the packaged exe (A7 dot after restart), the real network share.
