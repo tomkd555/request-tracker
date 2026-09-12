@@ -3,13 +3,14 @@ import { join } from "node:path";
 import type { StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalSettings } from "../../shared/types";
 import { addAttachments, assertName, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
+import { mkdirp } from "./collection";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
 import { initProject, putCategories, readProject } from "./project";
 import { registerUser, usersCollection } from "./users";
-import { createPage, wikiCollection } from "./wiki";
+import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
 
 export interface StoreDeps {
   userDataDir: string;
@@ -73,7 +74,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
     project: {
       get: async () => readProject(need()),
       init: async (month) => initProject(need(), month),
-      put: async (categories, categoryColors) => putCategories(need(), categories, categoryColors),
+      put: async (categories, categoryColors, categoryTemplates) => putCategories(need(), categories, categoryColors, categoryTemplates),
     },
     users: {
       me: async () => usersCollection(need()).get(deps.username),
@@ -114,6 +115,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         if (chosen === null || chosen.length === 0) return { added: [], refused: [] };
         return addAttachments(need(), key, chosen);
       },
+      choose: () => deps.chooseFiles(),
       async open(key, name) {
         assertName(name);
         if (isRefusedExtension(name)) throw new Error("refused-extension"); // a file placed in the folder by hand
@@ -122,19 +124,22 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       },
       async openIssueFolder(key) {
         const dir = need().attachments(key);
-        await fsp.mkdir(dir, { recursive: true });
+        await mkdirp(dir);
         const err = await deps.openPath(dir);
         if (err !== "") throw new Error(`open-failed: ${err}`);
       },
       remove: async (key, name) => removeAttachment(need(), key, name),
     },
     wiki: {
-      list: async () => wikiCollection(need()).list(),
-      get: async (id) => wikiCollection(need()).get(id),
+      list: async () => (await wikiCollection(need()).list()).map(withWikiDefaults),
+      get: async (id) => {
+        const p = await wikiCollection(need()).get(id);
+        return p === null ? null : withWikiDefaults(p);
+      },
       create: async (p) => createPage(need(), p),
-      put: async (p) => wikiCollection(need()).put(p.id, p),
-      remove: async (id) => wikiCollection(need()).remove(id),
-      history: async (id) => wikiCollection(need()).history(id),
+      put: async (p) => putPage(need(), p),
+      remove: async (id) => removePage(need(), id),
+      history: async (id) => (await wikiCollection(need()).history(id)).map(withWikiDefaults),
     },
   };
 }

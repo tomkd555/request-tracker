@@ -38,7 +38,7 @@ export function WikiEdit({ id }: { id: string | null }): React.JSX.Element {
         await refreshOne(page.id);
         navigate(`/wiki/${page.id}`);
       } else {
-        await window.api.wiki.create({ id: "", title: title.trim(), body, createdAt: now, createdBy: me.username, updatedAt: now, updatedBy: me.username });
+        await window.api.wiki.create({ id: "", title: title.trim(), body, parentId: null, note: "", createdAt: now, createdBy: me.username, updatedAt: now, updatedBy: me.username });
         await reload();
         navigate("/wiki");
       }

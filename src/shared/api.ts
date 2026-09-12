@@ -1,4 +1,4 @@
-import type { Attachment, Comment, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
+import type { Attachment, CategoryTemplate, Comment, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
@@ -16,8 +16,8 @@ export type StoreApi = {
   project: {
     get(): Promise<Project | null>;
     init(fiscalYearStartMonth: number): Promise<Project>;
-    /** Replaces the 種別 list and its colours; other fields stay as on disk. */
-    put(categories: string[], categoryColors: Record<string, string>): Promise<Project>;
+    /** Replaces the 種別 list, its colours and its templates; other fields stay as on disk. */
+    put(categories: string[], categoryColors: Record<string, string>, categoryTemplates: Record<string, CategoryTemplate>): Promise<Project>;
   };
   users: { me(): Promise<User | null>; register(displayName: string): Promise<User>; list(): Promise<User[]> };
   issues: {
@@ -33,6 +33,8 @@ export type StoreApi = {
   attachments: {
     list(key: string): Promise<Attachment[]>;
     add(key: string, paths: string[] | null): Promise<AddAttachmentsResult>;
+    /** Opens the file picker without copying; the new-issue form adds the paths once the key exists. */
+    choose(): Promise<string[] | null>;
     open(key: string, name: string): Promise<void>;
     openIssueFolder(key: string): Promise<void>;
     remove(key: string, name: string): Promise<void>;
@@ -40,8 +42,11 @@ export type StoreApi = {
   wiki: {
     list(): Promise<WikiPage[]>;
     get(id: string): Promise<WikiPage | null>;
-    create(p: WikiPage): Promise<void>;
+    /** Resolves to the page with its allocated id. */
+    create(p: WikiPage): Promise<WikiPage>;
+    /** Rejects with "cycle" when parentId is the page itself or one of its descendants. */
     put(p: WikiPage): Promise<void>;
+    /** Rejects with "has-children" while other pages name this one as their parent. */
     remove(id: string): Promise<void>;
     history(id: string): Promise<WikiPage[]>;
   };
@@ -60,6 +65,6 @@ export const API_METHODS = {
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],
   comments: ["list", "add"],
-  attachments: ["list", "add", "open", "openIssueFolder", "remove"],
+  attachments: ["list", "add", "choose", "open", "openIssueFolder", "remove"],
   wiki: ["list", "get", "create", "put", "remove", "history"],
 } as const satisfies { [G in keyof StoreApi]: readonly (keyof StoreApi[G])[] };

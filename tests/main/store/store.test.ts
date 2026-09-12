@@ -56,6 +56,12 @@ test("project.init creates project.json and every collection directory", async (
   await expect(s.project.init(13)).rejects.toThrow();
 });
 
+test("project.get on a root that does not exist reports the share as unreachable", async () => {
+  const s = store(join(shared, "missing"));
+  await s.config.chooseRoot();
+  await expect(s.project.get()).rejects.toThrow("share-unreachable");
+});
+
 test("users.me is null until register writes users/<username>.json", async () => {
   const s = store(shared);
   await s.config.chooseRoot();
@@ -155,7 +161,7 @@ test("wiki pages get stamp ids, keep history on put, and move to trash on remove
   await s.config.chooseRoot();
   await s.project.init(4);
   const at = "2026-09-12T00:00:00.000Z";
-  const page = { id: "", title: "手順", body: "a", createdAt: at, createdBy: "alice", updatedAt: at, updatedBy: "alice" };
+  const page = { id: "", title: "手順", body: "a", parentId: null, note: "", createdAt: at, createdBy: "alice", updatedAt: at, updatedBy: "alice" };
   await Promise.all([s.wiki.create(page), s.wiki.create({ ...page, title: "同時" })]);
   const list = await s.wiki.list();
   expect(list.map((p) => p.id)).toEqual(["20260912T000000000Z", "20260912T000000001Z"]);
@@ -219,10 +225,10 @@ test("records and project.json written before category existed load with default
   expect((await s.issues.list())[0].category).toBe("");
   await s.issues.put({ ...old, category: "依頼" });
   expect((await s.issues.history("26-0001"))[0].category).toBe("");
-  const p = await s.project.put([" 相談 ", "", "不具合", "相談"], {});
+  const p = await s.project.put([" 相談 ", "", "不具合", "相談"], {}, {});
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
   expect(await fsp.readdir(l.historyProject)).toHaveLength(1);
-  await expect(s.project.put(["", " "], {})).rejects.toThrow();
+  await expect(s.project.put(["", " "], {}, {})).rejects.toThrow();
 });
 
 test("config.json holding only rootDir loads with default settings; config.put validates and chooseRoot keeps the saved settings", async () => {
@@ -249,10 +255,12 @@ test("project.put keeps colours of surviving 種別 only and rejects a colour ou
   const s = store(shared);
   await s.config.chooseRoot();
   await s.project.init(4);
-  const p = await s.project.put(["相談", "不具合"], { 相談: "#FF0000", 依頼: "#00ff00" });
+  const p = await s.project.put(["相談", "不具合"], { 相談: "#FF0000", 依頼: "#00ff00" }, { 相談: { summary: "件名", body: "本文" }, 依頼: { summary: "x", body: "" }, 不具合: { summary: " ", body: "" } });
   expect(p.categoryColors).toEqual({ 相談: "#ff0000" });
   expect((await s.project.get())?.categoryColors).toEqual({ 相談: "#ff0000" });
-  await expect(s.project.put(["相談"], { 相談: "red" })).rejects.toThrow("#rrggbb");
+  expect(p.categoryTemplates).toEqual({ 相談: { summary: "件名", body: "本文" } }); // dropped: a vanished 種別, and a blank template
+
+  await expect(s.project.put(["相談"], { 相談: "red" }, {})).rejects.toThrow("#rrggbb");
 });
 
 test("users.register a second time renames and keeps createdAt", async () => {

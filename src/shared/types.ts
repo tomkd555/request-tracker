@@ -20,7 +20,11 @@ export interface Project {
   createdAt: string;
   categories: string[]; // 種別 choices, in display order; a project.json written before this field gets DEFAULT_CATEGORIES on read
   categoryColors: Record<string, string>; // 種別 name -> "#rrggbb"; {} on files written before this field
+  categoryTemplates: Record<string, CategoryTemplate>; // 種別 name -> text preset on the new-issue form; {} on files written before this field
 }
+
+/** Text the new-issue form loads when its 種別 is chosen (Backlog 課題テンプレート). */
+export interface CategoryTemplate { summary: string; body: string }
 
 export const DEFAULT_CATEGORIES: string[] = ["問い合わせ", "不具合", "依頼", "その他"];
 
@@ -58,6 +62,8 @@ export interface WikiPage {
   id: string; // file stamp at creation
   title: string;
   body: string; // Markdown
+  parentId: string | null; // one of the other pages; null at the root, and on records written before this field
+  note: string; // what the last save changed, typed by the editor; "" on records written before this field
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -77,10 +83,20 @@ const strOrNull = (v: unknown): v is string | null => v === null || typeof v ===
 const strOrAbsent = (v: unknown): v is string | undefined => v === undefined || typeof v === "string";
 const strArrayOrAbsent = (v: unknown): v is string[] | undefined => v === undefined || (Array.isArray(v) && v.every(str));
 const strMapOrAbsent = (v: unknown): v is Record<string, string> | undefined => v === undefined || (isRec(v) && Object.values(v).every(str));
+const isTemplate = (v: unknown): v is CategoryTemplate => isRec(v) && str(v.summary) && str(v.body);
+const templateMapOrAbsent = (v: unknown): v is Record<string, CategoryTemplate> | undefined =>
+  v === undefined || (isRec(v) && Object.values(v).every(isTemplate));
 
-/** Accepts a project.json without `categories` or `categoryColors`; `readProject` fills the defaults. */
+/** Accepts a project.json without `categories`, `categoryColors` or `categoryTemplates`; `readProject` fills the defaults. */
 export function isProject(v: unknown): v is Project {
-  return isRec(v) && Number.isInteger(v.fiscalYearStartMonth) && str(v.createdAt) && strArrayOrAbsent(v.categories) && strMapOrAbsent(v.categoryColors);
+  return (
+    isRec(v) &&
+    Number.isInteger(v.fiscalYearStartMonth) &&
+    str(v.createdAt) &&
+    strArrayOrAbsent(v.categories) &&
+    strMapOrAbsent(v.categoryColors) &&
+    templateMapOrAbsent(v.categoryTemplates)
+  );
 }
 
 const intIn = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
@@ -137,6 +153,7 @@ export function isComment(v: unknown): v is Comment {
   return isRec(v) && str(v.id) && str(v.issueKey) && str(v.author) && str(v.body) && str(v.createdAt);
 }
 
+/** Accepts a page without `parentId` or `note` (written before the fields existed); the store fills null and "" on read. */
 export function isWikiPage(v: unknown): v is WikiPage {
   return (
     isRec(v) &&
@@ -144,6 +161,8 @@ export function isWikiPage(v: unknown): v is WikiPage {
     STAMP_ID.test(v.id) &&
     str(v.title) &&
     str(v.body) &&
+    (v.parentId === undefined || strOrNull(v.parentId)) &&
+    strOrAbsent(v.note) &&
     str(v.createdAt) &&
     str(v.createdBy) &&
     str(v.updatedAt) &&
