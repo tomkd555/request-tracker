@@ -39,7 +39,7 @@ export function FirstLaunch({ step, onDone, error: bootError = null }: Props): R
       {step === "folder" && (
         <section>
           <h2>共有フォルダ</h2>
-          <p>課題と Wiki はこのフォルダに保存され、同じフォルダを選んだメンバー全員で共有されます。全員が読み書きできるネットワーク上のフォルダが必要です。</p>
+          <p>全員が読み書きできるネットワーク上のフォルダを選んでください。</p>
           {bootError && <p className="text--error">{bootError}</p>}
           <div className="form-actions">
             {bootError && (
@@ -67,7 +67,6 @@ export function FirstLaunch({ step, onDone, error: bootError = null }: Props): R
               ))}
             </select>
           </label>
-          <p className="first-launch__hint">課題キー（例: 26-0001）の年度はこの月から数えます。</p>
           <div className="form-actions">
             <button type="button" onClick={() => void run(() => window.api.project.init(month))}>
               プロジェクトを作成
@@ -88,7 +87,6 @@ export function FirstLaunch({ step, onDone, error: bootError = null }: Props): R
               名前
               <input className="first-launch__field" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
             </label>
-            <p className="first-launch__hint">メンバーの画面に表示されます。</p>
             <div className="form-actions">
               <button type="submit" disabled={name.trim() === ""}>
                 はじめる

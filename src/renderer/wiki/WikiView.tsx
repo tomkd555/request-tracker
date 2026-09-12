@@ -25,7 +25,7 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
     setHeadings([...els].map((el) => ({ level: Number(el.tagName.slice(1)), text: el.textContent ?? "", id: el.id })));
   }, [source]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
-  if (!page) return <p>ページは見つかりません。</p>;
+  if (!page) return <p>ページが見つかりません。</p>;
   const ancestors = ancestorsOf(pages, id);
   const children = childrenMap(pages).get(id) ?? [];
   const minLevel = Math.min(...headings.map((h) => h.level));

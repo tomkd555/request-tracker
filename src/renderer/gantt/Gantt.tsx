@@ -151,7 +151,7 @@ export function Gantt(): React.JSX.Element {
               <button
                 type="button"
                 className="gantt__toggle"
-                aria-label={r.collapsed ? "開く" : "たたむ"}
+                aria-label={r.collapsed ? "開く" : "折りたたむ"}
                 aria-expanded={!r.collapsed}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -200,7 +200,7 @@ export function Gantt(): React.JSX.Element {
             <select value={months} onChange={(e) => setMonths(Number(e.target.value) as Months)}>
               {MONTH_OPTIONS.map((m) => (
                 <option key={m} value={m}>
-                  {m} か月
+                  {m}か月
                 </option>
               ))}
             </select>

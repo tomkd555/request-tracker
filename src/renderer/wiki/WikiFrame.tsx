@@ -51,7 +51,7 @@ function Sidebar({ currentId }: { currentId: string | null }): React.JSX.Element
       <li key={p.id} className="wiki-tree__item">
         <div className={`wiki-tree__row${p.id === currentId ? " wiki-tree__row--current" : ""}`} style={{ paddingLeft: depth * 16 }}>
           {kids.length > 0 ? (
-            <button type="button" className="wiki-tree__toggle" aria-label={isOpen ? "たたむ" : "開く"} aria-expanded={isOpen} onClick={() => toggle(p.id)}>
+            <button type="button" className="wiki-tree__toggle" aria-label={isOpen ? "折りたたむ" : "開く"} aria-expanded={isOpen} onClick={() => toggle(p.id)}>
               {isOpen ? "▾" : "▸"}
             </button>
           ) : (
@@ -92,7 +92,7 @@ function Sidebar({ currentId }: { currentId: string | null }): React.JSX.Element
               </div>
             </li>
           ))}
-          {hits.length === 0 && <li className="text--muted wiki-tree__empty">該当するページはありません</li>}
+          {hits.length === 0 && <li className="text--muted wiki-tree__empty">該当するページがありません</li>}
         </ul>
       ) : (
         <ul className="wiki-tree__list">

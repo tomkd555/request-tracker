@@ -42,7 +42,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
   useNavigationGuard(dirty && !busy);
 
   if (id !== null && !loaded) return <div className="text--loading">読み込み中</div>;
-  if (id !== null && !existing) return <p>ページは見つかりません。</p>;
+  if (id !== null && !existing) return <p>ページが見つかりません。</p>;
 
   const excluded = id !== null ? descendantIdsOf(pages, id) : new Set<string>();
   const parentOptions = flattenTree(pages).filter((r) => !excluded.has(r.page.id));
@@ -68,7 +68,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
       }
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
-      setError(m.includes("cycle") ? "親ページにこのページの下のページは選べません" : m);
+      setError(m.includes("cycle") ? "このページの下のページは親ページに選べません" : m);
       setBusy(false);
     }
   };
@@ -95,7 +95,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
         <div className="issue-form__cell">
           <input id="wiki-title" className="issue-form__control" value={title} onChange={(e) => setTitle(e.target.value)} aria-invalid={submitted && (titleMissing || duplicate)} autoFocus />
           {submitted && titleMissing && <span className="issue-form__error">タイトルを入力してください</span>}
-          {submitted && duplicate && <span className="issue-form__error">同じ親の下に同名のページがあります</span>}
+          {submitted && duplicate && <span className="issue-form__error">同じ親ページの下に同名のページがあります</span>}
         </div>
         <label htmlFor="wiki-parent" className="issue-form__term">
           親ページ

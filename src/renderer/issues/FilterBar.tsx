@@ -8,7 +8,7 @@ type Props = { filter: IssueFilter; users: User[]; onChange(f: IssueFilter): voi
 const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
   { value: "all", label: "すべて" },
   { value: "overdue", label: "期限超過" },
-  { value: "week", label: "7 日以内" },
+  { value: "week", label: "7日以内" },
   { value: "none", label: "期限なし" },
 ];
 

@@ -34,7 +34,7 @@
 }
 
 .nav__link--active {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--bg-nav-active);
 }
 
 .nav__user {
@@ -62,11 +62,6 @@
 
 .first-launch__reselect {
   margin-top: var(--space-6);
-}
-
-.first-launch__hint {
-  margin: var(--space-1) 0 var(--space-3);
-  color: var(--text-muted);
 }
 
 .stepper {

@@ -11,11 +11,11 @@ test("refusals become one message per reason naming the files", () => {
         { path: "C:/x/setup.exe", reason: "extension" },
       ],
     }),
-  ).toEqual(["50 MB を超えるファイルは添付できません: big.bin", "実行ファイルは添付できません: run.bat, setup.exe"]);
+  ).toEqual(["50MBを超えるファイルは添付できません：big.bin", "実行ファイルは添付できません：run.bat、setup.exe"]);
   expect(refusalMessages({ added: [], refused: [] })).toEqual([]);
 });
 
 test("store error tokens map to the user messages", () => {
   expect(messageFor(new Error("Error invoking remote method 'attachments:add': Error: share-unreachable"))).toBe("共有フォルダに接続できません");
-  expect(messageFor(new Error("open-failed: Failed to open path"))).toBe("開けません: Failed to open path");
+  expect(messageFor(new Error("open-failed: Failed to open path"))).toBe("開けません：Failed to open path");
 });

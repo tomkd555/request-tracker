@@ -37,8 +37,8 @@ export function App(): React.JSX.Element {
       const where = config ? `共有フォルダ（${config.rootDir}）` : "共有フォルダ";
       const invalid = e instanceof Error && e.message.includes("project-invalid");
       const error = invalid
-        ? `${where}の project.json を読めません。ファイルを直して再読み込みするか、別のフォルダを選んでください。`
-        : `${where}に接続できません。ネットワークドライブや VPN を確認して再読み込みするか、別のフォルダを選んでください。`;
+        ? `${where}のproject.jsonを読めません。`
+        : `${where}に接続できません。ネットワークドライブやVPNを確認してください。`;
       setBoot({ step: "folder", config, project: null, me: null, users: [], error });
     }
   }, []);

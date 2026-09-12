@@ -18,7 +18,7 @@ export function Summary(): React.JSX.Element {
     setMessage(null);
     try {
       const saved = await window.api.summary.exportCsv(toCsv(counts, { user, status }), `summary-${month}.csv`);
-      setMessage(saved ? "CSV を保存しました" : null);
+      setMessage(saved ? "CSVを保存しました" : null);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     }
@@ -54,7 +54,7 @@ export function Summary(): React.JSX.Element {
         <div className="form-actions">
           <input type="month" className="summary__month-input" aria-label="対象月" value={month} onChange={(e) => setMonth(e.target.value)} />
           <button type="button" onClick={() => void exportCsv()}>
-            CSV に出力
+            CSVに出力
           </button>
         </div>
       </header>

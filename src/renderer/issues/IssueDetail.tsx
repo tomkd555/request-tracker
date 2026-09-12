@@ -28,7 +28,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     if (issue) markSeen(issue);
   }, [issue]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
-  if (!issue) return <p>課題 {issueKey} は見つかりません。</p>;
+  if (!issue) return <p>課題 {issueKey} が見つかりません。</p>;
   const parent = issue.parentKey ? byKey.get(issue.parentKey) : undefined;
   const children = [...byKey.values()].filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
   const related = relatedIssues(issue, byKey);

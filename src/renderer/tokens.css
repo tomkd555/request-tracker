@@ -30,6 +30,7 @@
   --brand: #52987c; /* issue list: selected filter chip, count badge */
   --brand-border: color-mix(in srgb, var(--brand) 90%, black); /* parent/child tree: parent row left border; approximates the sampled #44987b */
   --text-on-brand: #ffffff; /* text on the brand colour */
+  --bg-nav-active: rgba(255, 255, 255, 0.2); /* nav: the current item, a light wash over the brand colour */
 
   /* status pills (board: column dots; issue list: pills) */
   --status-open: #ed8276; /* 未対応 */

@@ -38,7 +38,7 @@ export function IssueList(): React.JSX.Element {
     setMessage(null);
     try {
       const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: defaultStatusName }), `issues-${day}.csv`);
-      setMessage(saved ? "CSV を保存しました" : null);
+      setMessage(saved ? "CSVを保存しました" : null);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     }
@@ -50,7 +50,7 @@ export function IssueList(): React.JSX.Element {
         <h1 className="toolbar__heading">課題</h1>
         <div className="form-actions">
           <button type="button" onClick={() => void exportCsv()}>
-            CSV に出力
+            CSVに出力
           </button>
           <a className="link-button" href="#/issues/new">
             課題を追加
