@@ -3,7 +3,7 @@ import type { IssueDraft } from "../../shared/api";
 import { isIssue, type Issue, type Project } from "../../shared/types";
 import { allocateKey, keyOfFileName } from "./allocateKey";
 import { collection, mkdirp, type Collection } from "./collection";
-import { fiscalYearOf, fiscalYy } from "./fiscalYear";
+import { fiscalYearOf, fiscalYy } from "../../shared/fiscalYear";
 import type { Layout } from "./paths";
 
 export const issuesCollection = (l: Layout): Collection<Issue> =>

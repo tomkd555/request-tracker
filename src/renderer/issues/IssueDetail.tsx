@@ -229,6 +229,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               <ParentField
                 value={issue.parentKey}
                 candidates={parentCandidates}
+                commitOn="blur"
                 className="issue-detail__control"
                 ariaLabel="親課題"
                 onChange={(key, invalid) => {

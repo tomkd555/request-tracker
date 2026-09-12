@@ -46,7 +46,8 @@ function insertBlock(sel: Selection, block: string): Selection {
   return { text, start: pos, end: pos };
 }
 
-export function applyCommand(cmd: ToolbarCommand, sel: Selection): Selection {
+/** `issuePrefix` is the current fiscal year's "YY-", inserted by the 課題キー command. */
+export function applyCommand(cmd: ToolbarCommand, sel: Selection, issuePrefix = ""): Selection {
   switch (cmd) {
     case "heading":
       return prefixLines(sel, () => "## ");
@@ -71,8 +72,9 @@ export function applyCommand(cmd: ToolbarCommand, sel: Selection): Selection {
     case "wikiLink":
       return wrap(sel, "[[", "]]", "ページ名");
     case "issueKey": {
-      const text = sel.text.slice(0, sel.start) + "26-" + sel.text.slice(sel.end);
-      return { text, start: sel.start + 3, end: sel.start + 3 };
+      const text = sel.text.slice(0, sel.start) + issuePrefix + sel.text.slice(sel.end);
+      const pos = sel.start + issuePrefix.length;
+      return { text, start: pos, end: pos };
     }
   }
 }

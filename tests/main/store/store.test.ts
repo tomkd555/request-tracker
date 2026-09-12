@@ -56,6 +56,18 @@ test("project.init creates project.json and every collection directory", async (
   await expect(s.project.init(13)).rejects.toThrow();
 });
 
+test("project.get on an unreadable project.json reports it, and project.init never overwrites a file", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await fsp.writeFile(layout(shared).projectFile, "{ not json", "utf8");
+  const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  await expect(s.project.get()).rejects.toThrow("project-invalid");
+  await expect(s.project.init(4)).rejects.toThrow();
+  expect(await fsp.readFile(layout(shared).projectFile, "utf8")).toBe("{ not json");
+  err.mockRestore();
+});
+
 test("project.get on a root that does not exist reports the share as unreachable", async () => {
   const s = store(join(shared, "missing"));
   await s.config.chooseRoot();

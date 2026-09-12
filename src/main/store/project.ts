@@ -8,6 +8,9 @@ import { collectionDirs, type Layout } from "./paths";
 
 const serialize = (p: Project): string => JSON.stringify(p, null, 2) + "\n";
 
+/** project.json exists but fails to parse or validate. */
+export const PROJECT_INVALID = "project-invalid";
+
 /**
  * A project.json written before `categories` or `categoryColors` existed comes back with the defaults.
  * null means a folder with no project yet; a root that cannot be reached (drive offline) throws SHARE_UNREACHABLE instead,
@@ -19,6 +22,9 @@ export async function readProject(l: Layout): Promise<Project | null> {
     await fsp.access(l.root).catch(() => {
       throw new Error(SHARE_UNREACHABLE);
     });
+    // The file is there but unreadable (truncated by a sync, edited by hand): the first-launch screen must never offer to recreate it.
+    const exists = await fsp.access(l.projectFile).then(() => true, () => false);
+    if (exists) throw new Error(PROJECT_INVALID);
     return null;
   }
   return { ...p, categories: p.categories ?? DEFAULT_CATEGORIES, categoryColors: p.categoryColors ?? {}, categoryTemplates: p.categoryTemplates ?? {} };
@@ -30,7 +36,7 @@ export async function initProject(l: Layout, fiscalYearStartMonth: number): Prom
   }
   const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString(), categories: DEFAULT_CATEGORIES, categoryColors: {}, categoryTemplates: {} };
   for (const dir of collectionDirs(l)) await mkdirp(dir);
-  await writeAtomic(l.projectFile, serialize(project));
+  await fsp.writeFile(l.projectFile, serialize(project), { encoding: "utf8", flag: "wx" }); // exclusive: a file that appeared meanwhile stays
   return project;
 }
 

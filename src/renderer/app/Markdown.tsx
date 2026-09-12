@@ -1,4 +1,4 @@
-import { createElement, useContext } from "react";
+import { createElement, isValidElement, useContext } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { WikiContext } from "../wiki/useWiki";
 import { normalizeTitle } from "../wiki/wikiTree";
@@ -10,8 +10,12 @@ type Level = 1 | 2 | 3 | 4 | 5 | 6;
 /** The id a heading gets, so a table of contents can point at it: its text with spaces as hyphens. */
 export const headingId = (text: string): string => text.trim().replace(/\s+/g, "-");
 
-const textOf = (children: React.ReactNode): string =>
-  Array.isArray(children) ? children.map(textOf).join("") : typeof children === "string" || typeof children === "number" ? String(children) : "";
+const textOf = (node: React.ReactNode): string => {
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (isValidElement<{ children?: React.ReactNode }>(node)) return textOf(node.props.children);
+  return "";
+};
 
 /** Headings written in Markdown render `demote` ranks lower, so a screen's own h1/h2 stay above the content. */
 function components(demote: number): Components {

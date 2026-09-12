@@ -17,6 +17,10 @@ test("code is inline for one line and fenced across lines", () => {
   expect(applyCommand("code", { text: "a\nb", start: 0, end: 3 }).text).toBe("```\na\nb\n```");
 });
 
+test("the issue-key command inserts the prefix it is given", () => {
+  expect(applyCommand("issueKey", { text: "see ", start: 4, end: 4 }, "27-")).toEqual({ text: "see 27-", start: 7, end: 7 });
+});
+
 test("link selects the url placeholder; table lands on its own line", () => {
   expect(applyCommand("link", { text: "see", start: 0, end: 3 })).toEqual({ text: "[see](url)", start: 6, end: 9 });
   const t = applyCommand("table", { text: "p", start: 1, end: 1 });

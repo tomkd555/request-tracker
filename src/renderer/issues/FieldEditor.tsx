@@ -77,11 +77,13 @@ type EditorProps = {
   autoFocus?: boolean;
   /** Toolbar buttons added after the base set (the wiki adds ページリンク and 課題キー). */
   extraCommands?: ToolbarCommand[];
+  /** The current fiscal year's "YY-", for the 課題キー command. */
+  issuePrefix?: string;
   ariaLabel?: string;
 };
 
 /** Markdown textarea with a toolbar and 編集 / プレビュー tabs. Controlled; the owner decides when to save. */
-export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extraCommands = [], ariaLabel }: EditorProps): React.JSX.Element {
+export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extraCommands = [], issuePrefix = "", ariaLabel }: EditorProps): React.JSX.Element {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const area = useRef<HTMLTextAreaElement>(null);
   const pending = useRef<{ start: number; end: number } | null>(null);
@@ -98,7 +100,7 @@ export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extr
   const run = (cmd: ToolbarCommand): void => {
     const el = area.current;
     if (!el) return;
-    const next = applyCommand(cmd, { text: value, start: el.selectionStart, end: el.selectionEnd });
+    const next = applyCommand(cmd, { text: value, start: el.selectionStart, end: el.selectionEnd }, issuePrefix);
     pending.current = { start: next.start, end: next.end };
     onChange(next.text);
   };

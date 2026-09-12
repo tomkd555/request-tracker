@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WikiPage } from "../../shared/types";
-import { headingId, Markdown } from "../app/Markdown";
+import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { Attachments } from "../issues/Attachments";
@@ -9,31 +9,25 @@ import { useWiki } from "./useWiki";
 import { WikiHistory } from "./WikiHistory";
 import { ancestorsOf, childrenMap } from "./wikiTree";
 
-interface Heading { level: number; text: string }
-
-/** Headings outside fenced code, for the table of contents. */
-export function headingsOf(body: string): Heading[] {
-  const out: Heading[] = [];
-  let fenced = false;
-  for (const line of body.split("\n")) {
-    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
-    if (fenced) continue;
-    const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (m) out.push({ level: m[1].length, text: m[2] });
-  }
-  return out;
-}
+interface Heading { level: number; text: string; id: string }
 
 export function WikiView({ id }: { id: string }): React.JSX.Element {
   const { me, users } = useSession();
   const { pages, byId, loaded, refreshOne } = useWiki();
   const [error, setError] = useState<string | null>(null);
+  const [headings, setHeadings] = useState<Heading[]>([]);
+  const body = useRef<HTMLDivElement>(null);
   const page = byId.get(id);
+  const source = page?.body ?? "";
+  // The table of contents reads the headings as rendered, so its ids match whatever inline markup the heading holds.
+  useEffect(() => {
+    const els = body.current?.querySelectorAll<HTMLElement>("h2, h3, h4, h5, h6") ?? [];
+    setHeadings([...els].map((el) => ({ level: Number(el.tagName.slice(1)), text: el.textContent ?? "", id: el.id })));
+  }, [source]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
   if (!page) return <p>ページは見つかりません。</p>;
   const ancestors = ancestorsOf(pages, id);
   const children = childrenMap(pages).get(id) ?? [];
-  const headings = headingsOf(page.body);
   const minLevel = Math.min(...headings.map((h) => h.level));
 
   const restore = async (old: WikiPage): Promise<void> => {
@@ -100,7 +94,7 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
               <li key={i} className="wiki-toc__item" style={{ paddingLeft: (h.level - minLevel) * 12 }}>
                 <a href={`#/wiki/${page.id}`} onClick={(e) => {
                   e.preventDefault();
-                  document.getElementById(headingId(h.text))?.scrollIntoView({ block: "start" });
+                  document.getElementById(h.id)?.scrollIntoView({ block: "start" });
                 }}>
                   {h.text}
                 </a>
@@ -109,7 +103,9 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
           </ul>
         </nav>
       )}
-      <Markdown source={page.body} demote={1} wikiParentId={page.id} />
+      <div ref={body}>
+        <Markdown source={page.body} demote={1} wikiParentId={page.id} />
+      </div>
       <Attachments owner={{ kind: "wiki", id: page.id }} />
       {children.length > 0 && (
         <section>

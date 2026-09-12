@@ -33,9 +33,12 @@ export function App(): React.JSX.Element {
       const users = project ? await window.api.users.list() : [];
       setBoot({ step: nextStep(config, project, me), config, project, me, users, error: null });
     } catch (e) {
-      // the share is unreachable (VPN down, drive offline): let the user pick the folder again
+      // the share is unreachable (VPN down, drive offline), or its project.json is unreadable: let the user pick the folder again
       const where = config ? `共有フォルダ（${config.rootDir}）` : "共有フォルダ";
-      const error = `${where}に接続できません。ネットワークドライブや VPN を確認して再読み込みするか、別のフォルダを選んでください。`;
+      const invalid = e instanceof Error && e.message.includes("project-invalid");
+      const error = invalid
+        ? `${where}の project.json を読めません。ファイルを直して再読み込みするか、別のフォルダを選んでください。`
+        : `${where}に接続できません。ネットワークドライブや VPN を確認して再読み込みするか、別のフォルダを選んでください。`;
       setBoot({ step: "folder", config, project: null, me: null, users: [], error });
     }
   }, []);

@@ -245,7 +245,7 @@ function CategorySection(): React.JSX.Element {
               <button type="button" aria-label="下へ" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
                 ↓
               </button>
-              <button type="button" aria-pressed={r.open} onClick={() => update(rows.map((x, j) => (j === i ? { ...x, open: !x.open } : x)))}>
+              <button type="button" aria-pressed={r.open} onClick={() => setRows(rows.map((x, j) => (j === i ? { ...x, open: !x.open } : x)))}>
                 ひな形
               </button>
               <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>

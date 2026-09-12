@@ -98,7 +98,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           notes.push(messageFor(e));
         }
       }
-      if (again) {
+      if (again || notes.length > 0) {
         setCreated(issue.key);
         setMessages(notes);
         setSummary(template?.summary ?? "");
@@ -234,6 +234,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
             <ParentField
               value={parent}
               candidates={parents}
+              commitOn="change"
               className="issue-form__control"
               ariaLabel="親課題"
               onChange={(key, invalid) => {

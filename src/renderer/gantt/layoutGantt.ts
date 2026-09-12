@@ -186,18 +186,22 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
   return { days, months: monthsOf(days), groups, todayCol };
 }
 
-/** New dates after a drag of `delta` days; a missing date stays missing, and the two never cross. */
-export function datesAfterDrag(issue: Issue, mode: DragMode, delta: number): { startDate: string | null; dueDate: string | null } {
+/**
+ * New dates after a drag of `delta` days, measured on the bar as drawn: an edge clipped at the range moves from the
+ * visible edge, a bar drawn from the created day gets that day as its start, and the two dates never cross.
+ */
+export function datesAfterDrag(issue: Issue, mode: DragMode, delta: number, range: DateRange): { startDate: string | null; dueDate: string | null } {
   let { startDate, dueDate } = issue;
   const from = startDate ?? ymd(new Date(issue.createdAt));
   if (mode === "move") {
-    startDate = startDate === null ? null : addDays(startDate, delta);
-    dueDate = dueDate === null ? null : addDays(dueDate, delta);
-  } else if (mode === "start") {
+    if (dueDate === null) return { startDate: addDays(from, delta), dueDate: null };
     startDate = addDays(from, delta);
+    dueDate = addDays(dueDate < from ? from : dueDate, delta);
+  } else if (mode === "start") {
+    startDate = addDays(from < range.start ? range.start : from, delta);
     if (dueDate !== null && startDate > dueDate) startDate = dueDate;
   } else if (dueDate !== null) {
-    dueDate = addDays(dueDate, delta);
+    dueDate = addDays(dueDate > range.end ? range.end : dueDate, delta);
     if (dueDate < from) dueDate = from;
   }
   return { startDate, dueDate };

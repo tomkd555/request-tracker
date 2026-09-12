@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fiscalYearOf, fiscalYy } from "../../shared/fiscalYear";
 import type { WikiPage } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { useSession } from "../app/UserContext";
@@ -16,8 +17,9 @@ interface Props {
 }
 
 export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.Element {
-  const { me } = useSession();
+  const { me, project } = useSession();
   const { pages, byId, loaded, refreshOne, reload } = useWiki();
+  const issuePrefix = `${fiscalYy(fiscalYearOf(new Date(), project.fiscalYearStartMonth))}-`;
   const existing = id !== null ? byId.get(id) : undefined;
   const [title, setTitle] = useState(existing?.title ?? presetTitle);
   const [body, setBody] = useState(existing?.body ?? "");
@@ -110,7 +112,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
           </select>
         </div>
       </div>
-      <MarkdownEditor value={body} onChange={setBody} preview={(v) => <Markdown source={v} demote={1} wikiParentId={id} />} rows={24} extraCommands={["wikiLink", "issueKey"]} ariaLabel="本文" />
+      <MarkdownEditor value={body} onChange={setBody} preview={(v) => <Markdown source={v} demote={1} wikiParentId={id} />} rows={24} extraCommands={["wikiLink", "issueKey"]} issuePrefix={issuePrefix} ariaLabel="本文" />
       <label className="issue-form__field">
         変更内容
         <input className="issue-form__control" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />

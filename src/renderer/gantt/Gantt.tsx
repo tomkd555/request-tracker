@@ -74,7 +74,7 @@ export function Gantt(): React.JSX.Element {
     setMessage(null);
     try {
       // ponytail: last write wins during a drag as everywhere else; a poller refresh that lands mid-drag is ignored until pointer-up
-      await window.api.issues.put({ ...issue, ...datesAfterDrag(issue, d.mode, d.delta), updatedAt: new Date().toISOString(), updatedBy: me.username });
+      await window.api.issues.put({ ...issue, ...datesAfterDrag(issue, d.mode, d.delta, range), updatedAt: new Date().toISOString(), updatedBy: me.username });
       await refreshOne(issue.key);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
@@ -90,7 +90,8 @@ export function Gantt(): React.JSX.Element {
       if (!draggable || e.button !== 0) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const mode: DragMode = r.kind === "point" ? "move" : x < EDGE_PX ? "start" : x > rect.width - EDGE_PX ? "due" : "move";
+      const edge = Math.min(EDGE_PX, rect.width / 3);
+      const mode: DragMode = r.kind === "point" ? "move" : x < edge ? "start" : x > rect.width - edge ? "due" : "move";
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
