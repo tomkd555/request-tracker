@@ -7,16 +7,18 @@ Screenshots: to be added.
 ## Features
 
 - Parent issues with child issues, each with status, priority, category, assignee, start and due dates and a Markdown description
+- New-issue form in the Redmine order (category, subject, description, then a two-column attribute block) with a Markdown toolbar and preview, a text template per category, a searchable parent field, assign-to-me, attachments dropped before the issue exists, 追加して続ける, and Ctrl+Enter
+- Issue detail with the description first, the properties in a sticky sidebar edited in place, and a breadcrumb to the parent
 - Issue list with filters (status, assignee, reporter, category, due date, mine, awaiting confirmation, keyword), column sort, overdue and due-soon tones, an unseen-update marker and CSV export
 - Comments, merged with the field-change feed; a status change can be saved together with a comment
 - Attachments as files or whole folders (50 MB per file; executable extensions are refused), opened with the default application or in Explorer
 - Edit history with restore, for issues, wiki pages and the project settings
-- Wiki pages in Markdown
-- Gantt chart of issue start and due dates
+- Wiki pages in Markdown as a tree (parent page, sidebar, breadcrumb, index), `[[タイトル]]` links that create a missing page on click, a table of contents from the headings, attachments, a change note per save, and a line diff between versions
+- Gantt chart of 1, 2, 3 or 6 months: any issue with a start or due date, a late segment past the due date, a parent's span from its children, grouping by assignee, folding, and drag to move a bar or one of its edges
 - Monthly counts by reporter, assignee, status and category, with CSV export that opens in Excel
 - Live refresh across clients: every client polls the shared folder every 5 seconds by default
 - Colour presets (Backlog green, blue, grey, dark) with a free accent colour per machine, and a colour per category shared by the team
-- Settings screen in two groups: 個人設定 (name, appearance, due-soon window, poll interval, shared folder; all per machine) and プロジェクト設定 (the category list with colours)
+- Settings screen in two groups: 個人設定 (name, appearance, due-soon window, poll interval, shared folder; all per machine) and プロジェクト設定 (the category list with colours and templates)
 
 ## How it works
 
@@ -24,12 +26,12 @@ There is no server and no database. The shared folder is the database:
 
 ```
 <root>/
-  project.json                         fiscal year start month, categories and their colours
+  project.json                         fiscal year start month, categories with their colours and templates
   users/<username>.json
   issues/<KEY>.json
   comments/<KEY>/<stamp>-<username>.json
   attachments/<KEY>/<filename>         copied files and folders
-  wiki/<id>.json
+  wiki/<id>.json                       title, Markdown body, parent page id, change note
   wiki-attachments/<id>/<filename>     files attached to a wiki page
   history/issues/<KEY>/<stamp>.json    previous versions
   history/wiki/<id>/<stamp>.json
