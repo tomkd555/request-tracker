@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
 import { mentionedKeys } from "../app/linkIssueKeys";
 import { Markdown } from "../app/Markdown";
-import { displayNameOf, useSession } from "../app/UserContext";
+import { categoryOptions, displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { Attachments } from "./Attachments";
 import { Comments } from "./Comments";
@@ -28,7 +28,7 @@ function relatedIssues(issue: Issue, byKey: Map<string, Issue>): Issue[] {
 }
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
-  const { me, users } = useSession();
+  const { me, users, project } = useSession();
   const { byKey, loaded, refreshOne } = useIssues();
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +103,16 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
       <TextField className="issue-detail__summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
       {error && <p className="text--error">{error}</p>}
       <dl className="issue-detail__fields">
+        <dt className="issue-detail__term">種別</dt>
+        <dd className="issue-detail__desc">
+          <SelectField
+            className="issue-detail__control"
+            ariaLabel="種別"
+            value={issue.category}
+            options={[...(issue.category === "" ? [{ value: "", label: "未設定" }] : []), ...categoryOptions(project, issue.category).map((c) => ({ value: c, label: c }))]}
+            onSave={(category) => save({ category })}
+          />
+        </dd>
         <dt className="issue-detail__term">優先度</dt>
         <dd className="issue-detail__desc">
           <SelectField

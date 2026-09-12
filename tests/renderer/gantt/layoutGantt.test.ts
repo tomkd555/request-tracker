@@ -6,6 +6,7 @@ const issue = (over: Partial<Issue>): Issue => ({
   key: "26-0001",
   summary: "",
   description: "",
+  category: "",
   status: "open",
   priority: "normal",
   assignee: null,

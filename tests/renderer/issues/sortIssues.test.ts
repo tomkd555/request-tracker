@@ -7,6 +7,7 @@ const issue = (key: string, over: Partial<Issue> = {}): Issue => ({
   key,
   summary: key,
   description: "",
+  category: "",
   status: "open",
   priority: "normal",
   assignee: null,

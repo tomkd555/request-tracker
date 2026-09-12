@@ -3,6 +3,7 @@ import type { Project, User } from "../../shared/types";
 import { nextStep, type BootStep } from "./boot";
 import { FirstLaunch } from "./FirstLaunch";
 import { Nav } from "./Nav";
+import { Settings } from "./Settings";
 import { SessionContext } from "./UserContext";
 import { useHashRoute, type Route } from "./useHashRoute";
 import { IssueCreate } from "../issues/IssueCreate";
@@ -45,12 +46,17 @@ export function App(): React.JSX.Element {
     setBoot((b) => (b ? { ...b, users } : b));
   }, []);
 
+  const refreshProject = useCallback(async (): Promise<void> => {
+    const project = await window.api.project.get();
+    if (project !== null) setBoot((b) => (b ? { ...b, project } : b));
+  }, []);
+
   if (boot === null) return <div className="text--loading">読み込み中</div>;
   if (boot.step !== "ready" || boot.me === null || boot.project === null) {
     return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} onDone={load} error={boot.error} />;
   }
   return (
-    <Ready me={boot.me} users={boot.users} project={boot.project} refreshUsers={refreshUsers}>
+    <Ready me={boot.me} users={boot.users} project={boot.project} refreshUsers={refreshUsers} refreshProject={refreshProject}>
       <IssuesProvider>
         <WikiProvider>
           <Shell />
@@ -60,17 +66,25 @@ export function App(): React.JSX.Element {
   );
 }
 
-type ReadyProps = { me: User; users: User[]; project: Project; refreshUsers(): Promise<void>; children: React.ReactNode };
+type ReadyProps = {
+  me: User;
+  users: User[];
+  project: Project;
+  refreshUsers(): Promise<void>;
+  refreshProject(): Promise<void>;
+  children: React.ReactNode;
+};
 
-function Ready({ me, users, project, refreshUsers, children }: ReadyProps): React.JSX.Element {
+function Ready({ me, users, project, refreshUsers, refreshProject, children }: ReadyProps): React.JSX.Element {
   useEffect(
     () =>
       window.api.onChanged((e) => {
         if (e.collection === "users") void refreshUsers();
+        if (e.collection === "project") void refreshProject();
       }),
-    [refreshUsers],
+    [refreshUsers, refreshProject],
   );
-  return <SessionContext.Provider value={{ me, users, project, refreshUsers }}>{children}</SessionContext.Provider>;
+  return <SessionContext.Provider value={{ me, users, project, refreshUsers, refreshProject }}>{children}</SessionContext.Provider>;
 }
 
 function Shell(): React.JSX.Element {
@@ -93,6 +107,7 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   if (path.startsWith("/wiki")) return <WikiList />;
   if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
+  if (path.startsWith("/settings")) return <Settings />;
   if (path === "/issues/new") {
     return <IssueCreate key={query.get("parent") ?? query.get("copy") ?? ""} parentKey={query.get("parent")} copyFrom={query.get("copy")} />;
   }

@@ -1,6 +1,12 @@
 // Record types stored on the shared folder. This file is the schema.
 
-export interface Project { fiscalYearStartMonth: number; createdAt: string } // 1–12, default 4
+export interface Project {
+  fiscalYearStartMonth: number; // 1–12, default 4
+  createdAt: string;
+  categories: string[]; // 種別 choices, in display order; a project.json written before this field gets DEFAULT_CATEGORIES on read
+}
+
+export const DEFAULT_CATEGORIES: string[] = ["問い合わせ", "不具合", "依頼", "その他"];
 
 export interface User { username: string; displayName: string; createdAt: string }
 
@@ -11,6 +17,7 @@ export interface Issue {
   key: string; // "26-0012": fiscal year (two digits) - sequence within that year (four digits)
   summary: string;
   description: string; // Markdown
+  category: string; // one of Project.categories; "" on records written before this field
   status: IssueStatus;
   priority: IssuePriority;
   assignee: string | null; // username
@@ -51,9 +58,12 @@ type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => typeof v === "object" && v !== null;
 const str = (v: unknown): v is string => typeof v === "string";
 const strOrNull = (v: unknown): v is string | null => v === null || typeof v === "string";
+const strOrAbsent = (v: unknown): v is string | undefined => v === undefined || typeof v === "string";
+const strArrayOrAbsent = (v: unknown): v is string[] | undefined => v === undefined || (Array.isArray(v) && v.every(str));
 
+/** Accepts a project.json without `categories`; `readProject` fills the default list. */
 export function isProject(v: unknown): v is Project {
-  return isRec(v) && Number.isInteger(v.fiscalYearStartMonth) && str(v.createdAt);
+  return isRec(v) && Number.isInteger(v.fiscalYearStartMonth) && str(v.createdAt) && strArrayOrAbsent(v.categories);
 }
 
 export function isUser(v: unknown): v is User {
@@ -63,6 +73,7 @@ export function isUser(v: unknown): v is User {
 export const ISSUE_KEY = /^\d{2}-\d{4,}$/;
 export const STAMP_ID = /^\d{8}T\d{9}Z$/;
 
+/** Accepts a record without `category` (written before the field existed); the store fills "" on read. */
 export function isIssue(v: unknown): v is Issue {
   return (
     isRec(v) &&
@@ -70,6 +81,7 @@ export function isIssue(v: unknown): v is Issue {
     ISSUE_KEY.test(v.key) &&
     str(v.summary) &&
     str(v.description) &&
+    strOrAbsent(v.category) &&
     ISSUE_STATUSES.includes(v.status as IssueStatus) &&
     ISSUE_PRIORITIES.includes(v.priority as IssuePriority) &&
     strOrNull(v.assignee) &&

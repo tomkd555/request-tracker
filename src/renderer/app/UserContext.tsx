@@ -1,7 +1,14 @@
 import { createContext, useContext } from "react";
 import type { Project, User } from "../../shared/types";
 
-export interface Session { me: User; users: User[]; project: Project; refreshUsers(): Promise<void> }
+export interface Session {
+  me: User;
+  users: User[];
+  project: Project;
+  refreshUsers(): Promise<void>;
+  /** Re-reads project.json (種別 list) after a save here or a change seen by the poller. */
+  refreshProject(): Promise<void>;
+}
 
 export const SessionContext = createContext<Session | null>(null);
 
@@ -14,4 +21,9 @@ export function useSession(): Session {
 export function displayNameOf(users: User[], username: string | null): string {
   if (username === null) return "";
   return users.find((u) => u.username === username)?.displayName ?? username;
+}
+
+/** The project's 種別 list plus `current` when it is set and absent from the list, so an orphaned value stays selectable. */
+export function categoryOptions(project: Project, current: string): string[] {
+  return current !== "" && !project.categories.includes(current) ? [...project.categories, current] : project.categories;
 }

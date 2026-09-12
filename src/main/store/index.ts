@@ -1,12 +1,13 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import type { StoreApi } from "../../shared/api";
+import type { Issue } from "../../shared/types";
 import { addAttachments, assertName, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
-import { initProject, readProject } from "./project";
+import { initProject, putCategories, readProject } from "./project";
 import { registerUser, usersCollection } from "./users";
 import { createPage, wikiCollection } from "./wiki";
 
@@ -22,6 +23,9 @@ export interface StoreDeps {
   /** Save dialog; the chosen path, or null when cancelled. */
   chooseSavePath(defaultName: string): Promise<string | null>;
 }
+
+/** Records written before `category` existed come back with "" so the renderer always sees a string. */
+const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "" });
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
 export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null } {
@@ -51,6 +55,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
     project: {
       get: async () => readProject(need()),
       init: async (month) => initProject(need(), month),
+      put: async (categories) => putCategories(need(), categories),
     },
     users: {
       me: async () => usersCollection(need()).get(deps.username),
@@ -58,8 +63,11 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       list: async () => usersCollection(need()).list(),
     },
     issues: {
-      list: async () => issuesCollection(need()).list(),
-      get: async (key) => issuesCollection(need()).get(key),
+      list: async () => (await issuesCollection(need()).list()).map(withDefaults),
+      get: async (key) => {
+        const i = await issuesCollection(need()).get(key);
+        return i === null ? null : withDefaults(i);
+      },
       async create(draft) {
         const project = await readProject(need());
         if (project === null) throw new Error("project.json is missing");
@@ -67,7 +75,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       },
       put: async (issue) => issuesCollection(need()).put(issue.key, issue),
       remove: async (key) => removeIssue(need(), key),
-      history: async (key) => issuesCollection(need()).history(key),
+      history: async (key) => (await issuesCollection(need()).history(key)).map(withDefaults),
     },
     summary: {
       async exportCsv(csv, defaultName) {

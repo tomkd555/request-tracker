@@ -8,7 +8,12 @@ export interface ChangeEvent { collection: string; id: string }
 // IPC surface from SPEC-store.md. Each group.method maps to the channel "group:method".
 export type StoreApi = {
   config: { get(): Promise<{ rootDir: string } | null>; chooseRoot(): Promise<string | null> };
-  project: { get(): Promise<Project | null>; init(fiscalYearStartMonth: number): Promise<Project> };
+  project: {
+    get(): Promise<Project | null>;
+    init(fiscalYearStartMonth: number): Promise<Project>;
+    /** Replaces the 種別 list; other fields stay as on disk. */
+    put(categories: string[]): Promise<Project>;
+  };
   users: { me(): Promise<User | null>; register(displayName: string): Promise<User>; list(): Promise<User[]> };
   issues: {
     list(): Promise<Issue[]>;
@@ -45,7 +50,7 @@ export type Api = StoreApi & {
 
 export const API_METHODS = {
   config: ["get", "chooseRoot"],
-  project: ["get", "init"],
+  project: ["get", "init", "put"],
   users: ["me", "register", "list"],
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],

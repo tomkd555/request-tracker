@@ -16,6 +16,7 @@ export type Issue = {
   key: string;              // "26-0012": fiscal year (two digits) - sequence within that year (four digits, zero-padded)
   summary: string;
   description: string;      // Markdown
+  category: string;         // 種別, one of project.json categories; "" on records written before the field existed
   status: IssueStatus;
   priority: IssuePriority;
   assignee: string | null;  // username
@@ -39,12 +40,13 @@ export type Comment = {
 
 ## Screens
 
-Labels in Japanese follow Backlog: 課題, 件名, 詳細, 状態, 担当者, 優先度, 期限日, 開始日, 登録者, 親課題, 子課題, コメント, 添付ファイル.
+Labels in Japanese follow Backlog: 課題, 件名, 詳細, 種別, 状態, 担当者, 優先度, 期限日, 開始日, 登録者, 親課題, 子課題, 関連課題, コメント, 添付ファイル.
 
-- **Issue list** (`/issues`, home). Table: キー, 件名, 担当者, 状態, 優先度, 期限日, 更新日. Children render under their parent, indented, in key order. Filters above the table: 状態 (multi-select, default all except 完了), 担当者, 登録者, keyword over key and summary. Sort by key descending. Row click opens the detail.
-- **Issue detail** (`/issues/:key`). Header with key, summary, status pill. Fields edit in place and save on blur or Enter. Description edits in a textarea with a preview tab. Sections: 子課題 (list with 状態 and 担当者, and a 子課題を追加 button), 添付ファイル (names, 追加, click opens), コメント (chronological, textarea with 投稿), 履歴 (timestamps and 更新者, each with 戻す which saves that version as the current one).
-- **Create issue** (`/issues/new`, `/issues/new?parent=KEY`). Fields: 件名 (required), 詳細, 優先度 (default 中), 担当者, 開始日, 期限日, 親課題 (preset and read-only when opened from a parent). Submit creates and opens the detail.
-- **Monthly counts** (`/summary`). Month picker (default current month). Three tables for issues whose `createdAt` falls in the month: 登録者別, 担当者別, 状態別, each row a name and a count, plus a total. CSV export via `dialog.showSaveDialog`, UTF-8 with BOM so Excel opens it.
+- **Issue list** (`/issues`, home). Table: キー, 件名, 種別, 担当者, 状態, 優先度, 期限日, 更新日. Children render under their parent, indented, in key order. Clicking a header sorts the top-level rows by that column (children stay under their parent); the same header again flips the direction; キー and 更新日 start descending, the rest ascending; an empty 担当者, 種別 or 期限日 sorts last. Filters above the table: 状態 (multi-select, default all except 完了), 担当者, 登録者, 種別, 期限 (すべて / 期限超過 / 7 日以内 / 期限なし), toggles 自分の担当, 自分が登録 and 確認待ち (処理済み and 登録者 = me), keyword over key, summary and description. The 期限日 cell of an open or in-progress issue is red when past due and amber when due within 3 days. A row saved by someone else since this machine last opened it shows a dot before the key; the nav shows the count of such rows among the user's own open issues. CSV に出力 saves the rows as listed (columns plus 登録者 and 登録日). Row click opens the detail.
+- **Issue detail** (`/issues/:key`). Header with key, summary, status pill, 複製 (opens the create form prefilled from this issue) and 削除; when the status is 処理済み and the viewer is the 登録者, 確認して完了にする sets 完了. Fields (種別, 優先度, 担当者, 開始日, 期限日) edit in place and save on change. Description edits in a textarea with a preview tab. Sections: 子課題 (list with 状態 and 担当者, and a 子課題を追加 button), 関連課題 (issues this description mentions by key and issues whose description mentions this key; derived, never stored), 添付ファイル (names, 追加, click opens), コメント (comments and field changes merged in time order, with すべて表示 / コメントのみ; the comment box carries a 状態 select so a status change and its comment save together), 履歴 (timestamps and 更新者, each with 戻す which saves that version as the current one). Issue keys written in Markdown text (descriptions, comments, wiki pages) render as links to the issue.
+- **Create issue** (`/issues/new`, `/issues/new?parent=KEY`, `/issues/new?copy=KEY`). Fields: 件名 (required), 詳細, 種別 (default the first in the project list), 優先度 (default 中), 担当者, 開始日, 期限日, 親課題 (preset and read-only when opened from a parent). With `copy`, 件名, 詳細, 種別, 優先度, 担当者 and 親課題 are prefilled and stay editable. Submit creates and opens the detail.
+- **Monthly counts** (`/summary`). Month picker (default current month). Tables for issues whose `createdAt` falls in the month: 登録者別, 担当者別, 状態別, 種別別, each row a name and a count, plus a total; and 完了 担当者別 for issues whose status is 完了 and whose `updatedAt` falls in the month (`updatedAt` approximates the closing date). CSV export via `dialog.showSaveDialog`, UTF-8 with BOM so Excel opens it.
+- **Settings** (`/settings`). The 種別 list, one per line, saved to `project.json`; other clients pick the change up within one poll cycle. An issue whose 種別 was removed from the list keeps it; the detail select shows it as an extra option and the counts give it its own row.
 
 ## Behaviour
 

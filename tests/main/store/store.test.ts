@@ -70,6 +70,7 @@ test("users.me is null until register writes users/<username>.json", async () =>
 const draft = (over: Partial<IssueDraft> = {}): IssueDraft => ({
   summary: "s",
   description: "",
+  category: "",
   status: "open",
   priority: "normal",
   assignee: null,
@@ -202,4 +203,22 @@ test("summary.exportCsv writes UTF-8 with BOM to the chosen path", async () => {
 
 test("methods needing the shared folder reject before it is configured", async () => {
   await expect(store(null).users.me()).rejects.toThrow("not configured");
+});
+
+test("records and project.json written before category existed load with defaults; project.put replaces categories only", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const l = layout(shared);
+  await fsp.writeFile(l.projectFile, JSON.stringify({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z" }), "utf8");
+  expect((await s.project.get())?.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
+  const { category: _dropped, ...old } = { ...draft(), key: "26-0001" };
+  await fsp.writeFile(join(l.issues, "26-0001.json"), JSON.stringify(old), "utf8");
+  expect((await s.issues.get("26-0001"))?.category).toBe("");
+  expect((await s.issues.list())[0].category).toBe("");
+  await s.issues.put({ ...old, category: "依頼" });
+  expect((await s.issues.history("26-0001"))[0].category).toBe("");
+  const p = await s.project.put([" 相談 ", "", "不具合", "相談"]);
+  expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
+  await expect(s.project.put(["", " "])).rejects.toThrow();
 });

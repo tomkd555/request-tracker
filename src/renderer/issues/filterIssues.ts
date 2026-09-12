@@ -9,6 +9,8 @@ export interface IssueFilter {
   reporter: string | null;
   keyword: string;
   due: DueFilter;
+  /** 種別; null means every category. */
+  category: string | null;
   /** Only issues 処理済み that `me` reported and has yet to confirm. */
   awaitingConfirmation: boolean;
 }
@@ -19,6 +21,7 @@ export const DEFAULT_FILTER: IssueFilter = {
   reporter: null,
   keyword: "",
   due: "all",
+  category: null,
   awaitingConfirmation: false,
 };
 
@@ -45,6 +48,7 @@ export function filterIssues(issues: Issue[], filter: IssueFilter, today: string
       filter.statuses.includes(i.status) &&
       (filter.assignee === null || i.assignee === filter.assignee) &&
       (filter.reporter === null || i.reporter === filter.reporter) &&
+      (filter.category === null || i.category === filter.category) &&
       (!filter.awaitingConfirmation || (i.status === "resolved" && i.reporter === me)) &&
       matchesDue(i, filter.due, today) &&
       (kw === "" ||

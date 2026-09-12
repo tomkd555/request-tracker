@@ -63,6 +63,7 @@ export function Summary(): React.JSX.Element {
         {table("登録者", counts.byReporter, user)}
         {table("担当者", counts.byAssignee, (k) => (k === "" ? "未設定" : user(k)))}
         {table("状態", counts.byStatus, (k) => status(k as IssueStatus))}
+        {table("種別", counts.byCategory, (k) => k || "未設定")}
         {table("完了 担当者別", counts.closedByAssignee, (k) => (k === "" ? "未設定" : user(k)), counts.closedTotal)}
       </div>
     </div>

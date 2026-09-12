@@ -22,9 +22,15 @@ async function statDir(dir: string): Promise<{ name: string; sig: string; isDir:
 
 const idOf = (name: string): string => name.replace(/\.json$/, "");
 
-/** One full scan: issues/, wiki/, users/ by record, comments/<KEY>/ and attachments/<KEY>/ by issue key. */
+/** One full scan: project.json, issues/, wiki/, users/ by record, comments/<KEY>/ and attachments/<KEY>/ by issue key. */
 export async function scan(l: Layout): Promise<Snapshot> {
   const snap: Snapshot = new Map();
+  try {
+    const s = await fsp.stat(l.projectFile);
+    snap.set(l.projectFile, { collection: "project", id: "project", sig: `${s.mtimeMs}:${s.size}` });
+  } catch {
+    // absent until first launch finishes
+  }
   for (const [collection, dir] of [
     ["issues", l.issues],
     ["wiki", l.wiki],

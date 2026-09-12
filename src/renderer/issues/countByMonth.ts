@@ -7,6 +7,7 @@ export interface MonthlyCounts {
   byReporter: Count[];
   byAssignee: Count[];
   byStatus: Count[];
+  byCategory: Count[]; // "" = 未設定
   /** Issues closed in the month: status closed and updatedAt in the month. */
   closedTotal: number;
   closedByAssignee: Count[];
@@ -37,6 +38,7 @@ export function countByMonth(issues: Issue[], month: string): MonthlyCounts {
     byReporter: tally(inMonth.map((i) => i.reporter)),
     byAssignee: tally(inMonth.map((i) => i.assignee ?? "")),
     byStatus: tally(inMonth.map((i) => i.status)),
+    byCategory: tally(inMonth.map((i) => i.category)),
     closedTotal: closed.length,
     closedByAssignee: tally(closed.map((i) => i.assignee ?? "")),
   };
@@ -62,6 +64,7 @@ export function toCsv(
   section("登録者", c.byReporter, nameOf.user);
   section("担当者", c.byAssignee, (k) => (k === "" ? "未設定" : nameOf.user(k)));
   section("状態", c.byStatus, (k) => nameOf.status(k as IssueStatus));
+  section("種別", c.byCategory, (k) => k || "未設定");
   lines.push([cell("完了件数"), cell(c.closedTotal)].join(","), "");
   section("完了 担当者別", c.closedByAssignee, (k) => (k === "" ? "未設定" : nameOf.user(k)));
   return lines.join("\r\n");

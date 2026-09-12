@@ -68,3 +68,10 @@ test("an unreachable root logs once per cycle, and changes made meanwhile arrive
   await sleep(150);
   expect(batches).toEqual([[{ collection: "issues", id: "26-0001" }]]);
 });
+
+test("a rewritten project.json yields one store:changed for the project", async () => {
+  await write(l.projectFile, "{}");
+  const a = await scan(l);
+  await write(l.projectFile, "{ }");
+  expect(diff(a, await scan(l))).toEqual([{ collection: "project", id: "project" }]);
+});

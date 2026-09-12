@@ -1,5 +1,5 @@
 import { ISSUE_STATUSES, type IssueStatus, type User } from "../../shared/types";
-import { useSession } from "../app/UserContext";
+import { categoryOptions, useSession } from "../app/UserContext";
 import { DEFAULT_FILTER, type DueFilter, type IssueFilter } from "./filterIssues";
 import { STATUS_LABEL } from "./labels";
 
@@ -13,7 +13,7 @@ const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
 ];
 
 export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element {
-  const { me } = useSession();
+  const { me, project } = useSession();
   const toggleStatus = (s: IssueStatus): void => {
     const statuses = filter.statuses.includes(s) ? filter.statuses.filter((x) => x !== s) : [...filter.statuses, s];
     onChange({ ...filter, statuses });
@@ -57,6 +57,17 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
       <label className="filter-bar__field">
         登録者
         {userSelect(filter.reporter, (v) => onChange({ ...filter, reporter: v }))}
+      </label>
+      <label className="filter-bar__field">
+        種別
+        <select value={filter.category ?? ""} onChange={(e) => onChange({ ...filter, category: e.target.value || null })}>
+          <option value="">すべて</option>
+          {categoryOptions(project, filter.category ?? "").map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="filter-bar__field">
         期限

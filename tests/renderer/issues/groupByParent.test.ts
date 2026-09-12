@@ -6,6 +6,7 @@ const issue = (key: string, parentKey: string | null = null): Issue => ({
   key,
   summary: key,
   description: "",
+  category: "",
   status: "open",
   priority: "normal",
   assignee: null,

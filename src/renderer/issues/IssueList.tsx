@@ -15,6 +15,7 @@ import { useIssues } from "./useIssues";
 const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "key", label: "キー" },
   { key: "summary", label: "件名" },
+  { key: "category", label: "種別" },
   { key: "assignee", label: "担当者" },
   { key: "status", label: "状態" },
   { key: "priority", label: "優先度" },
@@ -87,6 +88,7 @@ export function IssueList(): React.JSX.Element {
                   {i.key}
                 </td>
                 <td className="issue-table__cell">{i.summary}</td>
+                <td className="issue-table__cell">{i.category}</td>
                 <td className="issue-table__cell">{nameOf(i.assignee)}</td>
                 <td className="issue-table__cell">
                   <span className={statusClass(i.status)}>{STATUS_LABEL[i.status]}</span>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { IssueDraft } from "../../shared/api";
 import { ISSUE_PRIORITIES, type IssuePriority } from "../../shared/types";
-import { useSession } from "../app/UserContext";
+import { categoryOptions, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { PRIORITY_LABEL } from "./labels";
 import { useIssues } from "./useIssues";
@@ -13,11 +13,12 @@ interface Props {
 }
 
 export function IssueCreate({ parentKey, copyFrom }: Props): React.JSX.Element {
-  const { me, users } = useSession();
+  const { me, users, project } = useSession();
   const { byKey, issues, refreshOne } = useIssues();
   const source = copyFrom !== null ? byKey.get(copyFrom) : undefined;
   const [summary, setSummary] = useState(source?.summary ?? "");
   const [description, setDescription] = useState(source?.description ?? "");
+  const [category, setCategory] = useState(source?.category || (project.categories[0] ?? ""));
   const [priority, setPriority] = useState<IssuePriority>(source?.priority ?? "normal");
   const [assignee, setAssignee] = useState<string>(source?.assignee ?? "");
   const [startDate, setStartDate] = useState("");
@@ -38,6 +39,7 @@ export function IssueCreate({ parentKey, copyFrom }: Props): React.JSX.Element {
     const draft: IssueDraft = {
       summary: summary.trim(),
       description,
+      category,
       status: "open",
       priority,
       assignee: assignee || null,
@@ -71,6 +73,16 @@ export function IssueCreate({ parentKey, copyFrom }: Props): React.JSX.Element {
         <textarea className="issue-form__control" value={description} onChange={(e) => setDescription(e.target.value)} rows={8} />
       </label>
       <div className="form-row">
+        <label className="issue-form__field">
+          種別
+          <select className="issue-form__control" value={category} onChange={(e) => setCategory(e.target.value)}>
+            {categoryOptions(project, category).map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="issue-form__field">
           優先度
           <select className="issue-form__control" value={priority} onChange={(e) => setPriority(e.target.value as IssuePriority)}>

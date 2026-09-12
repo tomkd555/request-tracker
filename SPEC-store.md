@@ -10,7 +10,7 @@ The single path between the app and the shared folder. Runs in the main process.
 
 ```
 <root>/
-  project.json                         { fiscalYearStartMonth, createdAt }
+  project.json                         { fiscalYearStartMonth, createdAt, categories }
   users/<username>.json                User
   issues/<KEY>.json                    Issue
   comments/<KEY>/<createdAt>-<username>.json   Comment
@@ -30,7 +30,7 @@ Local config: `app.getPath("userData")/config.json` holding `{ rootDir }`.
 ## Records
 
 ```ts
-export type Project = { fiscalYearStartMonth: number; createdAt: string }; // 1–12, default 4
+export type Project = { fiscalYearStartMonth: number; createdAt: string; categories: string[] }; // month 1–12, default 4; categories default 問い合わせ / 不具合 / 依頼 / その他 and are filled in on read when absent
 export type User = { username: string; displayName: string; createdAt: string };
 export type Attachment = { name: string; kind: "file" | "folder"; size: number | null; addedAt: string }; // derived from stat, never stored; size is null for a folder
 ```
@@ -54,7 +54,7 @@ Other record types are owned by their module specs.
 ```ts
 export type Api = {
   config: { get(): Promise<{ rootDir: string } | null>; chooseRoot(): Promise<string | null> };
-  project: { get(): Promise<Project | null>; init(fiscalYearStartMonth: number): Promise<Project> };
+  project: { get(): Promise<Project | null>; init(fiscalYearStartMonth: number): Promise<Project>; put(categories: string[]): Promise<Project> };
   users: { me(): Promise<User | null>; register(displayName: string): Promise<User>; list(): Promise<User[]> };
   issues: {
     list(): Promise<Issue[]>;
@@ -64,7 +64,7 @@ export type Api = {
     remove(key: string): Promise<void>;
     history(key: string): Promise<Issue[]>;
   };
-  summary: { exportCsv(csv: string): Promise<boolean> }; // save dialog, UTF-8 with BOM; false when cancelled
+  summary: { exportCsv(csv: string, defaultName: string): Promise<boolean> }; // save dialog with that default file name, UTF-8 with BOM; false when cancelled; used by 集計 and by the issue list
   comments: { list(key: string): Promise<Comment[]>; add(c: Comment): Promise<void> };
   attachments: {
     list(key: string): Promise<Attachment[]>;

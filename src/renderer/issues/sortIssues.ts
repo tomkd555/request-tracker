@@ -1,6 +1,6 @@
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
 
-export type SortKey = "key" | "summary" | "assignee" | "status" | "priority" | "dueDate" | "updatedAt";
+export type SortKey = "key" | "summary" | "category" | "assignee" | "status" | "priority" | "dueDate" | "updatedAt";
 export interface IssueSort { key: SortKey; dir: "asc" | "desc" }
 
 export const DEFAULT_SORT: IssueSort = { key: "key", dir: "desc" };
@@ -19,6 +19,8 @@ export function issueComparator(sort: IssueSort, nameOf: (username: string | nul
         return cmpStr(a[sort.key], b[sort.key]) * sign;
       case "assignee":
         return emptyLast(nameOf(a.assignee), nameOf(b.assignee));
+      case "category":
+        return emptyLast(a.category, b.category);
       case "dueDate":
         return emptyLast(a.dueDate ?? "", b.dueDate ?? "");
       case "status":

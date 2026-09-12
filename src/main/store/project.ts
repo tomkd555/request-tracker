@@ -1,18 +1,34 @@
 import { promises as fsp } from "node:fs";
-import { isProject, type Project } from "../../shared/types";
+import { DEFAULT_CATEGORIES, isProject, type Project } from "../../shared/types";
 import { readRecord, writeAtomic } from "./collection";
 import { collectionDirs, type Layout } from "./paths";
 
-export function readProject(l: Layout): Promise<Project | null> {
-  return readRecord(l.projectFile, isProject);
+const serialize = (p: Project): string => JSON.stringify(p, null, 2) + "\n";
+
+/** A project.json written before `categories` existed comes back with the default list. */
+export async function readProject(l: Layout): Promise<Project | null> {
+  const p = await readRecord(l.projectFile, isProject);
+  if (p === null) return null;
+  return { ...p, categories: p.categories ?? DEFAULT_CATEGORIES };
 }
 
 export async function initProject(l: Layout, fiscalYearStartMonth: number): Promise<Project> {
   if (!Number.isInteger(fiscalYearStartMonth) || fiscalYearStartMonth < 1 || fiscalYearStartMonth > 12) {
     throw new Error(`fiscal year start month out of range: ${fiscalYearStartMonth}`);
   }
-  const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString() };
+  const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString(), categories: DEFAULT_CATEGORIES };
   for (const dir of collectionDirs(l)) await fsp.mkdir(dir, { recursive: true });
-  await writeAtomic(l.projectFile, JSON.stringify(project, null, 2) + "\n");
+  await writeAtomic(l.projectFile, serialize(project));
+  return project;
+}
+
+/** Replaces `categories` only, re-reading the file first so the other fields stay as they are on disk. No history copy is kept. */
+export async function putCategories(l: Layout, categories: string[]): Promise<Project> {
+  const current = await readProject(l);
+  if (current === null) throw new Error("project.json is missing");
+  const cleaned = [...new Set(categories.map((c) => c.trim()).filter((c) => c !== ""))];
+  if (cleaned.length === 0) throw new Error("categories must not be empty");
+  const project: Project = { ...current, categories: cleaned };
+  await writeAtomic(l.projectFile, serialize(project));
   return project;
 }
