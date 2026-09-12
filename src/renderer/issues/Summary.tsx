@@ -24,7 +24,7 @@ export function Summary(): React.JSX.Element {
     }
   };
 
-  const table = (title: string, rows: Count[], label: (k: string) => string): React.JSX.Element => (
+  const table = (title: string, rows: Count[], label: (k: string) => string, total: number = counts.total): React.JSX.Element => (
     <table className="issue-table">
       <thead>
         <tr>
@@ -41,7 +41,7 @@ export function Summary(): React.JSX.Element {
         ))}
         <tr className="summary__row summary__row--total">
           <td className="issue-table__cell">合計</td>
-          <td className="issue-table__cell issue-table__cell--num">{counts.total}</td>
+          <td className="issue-table__cell issue-table__cell--num">{total}</td>
         </tr>
       </tbody>
     </table>
@@ -63,6 +63,7 @@ export function Summary(): React.JSX.Element {
         {table("登録者", counts.byReporter, user)}
         {table("担当者", counts.byAssignee, (k) => (k === "" ? "未設定" : user(k)))}
         {table("状態", counts.byStatus, (k) => status(k as IssueStatus))}
+        {table("完了 担当者別", counts.closedByAssignee, (k) => (k === "" ? "未設定" : user(k)), counts.closedTotal)}
       </div>
     </div>
   );
