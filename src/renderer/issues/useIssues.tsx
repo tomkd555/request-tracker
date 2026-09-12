@@ -36,6 +36,14 @@ export function IssuesProvider({ children }: { children: React.ReactNode }): Rea
     void reload();
   }, [reload]);
 
+  useEffect(
+    () =>
+      window.api.onChanged((e) => {
+        if (e.collection === "issues") void refreshOne(e.id);
+      }),
+    [refreshOne],
+  );
+
   const value = useMemo<IssuesState>(
     () => ({ issues: [...byKey.values()], byKey, loaded, reload, refreshOne }),
     [byKey, loaded, reload, refreshOne],

@@ -151,13 +151,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `src/main/store/poller.ts` scans `issues/`, `comments/*/`, `attachments/*/`, `wiki/` and `users/` every 5 s, diffs `mtimeMs` and size, and sends `store:changed`; `useIssues` patches one record per event. Add a `dev:second` npm script that starts a second instance with its own `--user-data-dir` (passed to Electron through electron-vite's `--` separator; the exact form is fixed here) for every later two-instance check.
 
 **Acceptance criteria:**
-- [ ] Touching a file in `issues/` produces exactly one `store:changed` within one cycle (test with a 50 ms interval)
-- [ ] Two dev instances: a status change in one shows in the other within 10 s
-- [ ] Rename the root directory away for two poll cycles: one logged error per cycle and no crash; rename it back: the next cycle emits the pending `store:changed` events
+- [x] Touching a file in `issues/` produces exactly one `store:changed` within one cycle (test with a 50 ms interval)
+- [x] Two dev instances: a status change in one shows in the other within 10 s
+- [x] Rename the root directory away for two poll cycles: one logged error per cycle and no crash; rename it back: the next cycle emits the pending `store:changed` events
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store/poller.test.ts`
-- [ ] Manual check: `npm run dev` and `npm run dev:second` on the same shared folder
+- [x] Tests pass: `npx vitest run tests/main/store/poller.test.ts`
+- [x] Manual check: `npm run dev` and `npm run dev:second` on the same shared folder
 
 **Dependencies:** Tasks 5 and 7
 
@@ -166,9 +166,9 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Estimated scope:** Small
 
 ## Checkpoint B: Two clients
-- [ ] Create, edit and status change propagate between two instances within 10 s
-- [ ] Simultaneous creation from two instances yields distinct keys
-- [ ] Same tests repeated on the real network share
+- [x] Create, edit and status change propagate between two instances within 10 s (local folder, 5 s observed, 2026-09-12)
+- [x] Simultaneous creation from two instances yields distinct keys (26-0004 / 26-0005)
+- [ ] Same tests repeated on the real network share (no share reachable from the build machine; run before distribution)
 - [ ] Review with human before continuing
 
 ## Task 9: Comments

@@ -6,7 +6,8 @@
   "author": "TOMKD",
   "private": true,
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev -w",
+    "dev:second": "electron-vite dev -w -- --user-data-dir=.second-userdata",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",

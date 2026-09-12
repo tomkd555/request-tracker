@@ -29,21 +29,35 @@ export function App(): React.JSX.Element {
     void load();
   }, [load]);
 
+  const refreshUsers = useCallback(async (): Promise<void> => {
+    const users = await window.api.users.list();
+    setBoot((b) => (b ? { ...b, users } : b));
+  }, []);
+
   if (boot === null) return <div className="loading">読み込み中</div>;
   if (boot.step !== "ready" || boot.me === null || boot.project === null) {
     return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} onDone={load} />;
   }
-  const refreshUsers = async (): Promise<void> => {
-    const users = await window.api.users.list();
-    setBoot((b) => (b ? { ...b, users } : b));
-  };
   return (
-    <SessionContext.Provider value={{ me: boot.me, users: boot.users, project: boot.project, refreshUsers }}>
+    <Ready me={boot.me} users={boot.users} project={boot.project} refreshUsers={refreshUsers}>
       <IssuesProvider>
         <Shell />
       </IssuesProvider>
-    </SessionContext.Provider>
+    </Ready>
   );
+}
+
+type ReadyProps = { me: User; users: User[]; project: Project; refreshUsers(): Promise<void>; children: React.ReactNode };
+
+function Ready({ me, users, project, refreshUsers, children }: ReadyProps): React.JSX.Element {
+  useEffect(
+    () =>
+      window.api.onChanged((e) => {
+        if (e.collection === "users") void refreshUsers();
+      }),
+    [refreshUsers],
+  );
+  return <SessionContext.Provider value={{ me, users, project, refreshUsers }}>{children}</SessionContext.Provider>;
 }
 
 function Shell(): React.JSX.Element {

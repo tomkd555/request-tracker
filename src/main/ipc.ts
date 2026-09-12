@@ -1,7 +1,10 @@
-import { app, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { API_METHODS, type StoreApi } from "../shared/api";
 import { createStore } from "./store";
+import { startPoller } from "./store/poller";
 import { currentUsername } from "./store/users";
+
+const POLL_INTERVAL_MS = 5000;
 
 /** Registers one ipcMain.handle per group.method of the store. The only path from renderer to the file system. */
 export function registerIpc(): ReturnType<typeof createStore> {
@@ -20,5 +23,13 @@ export function registerIpc(): ReturnType<typeof createStore> {
       ipcMain.handle(`${group}:${method}`, (_event, ...args: unknown[]) => fn(...args));
     }
   }
+
+  startPoller({
+    getLayout: () => store.current(),
+    intervalMs: POLL_INTERVAL_MS,
+    onChange(events) {
+      for (const w of BrowserWindow.getAllWindows()) for (const e of events) w.webContents.send("store:changed", e);
+    },
+  });
   return store;
 }
