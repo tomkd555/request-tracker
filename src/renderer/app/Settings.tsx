@@ -5,13 +5,18 @@ import { useSession } from "./UserContext";
 export function Settings(): React.JSX.Element {
   const { project, refreshProject } = useSession();
   const [text, setText] = useState(project.categories.join("\n"));
+  const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  useEffect(() => setText(project.categories.join("\n")), [project.categories]);
+  // A list saved elsewhere replaces the textarea only while nothing has been typed here.
+  useEffect(() => {
+    if (!dirty) setText(project.categories.join("\n"));
+  }, [project.categories, dirty]);
 
   const save = async (): Promise<void> => {
     setMessage(null);
     try {
       await window.api.project.put(text.split(/\r?\n/));
+      setDirty(false);
       await refreshProject();
       setMessage("保存しました");
     } catch (e) {
@@ -33,7 +38,15 @@ export function Settings(): React.JSX.Element {
       >
         <label className="issue-form__field">
           種別
-          <textarea className="issue-form__control" value={text} onChange={(e) => setText(e.target.value)} rows={8} />
+          <textarea
+            className="issue-form__control"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setDirty(true);
+            }}
+            rows={8}
+          />
         </label>
         {message && <p className="text--muted">{message}</p>}
         <div className="form-actions">

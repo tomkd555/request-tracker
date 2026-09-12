@@ -220,5 +220,6 @@ test("records and project.json written before category existed load with default
   expect((await s.issues.history("26-0001"))[0].category).toBe("");
   const p = await s.project.put([" 相談 ", "", "不具合", "相談"]);
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
+  expect(await fsp.readdir(l.historyProject)).toHaveLength(1);
   await expect(s.project.put(["", " "])).rejects.toThrow();
 });

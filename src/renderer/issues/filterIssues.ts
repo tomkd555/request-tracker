@@ -27,6 +27,8 @@ export const DEFAULT_FILTER: IssueFilter = {
 
 const WEEK_DAYS = 7;
 
+const isActive = (i: Issue): boolean => i.status === "open" || i.status === "in_progress";
+
 function matchesDue(i: Issue, due: DueFilter, today: string): boolean {
   switch (due) {
     case "all":
@@ -34,9 +36,9 @@ function matchesDue(i: Issue, due: DueFilter, today: string): boolean {
     case "none":
       return i.dueDate === null;
     case "overdue":
-      return i.dueDate !== null && i.dueDate < today && (i.status === "open" || i.status === "in_progress");
+      return i.dueDate !== null && i.dueDate < today && isActive(i);
     case "week":
-      return i.dueDate !== null && i.dueDate >= today && i.dueDate <= addDays(today, WEEK_DAYS);
+      return i.dueDate !== null && i.dueDate >= today && i.dueDate <= addDays(today, WEEK_DAYS) && isActive(i);
   }
 }
 

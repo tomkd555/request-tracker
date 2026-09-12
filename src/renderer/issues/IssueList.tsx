@@ -62,14 +62,11 @@ export function IssueList(): React.JSX.Element {
         <thead>
           <tr>
             {COLUMNS.map((c) => (
-              <th
-                key={c.key}
-                className="issue-table__header issue-table__header--sortable"
-                aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-                onClick={() => setSort((s) => nextSort(s, c.key))}
-              >
-                {c.label}
-                {sort.key === c.key && <span className="issue-table__sort-mark">{sort.dir === "asc" ? "▲" : "▼"}</span>}
+              <th key={c.key} className="issue-table__header" aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+                <button type="button" className="issue-table__sort" onClick={() => setSort((s) => nextSort(s, c.key))}>
+                  {c.label}
+                  {sort.key === c.key && <span className="issue-table__sort-mark">{sort.dir === "asc" ? "▲" : "▼"}</span>}
+                </button>
               </th>
             ))}
           </tr>
@@ -84,7 +81,7 @@ export function IssueList(): React.JSX.Element {
                 onClick={() => navigate(`/issues/${i.key}`)}
               >
                 <td className="issue-table__cell issue-table__cell--key">
-                  {isUnseen(i, me.username) && <span className="issue-table__unseen" aria-label="更新あり" />}
+                  {isUnseen(i, me.username) && <span className="issue-table__unseen" role="img" aria-label="更新あり" />}
                   {i.key}
                 </td>
                 <td className="issue-table__cell">{i.summary}</td>

@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
-import { mentionedKeys } from "../app/linkIssueKeys";
 import { Markdown } from "../app/Markdown";
 import { categoryOptions, displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
@@ -9,23 +8,9 @@ import { Comments } from "./Comments";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
 import { HistoryList } from "./HistoryList";
 import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { relatedIssues } from "./relatedIssues";
 import { markSeen } from "./seen";
 import { useIssues } from "./useIssues";
-
-/** Issues this one mentions in its description, then issues whose description mentions this one; parent and children excluded. */
-function relatedIssues(issue: Issue, byKey: Map<string, Issue>): Issue[] {
-  const family = new Set([issue.key, issue.parentKey ?? ""]);
-  const out: Issue[] = [];
-  for (const k of mentionedKeys(issue.description)) {
-    const i = byKey.get(k);
-    if (i && !family.has(k) && i.parentKey !== issue.key) out.push(i);
-  }
-  for (const i of byKey.values()) {
-    if (family.has(i.key) || i.parentKey === issue.key || out.includes(i)) continue;
-    if (mentionedKeys(i.description).includes(issue.key)) out.push(i);
-  }
-  return out;
-}
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
   const { me, users, project } = useSession();
@@ -33,7 +18,10 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const issue = byKey.get(issueKey);
+  // The record the next save builds on: the last one written here, until the store hands back a newer one.
+  const latest = useRef<Issue | undefined>(issue);
   useEffect(() => {
+    latest.current = issue;
     if (issue) markSeen(issue);
   }, [issue]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
@@ -44,7 +32,9 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
 
   // ponytail: last write wins, no stale-write check; history keeps the overwritten version
   const put = async (patch: Partial<Issue>): Promise<void> => {
-    await window.api.issues.put({ ...issue, ...patch, key: issue.key, updatedAt: new Date().toISOString(), updatedBy: me.username });
+    const next: Issue = { ...(latest.current ?? issue), ...patch, key: issue.key, updatedAt: new Date().toISOString(), updatedBy: me.username };
+    latest.current = next; // a second edit before refreshOne resolves builds on this one
+    await window.api.issues.put(next);
     await refreshOne(issue.key);
     setVersion((v) => v + 1);
   };
@@ -212,7 +202,9 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
         <HistoryList
           issueKey={issue.key}
           version={version}
-          onRestore={(old) => save({ summary: old.summary, description: old.description, status: old.status, priority: old.priority, assignee: old.assignee, startDate: old.startDate, dueDate: old.dueDate })}
+          onRestore={(old) =>
+            save({ summary: old.summary, description: old.description, category: old.category, status: old.status, priority: old.priority, assignee: old.assignee, startDate: old.startDate, dueDate: old.dueDate })
+          }
         />
       </section>
     </div>

@@ -13,6 +13,7 @@ test("keys inside inline code and fenced blocks stay as text", () => {
 test("an existing link and longer numbers are left alone", () => {
   expect(linkIssueKeys("[26-0012](#/issues/26-0012)")).toBe("[26-0012](#/issues/26-0012)");
   expect(linkIssueKeys("tel 026-0012-345")).toBe("tel 026-0012-345");
+  expect(linkIssueKeys("https://intra/docs/26-0012")).toBe("https://intra/docs/26-0012");
 });
 
 test("mentionedKeys lists distinct keys outside code", () => {

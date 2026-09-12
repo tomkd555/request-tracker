@@ -12,7 +12,14 @@ interface Props {
   copyFrom: string | null;
 }
 
-export function IssueCreate({ parentKey, copyFrom }: Props): React.JSX.Element {
+export function IssueCreate(props: Props): React.JSX.Element {
+  const { loaded } = useIssues();
+  // The copy source is read once into form state, so the form mounts only after the issue map is loaded.
+  if (!loaded) return <div className="text--loading">読み込み中</div>;
+  return <IssueForm {...props} />;
+}
+
+function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const { me, users, project } = useSession();
   const { byKey, issues, refreshOne } = useIssues();
   const source = copyFrom !== null ? byKey.get(copyFrom) : undefined;

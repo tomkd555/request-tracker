@@ -1,6 +1,8 @@
 import { promises as fsp } from "node:fs";
+import { join } from "node:path";
 import { DEFAULT_CATEGORIES, isProject, type Project } from "../../shared/types";
 import { readRecord, writeAtomic } from "./collection";
+import { fileStamp } from "./fileStamp";
 import { collectionDirs, type Layout } from "./paths";
 
 const serialize = (p: Project): string => JSON.stringify(p, null, 2) + "\n";
@@ -22,12 +24,14 @@ export async function initProject(l: Layout, fiscalYearStartMonth: number): Prom
   return project;
 }
 
-/** Replaces `categories` only, re-reading the file first so the other fields stay as they are on disk. No history copy is kept. */
+/** Replaces `categories` only, re-reading the file first so the other fields stay as they are on disk; the previous file goes to history/project/. */
 export async function putCategories(l: Layout, categories: string[]): Promise<Project> {
   const current = await readProject(l);
   if (current === null) throw new Error("project.json is missing");
   const cleaned = [...new Set(categories.map((c) => c.trim()).filter((c) => c !== ""))];
   if (cleaned.length === 0) throw new Error("categories must not be empty");
+  await fsp.mkdir(l.historyProject, { recursive: true });
+  await fsp.copyFile(l.projectFile, join(l.historyProject, `${fileStamp(new Date().toISOString())}.json`));
   const project: Project = { ...current, categories: cleaned };
   await writeAtomic(l.projectFile, serialize(project));
   return project;

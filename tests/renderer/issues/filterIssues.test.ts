@@ -50,6 +50,8 @@ test("due conditions: overdue, within a week, none", () => {
   expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "overdue" }, today, "alice"))).toEqual(["26-0001"]);
   expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "week" }, today, "alice"))).toEqual(["26-0003"]);
   expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "week" }, "2026-09-11", "alice"))).toEqual([]);
+  const closedSoon = [...all, issue({ key: "26-0005", status: "closed", dueDate: "2026-09-13" })];
+  expect(keys(filterIssues(closedSoon, { ...DEFAULT_FILTER, statuses: ["closed"], due: "week" }, today, "alice"))).toEqual([]);
   expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "none" }, today, "alice"))).toEqual(["26-0004"]);
 });
 

@@ -68,16 +68,23 @@ export interface IssueFilter {
   assignee: string | null;
   reporter: string | null;
   keyword: string;
+  due: DueFilter;
+  category: string | null;
+  awaitingConfirmation: boolean;
 }
 
-export function filterIssues(issues: Issue[], filter: IssueFilter): Issue[] {
+/** `today` is YYYY-MM-DD; `me` is the current username. */
+export function filterIssues(issues: Issue[], filter: IssueFilter, today: string, me: string): Issue[] {
   const kw = filter.keyword.trim().toLowerCase();
   return issues.filter(
     (i) =>
       filter.statuses.includes(i.status) &&
       (filter.assignee === null || i.assignee === filter.assignee) &&
       (filter.reporter === null || i.reporter === filter.reporter) &&
-      (kw === "" || i.summary.toLowerCase().includes(kw) || i.key.toLowerCase().includes(kw)),
+      (filter.category === null || i.category === filter.category) &&
+      (!filter.awaitingConfirmation || (i.status === "resolved" && i.reporter === me)) &&
+      matchesDue(i, filter.due, today) &&
+      (kw === "" || i.summary.toLowerCase().includes(kw) || i.key.toLowerCase().includes(kw) || i.description.toLowerCase().includes(kw)),
   );
 }
 ```

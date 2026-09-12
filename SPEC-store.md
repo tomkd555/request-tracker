@@ -18,6 +18,7 @@ The single path between the app and the shared folder. Runs in the main process.
   wiki/<id>.json                       WikiPage
   history/issues/<KEY>/<updatedAt>.json        previous Issue versions
   history/wiki/<id>/<updatedAt>.json           previous WikiPage versions
+  history/project/<stamp>.json                 previous project.json versions
   trash/issues/<KEY>.json              deleted issues
   trash/wiki/<id>.json                 deleted pages
   trash/attachments/<KEY>/<filename>   deleted attachments
@@ -46,6 +47,8 @@ Other record types are owned by their module specs.
 - **Attachments**: `attachments/<KEY>/` is created when the issue is created. A file is copied to `attachments/<KEY>/.<name>.tmp-<pid>` and renamed to the final name; a folder is copied recursively (`fs.cp`) into `attachments/<KEY>/.<name>.tmp-<pid>/` and the directory renamed. The final name is claimed with an exclusive create (`wx` probe, then rename); on `EEXIST` bump the ` (n)` suffix and retry. Size and extension checks run per file before any write; inside a folder, a refused file is skipped and reported. Listing is `readdir` + `stat` of the top level; there is no metadata file. Opening a file uses `shell.openPath`, opening a folder or the issue folder uses `shell.openPath` on the directory, removing renames into `trash/attachments/<KEY>/`. Rules for limits, refused extensions and messages are in `SPEC-issues.md`.
 - **Drag-and-drop paths**: the preload exposes `webUtils.getPathForFile(file)` so the renderer can hand absolute paths to `attachments.add`.
 - **Poller**: every 5 s, `stat` of `project.json` (collection `project`, id `project`) and `readdir` + `stat` of `issues/`, `comments/*/`, `attachments/*/`, `wiki/`, `users/`; compare `mtimeMs` and size with the last snapshot; emit `store:changed` with `{ collection, id }` per difference. `fs.watch` is excluded because SMB shares deliver no events reliably. `// ponytail: full rescan every 5 s; switch to per-directory mtimes if the folder grows past a few thousand files`.
+- **Project settings**: `project.put(categories)` re-reads `project.json`, copies it to `history/project/<stamp>.json`, replaces `categories` only (trimmed, empty lines and duplicates dropped, at least one required) and writes it atomically.
+- **Defaults on read**: an issue record without `category` is returned with `""` from `list`, `get` and `history`; a `project.json` without `categories` is returned with the default list.
 - **Identity**: `os.userInfo().username`. If `users/<username>.json` is absent, the renderer shows the display-name screen and the store creates it.
 - **First launch**: if `config.json` is absent, the renderer shows a folder picker (`dialog.showOpenDialog` with `openDirectory`). If the chosen folder has no `project.json`, ask for the fiscal year start month (default 4) and create `project.json` and the collection directories.
 

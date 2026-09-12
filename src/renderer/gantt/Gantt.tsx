@@ -4,7 +4,8 @@ import { navigate } from "../app/useHashRoute";
 import { FilterBar } from "../issues/FilterBar";
 import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "../issues/filterIssues";
 import { useIssues } from "../issues/useIssues";
-import { isWeekend, layoutGantt, rangeForMonth, ymd } from "./layoutGantt";
+import { ymd } from "../issues/dates";
+import { isWeekend, layoutGantt, rangeForMonth } from "./layoutGantt";
 import "./gantt.css";
 
 const DAY_PX = 28;

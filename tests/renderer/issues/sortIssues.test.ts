@@ -44,6 +44,11 @@ test("status and priority sort in their declared order", () => {
   expect(keys({ key: "priority", dir: "asc" })).toEqual(["0:26-0002", "0:26-0003", "1:26-0004", "0:26-0001"]);
 });
 
+test("ties fall back to key descending", () => {
+  const tied = [issue("26-0001", { priority: "high" }), issue("26-0002", { priority: "high" }), issue("26-0003", { priority: "low" })];
+  expect(groupByParent(tied, issueComparator({ key: "priority", dir: "asc" }, nameOf)).map((r) => r.issue.key)).toEqual(["26-0002", "26-0001", "26-0003"]);
+});
+
 test("nextSort flips the same column and starts a new one in its natural direction", () => {
   expect(nextSort({ key: "key", dir: "desc" }, "key")).toEqual({ key: "key", dir: "asc" });
   expect(nextSort({ key: "key", dir: "desc" }, "summary")).toEqual({ key: "summary", dir: "asc" });

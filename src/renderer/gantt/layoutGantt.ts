@@ -7,8 +7,6 @@ export interface GanttRow { key: string; summary: string; depth: 0 | 1; startCol
 export interface GanttLayout { days: string[]; rows: GanttRow[]; todayCol: number | null }
 export interface DateRange { start: string; end: string } // YYYY-MM-DD, inclusive
 
-export { ymd };
-
 /** First day of the month minus 7 days to last day plus 7 days. `month` is YYYY-MM. */
 export function rangeForMonth(month: string): DateRange {
   const y = Number(month.slice(0, 4));

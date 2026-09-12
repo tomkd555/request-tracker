@@ -7,11 +7,13 @@ export const DEFAULT_SORT: IssueSort = { key: "key", dir: "desc" };
 
 const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Comparator for top-level rows. An empty assignee and a missing due date sort last in either direction. */
+/** Comparator for top-level rows. An empty assignee and a missing due date sort last in either direction; ties fall back to key descending. */
 export function issueComparator(sort: IssueSort, nameOf: (username: string | null) => string): (a: Issue, b: Issue) => number {
   const sign = sort.dir === "asc" ? 1 : -1;
   const emptyLast = (va: string, vb: string): number => (va === "" && vb !== "" ? 1 : vb === "" && va !== "" ? -1 : cmpStr(va, vb) * sign);
-  return (a, b) => {
+  return (a, b) => primary(a, b) || cmpStr(b.key, a.key);
+
+  function primary(a: Issue, b: Issue): number {
     switch (sort.key) {
       case "key":
       case "summary":
@@ -28,7 +30,7 @@ export function issueComparator(sort: IssueSort, nameOf: (username: string | nul
       case "priority":
         return (ISSUE_PRIORITIES.indexOf(a.priority) - ISSUE_PRIORITIES.indexOf(b.priority)) * sign;
     }
-  };
+  }
 }
 
 /** Clicking the same header flips the direction; a new header starts ascending, except key and updatedAt which start descending. */

@@ -1,6 +1,7 @@
 // Issue keys written in Markdown text ("26-0012") become links to the issue, the way Backlog links keys in comments and wiki pages.
 
-const KEY = /(?<![\w-])(\d{2}-\d{4,})(?![\w\]\)-])/g;
+// A key preceded by "/" is part of a URL path and stays as it is.
+const KEY = /(?<![\w\-/])(\d{2}-\d{4,})(?![\w\]\)-])/g;
 
 /** Splits on backtick runs so fenced blocks and inline code spans stay untouched; odd segments are code. */
 const splitCode = (src: string): string[] => src.split(/(`+[\s\S]*?`+)/);

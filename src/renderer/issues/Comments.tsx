@@ -101,7 +101,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
                 <Markdown source={f.comment.body} />
               </li>
             ) : (
-              <li key={`change-${f.change.at}`} className="comments__item comments__item--change">
+              <li key={`change-${f.change.at}-${f.change.by}`} className="comments__item comments__item--change">
                 <div className="comments__head">
                   <span className="comments__author">{nameOf(f.change.by)}</span>
                   <span className="text--muted">{formatDateTime(f.change.at)}</span>
