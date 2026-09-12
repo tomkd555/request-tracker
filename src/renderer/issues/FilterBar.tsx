@@ -1,10 +1,19 @@
 import { ISSUE_STATUSES, type IssueStatus, type User } from "../../shared/types";
-import { DEFAULT_FILTER, type IssueFilter } from "./filterIssues";
+import { useSession } from "../app/UserContext";
+import { DEFAULT_FILTER, type DueFilter, type IssueFilter } from "./filterIssues";
 import { STATUS_LABEL } from "./labels";
 
 type Props = { filter: IssueFilter; users: User[]; onChange(f: IssueFilter): void };
 
+const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
+  { value: "all", label: "すべて" },
+  { value: "overdue", label: "期限超過" },
+  { value: "week", label: "7 日以内" },
+  { value: "none", label: "期限なし" },
+];
+
 export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element {
+  const { me } = useSession();
   const toggleStatus = (s: IssueStatus): void => {
     const statuses = filter.statuses.includes(s) ? filter.statuses.filter((x) => x !== s) : [...filter.statuses, s];
     onChange({ ...filter, statuses });
@@ -19,6 +28,19 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
       ))}
     </select>
   );
+  const mine = (field: "assignee" | "reporter", label: string): React.JSX.Element => {
+    const on = filter[field] === me.username;
+    return (
+      <button
+        type="button"
+        className={`filter-bar__toggle${on ? " filter-bar__toggle--on" : ""}`}
+        aria-pressed={on}
+        onClick={() => onChange({ ...filter, [field]: on ? null : me.username })}
+      >
+        {label}
+      </button>
+    );
+  };
   return (
     <div className="filter-bar">
       <span className="filter-bar__label">状態</span>
@@ -36,6 +58,18 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
         登録者
         {userSelect(filter.reporter, (v) => onChange({ ...filter, reporter: v }))}
       </label>
+      <label className="filter-bar__field">
+        期限
+        <select value={filter.due} onChange={(e) => onChange({ ...filter, due: e.target.value as DueFilter })}>
+          {DUE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {mine("assignee", "自分の担当")}
+      {mine("reporter", "自分が登録")}
       <input
         type="search"
         className="filter-bar__search"

@@ -62,6 +62,32 @@
   white-space: nowrap;
 }
 
+.issue-table__cell--overdue {
+  color: var(--text-overdue);
+  font-weight: 600;
+}
+
+.issue-table__cell--soon {
+  color: var(--text-due-soon);
+  font-weight: 600;
+}
+
+.issue-table__header--sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.issue-table__sort-mark {
+  margin-left: var(--space-1);
+}
+
+.filter-bar__toggle--on {
+  background: var(--brand);
+  color: var(--text-on-brand);
+  border-color: var(--brand);
+}
+
 .priority--high {
   color: var(--priority-high);
 }

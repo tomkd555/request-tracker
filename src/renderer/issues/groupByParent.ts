@@ -6,12 +6,12 @@ const desc = (a: Issue, b: Issue): number => (a.key < b.key ? 1 : a.key > b.key 
 const asc = (a: Issue, b: Issue): number => -desc(a, b);
 
 /**
- * Top-level rows sorted by key descending; each row's children (those present in `issues`)
+ * Top-level rows sorted by `compare` (default: key descending); each row's children (those present in `issues`)
  * follow it in ascending key order. A child whose parent is absent from `issues` becomes a top-level row.
  */
-export function groupByParent(issues: Issue[]): IssueRow[] {
+export function groupByParent(issues: Issue[], compare: (a: Issue, b: Issue) => number = desc): IssueRow[] {
   const present = new Set(issues.map((i) => i.key));
-  const tops = issues.filter((i) => i.parentKey === null || !present.has(i.parentKey)).sort(desc);
+  const tops = issues.filter((i) => i.parentKey === null || !present.has(i.parentKey)).sort(compare);
   const childrenOf = new Map<string, Issue[]>();
   for (const i of issues) {
     if (i.parentKey !== null && present.has(i.parentKey)) {

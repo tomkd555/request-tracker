@@ -22,7 +22,8 @@ export function Gantt(): React.JSX.Element {
   const [month, setMonth] = useState(thisMonth());
   const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
   const range = rangeForMonth(month);
-  const { days, rows, todayCol } = layoutGantt(filterIssues(issues, filter), range, ymd(new Date()));
+  const today = ymd(new Date());
+  const { days, rows, todayCol } = layoutGantt(filterIssues(issues, filter, today), range, today);
   const gridWidth = LABEL_PX + days.length * DAY_PX;
 
   return (

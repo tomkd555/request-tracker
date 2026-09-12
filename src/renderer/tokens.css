@@ -20,6 +20,8 @@
   --text-muted: #737373; /* board: card key */
   --text-table-header: #6f9a89; /* issue list: column labels */
   --link: #4f8d78; /* gantt: issue title link */
+  --text-overdue: #b3261e; /* issue list: overdue due date; own choice, 5.9:1 on --bg-row (measured) */
+  --text-due-soon: #8a5a00; /* issue list: due within 3 days; own choice, 5.3:1 on --bg-row (measured) */
 
   /* brand */
   --brand: #52987c; /* issue list: selected filter chip, count badge */
