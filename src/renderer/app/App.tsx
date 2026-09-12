@@ -10,6 +10,7 @@ import { IssueDetail } from "../issues/IssueDetail";
 import { IssueList } from "../issues/IssueList";
 import { IssuesProvider } from "../issues/useIssues";
 import { Summary } from "../issues/Summary";
+import { Gantt } from "../gantt/Gantt";
 import { WikiEdit } from "../wiki/WikiEdit";
 import { WikiList } from "../wiki/WikiList";
 import { WikiView } from "../wiki/WikiView";
@@ -85,7 +86,7 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   const w = /^\/wiki\/([^/]+)(\/edit)?$/.exec(path);
   if (w) return w[2] ? <WikiEdit key={w[1]} id={w[1]} /> : <WikiView key={w[1]} id={w[1]} />;
   if (path.startsWith("/wiki")) return <WikiList />;
-  if (path.startsWith("/gantt")) return <h1>ガントチャート</h1>;
+  if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
   if (path === "/issues/new") return <IssueCreate key={query.get("parent") ?? ""} parentKey={query.get("parent")} />;
   const m = /^\/issues\/([^/]+)$/.exec(path);

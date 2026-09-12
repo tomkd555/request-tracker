@@ -313,13 +313,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `layoutGantt(issues, range)` and the `/gantt` screen: day columns for the month ±7 days, parents first with children indented, bars from start (or created date) to due, overdue and muted tones, today line, weekend shading, 前月/今月/次月, row click to detail, 状態 filter shared with the list.
 
 **Acceptance criteria:**
-- [ ] `layoutGantt` tests: inside range, start before range, due after range, child under parent
-- [ ] An issue without `dueDate` is absent; an open issue due yesterday shows the overdue tone
-- [ ] Month navigation moves the range and the today line
+- [x] `layoutGantt` tests: inside range, start before range, due after range, child under parent
+- [x] An issue without `dueDate` is absent; an open issue due yesterday shows the overdue tone
+- [x] Month navigation moves the range and the today line
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/renderer/gantt`
-- [ ] Manual check: issues spanning month boundaries
+- [x] Tests pass: `npx vitest run tests/renderer/gantt`
+- [x] Manual check: issues spanning month boundaries
 
 **Dependencies:** Task 6
 
