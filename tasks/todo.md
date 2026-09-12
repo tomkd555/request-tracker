@@ -132,13 +132,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Detail fields save on blur or Enter through `issues.put` (sets `updatedAt`, `updatedBy`); description edits in a textarea with a preview tab (`react-markdown`, raw HTML off); 履歴 section lists versions with 戻す.
 
 **Acceptance criteria:**
-- [ ] Two edits produce two files under `history/issues/<KEY>/`
-- [ ] 戻す on the first version makes it current and adds a third history file
-- [ ] Description preview renders Markdown and shows `<script>` as text
+- [x] Two edits produce two files under `history/issues/<KEY>/`
+- [x] 戻す on the first version makes it current and adds a third history file
+- [x] Description preview renders Markdown and shows `<script>` as text
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store`
-- [ ] Manual check: edit summary, status, dates; inspect history folder
+- [x] Tests pass: `npx vitest run tests/main/store`
+- [x] Manual check: edit summary, status, dates; inspect history folder
 
 **Dependencies:** Task 5
 

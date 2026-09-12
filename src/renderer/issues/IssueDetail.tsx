@@ -1,36 +1,73 @@
+import { useState } from "react";
+import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
+import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/UserContext";
-import { formatDate, formatDateTime, PRIORITY_LABEL, STATUS_LABEL } from "./labels";
+import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
+import { HistoryList } from "./HistoryList";
+import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL } from "./labels";
 import { useIssues } from "./useIssues";
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
-  const { users } = useSession();
-  const { byKey, loaded } = useIssues();
+  const { me, users } = useSession();
+  const { byKey, loaded, refreshOne } = useIssues();
+  const [version, setVersion] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const issue = byKey.get(issueKey);
   if (!loaded) return <div className="loading">読み込み中</div>;
   if (!issue) return <p>課題 {issueKey} は見つかりません。</p>;
   const parent = issue.parentKey ? byKey.get(issue.parentKey) : undefined;
   const children = [...byKey.values()].filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
 
+  // ponytail: last write wins, no stale-write check; history keeps the overwritten version
+  const save = async (patch: Partial<Issue>): Promise<void> => {
+    setError(null);
+    try {
+      await window.api.issues.put({ ...issue, ...patch, key: issue.key, updatedAt: new Date().toISOString(), updatedBy: me.username });
+      await refreshOne(issue.key);
+      setVersion((v) => v + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const userOptions = [{ value: "", label: "未設定" }, ...users.map((u) => ({ value: u.username, label: u.displayName }))];
+
   return (
     <div className="issue-detail">
       <div className="issue-head">
         <span className="issue-key">{issue.key}</span>
-        <span className={`pill status-${issue.status}`}>{STATUS_LABEL[issue.status]}</span>
+        <SelectField
+          className={`pill status-${issue.status}`}
+          value={issue.status}
+          options={ISSUE_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
+          onSave={(status) => save({ status })}
+        />
       </div>
-      <h1>{issue.summary}</h1>
+      <TextField className="summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
+      {error && <p className="error">{error}</p>}
       <dl className="fields">
-        <dt>状態</dt>
-        <dd>{STATUS_LABEL[issue.status]}</dd>
         <dt>優先度</dt>
-        <dd>{PRIORITY_LABEL[issue.priority]}</dd>
+        <dd>
+          <SelectField
+            value={issue.priority}
+            options={ISSUE_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
+            onSave={(priority) => save({ priority })}
+          />
+        </dd>
         <dt>担当者</dt>
-        <dd>{displayNameOf(users, issue.assignee) || "未設定"}</dd>
+        <dd>
+          <SelectField value={issue.assignee ?? ""} options={userOptions} onSave={(v) => save({ assignee: v || null })} />
+        </dd>
+        <dt>開始日</dt>
+        <dd>
+          <DateField value={issue.startDate} onSave={(startDate) => save({ startDate })} />
+        </dd>
+        <dt>期限日</dt>
+        <dd>
+          <DateField value={issue.dueDate} onSave={(dueDate) => save({ dueDate })} />
+        </dd>
         <dt>登録者</dt>
         <dd>{displayNameOf(users, issue.reporter)}</dd>
-        <dt>開始日</dt>
-        <dd>{formatDate(issue.startDate)}</dd>
-        <dt>期限日</dt>
-        <dd>{formatDate(issue.dueDate)}</dd>
         <dt>親課題</dt>
         <dd>{parent ? <a href={`#/issues/${parent.key}`}>{parent.key} {parent.summary}</a> : "なし"}</dd>
         <dt>登録日</dt>
@@ -42,7 +79,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
       </dl>
       <section>
         <h2>詳細</h2>
-        <pre className="description">{issue.description}</pre>
+        <MarkdownField value={issue.description} onSave={(description) => save({ description })} preview={(v) => <Markdown source={v} />} />
       </section>
       {issue.parentKey === null && (
         <section>
@@ -80,6 +117,14 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           )}
         </section>
       )}
+      <section>
+        <h2>履歴</h2>
+        <HistoryList
+          issueKey={issue.key}
+          version={version}
+          onRestore={(old) => save({ summary: old.summary, description: old.description, status: old.status, priority: old.priority, assignee: old.assignee, startDate: old.startDate, dueDate: old.dueDate })}
+        />
+      </section>
     </div>
   );
 }
