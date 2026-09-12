@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { AttachmentOwner } from "../../shared/api";
 import type { Attachment } from "../../shared/types";
 import { messageFor, refusalMessages } from "./attachmentMessages";
 import { formatDateTime } from "./labels";
@@ -6,27 +7,30 @@ import { formatDateTime } from "./labels";
 const formatSize = (bytes: number): string =>
   bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-export function Attachments({ issueKey }: { issueKey: string }): React.JSX.Element {
+/** Files of an issue or a wiki page: list, add by drop or picker, open, remove. */
+export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.Element {
   const [items, setItems] = useState<Attachment[]>([]);
   const [messages, setMessages] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
+  const { kind, id } = owner;
+  const collection = kind === "issue" ? "attachments" : "wiki-attachments";
 
-  const load = useCallback(async () => setItems(await window.api.attachments.list(issueKey)), [issueKey]);
+  const load = useCallback(async () => setItems(await window.api.attachments.list({ kind, id })), [kind, id]);
   useEffect(() => {
     void load();
   }, [load]);
   useEffect(
     () =>
       window.api.onChanged((e) => {
-        if (e.collection === "attachments" && e.id === issueKey) void load();
+        if (e.collection === collection && e.id === id) void load();
       }),
-    [issueKey, load],
+    [collection, id, load],
   );
 
   const add = async (paths: string[] | null): Promise<void> => {
     setMessages([]);
     try {
-      const r = await window.api.attachments.add(issueKey, paths);
+      const r = await window.api.attachments.add(owner, paths);
       setMessages(refusalMessages(r));
       await load();
     } catch (e) {
@@ -36,7 +40,7 @@ export function Attachments({ issueKey }: { issueKey: string }): React.JSX.Eleme
 
   const open = async (name: string): Promise<void> => {
     try {
-      await window.api.attachments.open(issueKey, name);
+      await window.api.attachments.open(owner, name);
     } catch (e) {
       setMessages([messageFor(e)]);
     }
@@ -45,7 +49,7 @@ export function Attachments({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const remove = async (name: string): Promise<void> => {
     if (!window.confirm(`${name} を削除しますか`)) return;
     try {
-      await window.api.attachments.remove(issueKey, name);
+      await window.api.attachments.remove(owner, name);
       await load();
     } catch (e) {
       setMessages([messageFor(e)]);
@@ -74,10 +78,7 @@ export function Attachments({ issueKey }: { issueKey: string }): React.JSX.Eleme
           <button type="button" onClick={() => void add(null)}>
             追加
           </button>
-          <button
-            type="button"
-            onClick={() => window.api.attachments.openIssueFolder(issueKey).catch((e) => setMessages([messageFor(e)]))}
-          >
+          <button type="button" onClick={() => window.api.attachments.openFolder(owner).catch((e) => setMessages([messageFor(e)]))}>
             フォルダを開く
           </button>
         </div>

@@ -30,12 +30,14 @@ There is no server and no database. The shared folder is the database:
   comments/<KEY>/<stamp>-<username>.json
   attachments/<KEY>/<filename>         copied files and folders
   wiki/<id>.json
+  wiki-attachments/<id>/<filename>     files attached to a wiki page
   history/issues/<KEY>/<stamp>.json    previous versions
   history/wiki/<id>/<stamp>.json
   history/project/<stamp>.json
   trash/issues/<KEY>.json              deleted records; nothing is ever unlinked
   trash/wiki/<id>.json
   trash/attachments/<KEY>/<filename>
+  trash/wiki-attachments/<id>/<filename>
 ```
 
 - A record is written to a temp file in the same directory and renamed over the target, so a client that dies mid-write leaves the old file intact.

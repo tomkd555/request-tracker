@@ -75,3 +75,11 @@ test("a rewritten project.json yields one store:changed for the project", async 
   await write(l.projectFile, "{ }");
   expect(diff(a, await scan(l))).toEqual([{ collection: "project", id: "project" }]);
 });
+
+test("a share made before wiki-attachments/ existed still scans; files under it are reported once it appears", async () => {
+  await fsp.rm(l.wikiAttachmentsRoot, { recursive: true, force: true });
+  const a = await scan(l);
+  await fsp.mkdir(join(l.wikiAttachmentsRoot, "20260912T000000000Z"), { recursive: true });
+  await write(join(l.wikiAttachmentsRoot, "20260912T000000000Z", "memo.txt"), "x");
+  expect(diff(a, await scan(l))).toEqual([{ collection: "wiki-attachments", id: "20260912T000000000Z" }]);
+});

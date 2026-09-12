@@ -156,7 +156,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               </ul>
             </section>
           )}
-          <Attachments issueKey={issue.key} />
+          <Attachments owner={{ kind: "issue", id: issue.key }} />
           <Comments issue={issue} version={version} onStatus={(status) => put({ status })} />
           <section>
             <h2>履歴</h2>

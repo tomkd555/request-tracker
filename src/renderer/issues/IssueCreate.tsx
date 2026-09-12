@@ -93,7 +93,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       const notes: string[] = [];
       if (paths.length > 0) {
         try {
-          notes.push(...refusalMessages(await window.api.attachments.add(issue.key, paths)));
+          notes.push(...refusalMessages(await window.api.attachments.add({ kind: "issue", id: issue.key }, paths)));
         } catch (e) {
           notes.push(messageFor(e));
         }

@@ -13,9 +13,7 @@ import { IssueList } from "../issues/IssueList";
 import { IssuesProvider } from "../issues/useIssues";
 import { Summary } from "../issues/Summary";
 import { Gantt } from "../gantt/Gantt";
-import { WikiEdit } from "../wiki/WikiEdit";
-import { WikiList } from "../wiki/WikiList";
-import { WikiView } from "../wiki/WikiView";
+import { WikiScreen } from "../wiki/WikiFrame";
 import { WikiProvider } from "../wiki/useWiki";
 import "./app.css";
 import "../issues/issues.css";
@@ -115,10 +113,7 @@ function Shell(): React.JSX.Element {
 
 function Screen({ route }: { route: Route }): React.JSX.Element {
   const { path, query } = route;
-  if (path === "/wiki/new") return <WikiEdit key="new" id={null} />;
-  const w = /^\/wiki\/([^/]+)(\/edit)?$/.exec(path);
-  if (w) return w[2] ? <WikiEdit key={w[1]} id={w[1]} /> : <WikiView key={w[1]} id={w[1]} />;
-  if (path.startsWith("/wiki")) return <WikiList />;
+  if (path.startsWith("/wiki")) return <WikiScreen route={route} />;
   if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
   if (path.startsWith("/settings")) return <Settings />;

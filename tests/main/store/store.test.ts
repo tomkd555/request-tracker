@@ -185,9 +185,10 @@ test("ids and keys from other people's files never reach a path join", async () 
   expect(await s.issues.list()).toEqual([]); // guard rejects the key shape
   expect(err).toHaveBeenCalled();
   await expect(s.issues.put({ ...planted, key: "../../escape" })).rejects.toThrow("invalid");
-  await expect(s.attachments.list("../../escape")).rejects.toThrow("invalid issue key");
-  await expect(s.attachments.open("26-0001", "..\\..\\x")).rejects.toThrow("invalid attachment name");
-  await expect(s.attachments.remove("26-0001", "../x")).rejects.toThrow("invalid attachment name");
+  await expect(s.attachments.list({ kind: "issue", id: "../../escape" })).rejects.toThrow("invalid issue key");
+  await expect(s.attachments.list({ kind: "wiki", id: "../../escape" })).rejects.toThrow("invalid wiki page id");
+  await expect(s.attachments.open({ kind: "issue", id: "26-0001" }, "..\\..\\x")).rejects.toThrow("invalid attachment name");
+  await expect(s.attachments.remove({ kind: "issue", id: "26-0001" }, "../x")).rejects.toThrow("invalid attachment name");
   await expect(s.comments.list("26-0001/../x")).rejects.toThrow("invalid issue key");
 });
 
@@ -197,7 +198,7 @@ test("opening a refused extension placed in the folder by hand is refused", asyn
   await s.project.init(4);
   await s.issues.create(draft());
   await fsp.writeFile(join(shared, "attachments", "26-0001", "run.bat"), "echo", "utf8");
-  await expect(s.attachments.open("26-0001", "run.bat")).rejects.toThrow("refused-extension");
+  await expect(s.attachments.open({ kind: "issue", id: "26-0001" }, "run.bat")).rejects.toThrow("refused-extension");
 });
 
 test("summary.exportCsv writes UTF-8 with BOM to the chosen path", async () => {
@@ -271,4 +272,30 @@ test("users.register a second time renames and keeps createdAt", async () => {
   const second = await s.users.register("Alice B");
   expect(second).toEqual({ ...first, displayName: "Alice B" });
   expect(await s.users.me()).toEqual(second);
+});
+
+test("wiki: old records load with parentId null and note empty; put refuses a cycle; remove refuses a parent with children; page attachments live under wiki-attachments/", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const l = layout(shared);
+  const at = "2026-09-12T00:00:00.000Z";
+  const old = { id: "20260912T000000000Z", title: "旧", body: "", createdAt: at, createdBy: "alice", updatedAt: at, updatedBy: "alice" };
+  await fsp.writeFile(join(l.wiki, `${old.id}.json`), JSON.stringify(old), "utf8");
+  const root = await s.wiki.get(old.id);
+  expect(root).toMatchObject({ parentId: null, note: "" });
+  const child = await s.wiki.create({ ...old, id: "", title: "子", parentId: old.id, note: "作成", createdAt: "2026-09-12T00:00:01.000Z" });
+  expect(child.id).toBe("20260912T000001000Z");
+  await expect(s.wiki.put({ ...root!, parentId: child.id, note: "" })).rejects.toThrow("cycle");
+  await expect(s.wiki.put({ ...root!, parentId: root!.id, note: "" })).rejects.toThrow("cycle");
+  await expect(s.wiki.remove(old.id)).rejects.toThrow("has-children");
+  const file = join(userData, "memo.txt");
+  await fsp.writeFile(file, "x", "utf8");
+  expect((await s.attachments.add({ kind: "wiki", id: child.id }, [file])).added).toEqual(["memo.txt"]);
+  expect(await fsp.readdir(join(shared, "wiki-attachments", child.id))).toEqual(["memo.txt"]);
+  await s.attachments.remove({ kind: "wiki", id: child.id }, "memo.txt");
+  expect(await fsp.readdir(join(shared, "trash", "wiki-attachments", child.id))).toEqual(["memo.txt"]);
+  await s.wiki.remove(child.id);
+  await s.wiki.remove(old.id);
+  expect(await s.wiki.list()).toEqual([]);
 });

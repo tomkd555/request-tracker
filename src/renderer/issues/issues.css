@@ -610,3 +610,9 @@
   width: auto;
   justify-self: start;
 }
+
+.breadcrumb__crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

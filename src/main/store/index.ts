@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import type { StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalSettings } from "../../shared/types";
-import { addAttachments, assertName, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
+import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
@@ -109,26 +109,26 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       add: async (c) => addComment(need(), c),
     },
     attachments: {
-      list: async (key) => listAttachments(need(), key),
-      async add(key, paths) {
+      list: async (owner) => listAttachments(need(), owner),
+      async add(owner, paths) {
         const chosen = paths ?? (await deps.chooseFiles());
         if (chosen === null || chosen.length === 0) return { added: [], refused: [] };
-        return addAttachments(need(), key, chosen);
+        return addAttachments(need(), owner, chosen);
       },
       choose: () => deps.chooseFiles(),
-      async open(key, name) {
+      async open(owner, name) {
         assertName(name);
         if (isRefusedExtension(name)) throw new Error("refused-extension"); // a file placed in the folder by hand
-        const err = await deps.openPath(join(need().attachments(key), name));
+        const err = await deps.openPath(join(attachmentDir(need(), owner), name));
         if (err !== "") throw new Error(`open-failed: ${err}`);
       },
-      async openIssueFolder(key) {
-        const dir = need().attachments(key);
+      async openFolder(owner) {
+        const dir = attachmentDir(need(), owner);
         await mkdirp(dir);
         const err = await deps.openPath(dir);
         if (err !== "") throw new Error(`open-failed: ${err}`);
       },
-      remove: async (key, name) => removeAttachment(need(), key, name),
+      remove: async (owner, name) => removeAttachment(need(), owner, name),
     },
     wiki: {
       list: async () => (await wikiCollection(need()).list()).map(withWikiDefaults),

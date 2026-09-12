@@ -1,6 +1,6 @@
 import { promises as fsp } from "node:fs";
 import { basename, extname, join } from "node:path";
-import type { AddAttachmentsResult, AttachmentRefusal } from "../../shared/api";
+import type { AddAttachmentsResult, AttachmentOwner, AttachmentRefusal } from "../../shared/api";
 import type { Attachment } from "../../shared/types";
 import { mkdirp } from "./collection";
 import { fileStamp } from "./fileStamp";
@@ -25,8 +25,11 @@ export function assertName(name: string): string {
 
 export const isRefusedExtension = (name: string): boolean => REFUSED_EXTENSIONS.has(extname(name).toLowerCase());
 
-export async function listAttachments(l: Layout, key: string): Promise<Attachment[]> {
-  const dir = l.attachments(key);
+export const attachmentDir = (l: Layout, o: AttachmentOwner): string => (o.kind === "issue" ? l.attachments(o.id) : l.wikiAttachments(o.id));
+const trashDir = (l: Layout, o: AttachmentOwner): string => (o.kind === "issue" ? l.trashAttachments(o.id) : l.trashWikiAttachments(o.id));
+
+export async function listAttachments(l: Layout, owner: AttachmentOwner): Promise<Attachment[]> {
+  const dir = attachmentDir(l, owner);
   let names: string[];
   try {
     names = await fsp.readdir(dir);
@@ -125,8 +128,8 @@ async function copyFolder(src: string, dest: string, refused: AttachmentRefusal[
   }
 }
 
-export async function addAttachments(l: Layout, key: string, paths: string[]): Promise<AddAttachmentsResult> {
-  const dir = l.attachments(key);
+export async function addAttachments(l: Layout, owner: AttachmentOwner, paths: string[]): Promise<AddAttachmentsResult> {
+  const dir = attachmentDir(l, owner);
   try {
     await fsp.access(l.root);
     await mkdirp(dir);
@@ -154,9 +157,9 @@ export async function addAttachments(l: Layout, key: string, paths: string[]): P
   return result;
 }
 
-export async function removeAttachment(l: Layout, key: string, name: string): Promise<void> {
+export async function removeAttachment(l: Layout, owner: AttachmentOwner, name: string): Promise<void> {
   assertName(name);
-  const trash = l.trashAttachments(key);
+  const trash = trashDir(l, owner);
   await mkdirp(trash);
   let dest = join(trash, name);
   try {
@@ -165,5 +168,5 @@ export async function removeAttachment(l: Layout, key: string, name: string): Pr
   } catch {
     // free name
   }
-  await fsp.rename(join(l.attachments(key), name), dest);
+  await fsp.rename(join(attachmentDir(l, owner), name), dest);
 }

@@ -2,6 +2,8 @@ import type { Attachment, CategoryTemplate, Comment, Issue, LocalConfig, LocalSe
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
+/** What an attachment belongs to: an issue by key, or a wiki page by id. */
+export type AttachmentOwner = { kind: "issue"; id: string } | { kind: "wiki"; id: string };
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
 export interface ChangeEvent { collection: string; id: string }
 
@@ -31,13 +33,13 @@ export type StoreApi = {
   summary: { exportCsv(csv: string, defaultName: string): Promise<boolean> };
   comments: { list(key: string): Promise<Comment[]>; add(c: Comment): Promise<void> };
   attachments: {
-    list(key: string): Promise<Attachment[]>;
-    add(key: string, paths: string[] | null): Promise<AddAttachmentsResult>;
+    list(owner: AttachmentOwner): Promise<Attachment[]>;
+    add(owner: AttachmentOwner, paths: string[] | null): Promise<AddAttachmentsResult>;
     /** Opens the file picker without copying; the new-issue form adds the paths once the key exists. */
     choose(): Promise<string[] | null>;
-    open(key: string, name: string): Promise<void>;
-    openIssueFolder(key: string): Promise<void>;
-    remove(key: string, name: string): Promise<void>;
+    open(owner: AttachmentOwner, name: string): Promise<void>;
+    openFolder(owner: AttachmentOwner): Promise<void>;
+    remove(owner: AttachmentOwner, name: string): Promise<void>;
   };
   wiki: {
     list(): Promise<WikiPage[]>;
@@ -65,6 +67,6 @@ export const API_METHODS = {
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],
   comments: ["list", "add"],
-  attachments: ["list", "add", "choose", "open", "openIssueFolder", "remove"],
+  attachments: ["list", "add", "choose", "open", "openFolder", "remove"],
   wiki: ["list", "get", "create", "put", "remove", "history"],
 } as const satisfies { [G in keyof StoreApi]: readonly (keyof StoreApi[G])[] };

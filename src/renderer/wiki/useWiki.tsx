@@ -1,15 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { WikiPage } from "../../shared/types";
+import { titleIndex } from "./wikiTree";
 
 export interface WikiState {
   pages: WikiPage[];
   byId: Map<string, WikiPage>;
+  /** Normalized title -> id, for `[[タイトル]]` links. */
+  titles: Map<string, string>;
   loaded: boolean;
   reload(): Promise<void>;
   refreshOne(id: string): Promise<void>;
 }
 
-const WikiContext = createContext<WikiState | null>(null);
+export const WikiContext = createContext<WikiState | null>(null);
 
 export function WikiProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [byId, setById] = useState<Map<string, WikiPage>>(new Map());
@@ -42,10 +45,10 @@ export function WikiProvider({ children }: { children: React.ReactNode }): React
     [refreshOne],
   );
 
-  const value = useMemo<WikiState>(
-    () => ({ pages: [...byId.values()], byId, loaded, reload, refreshOne }),
-    [byId, loaded, reload, refreshOne],
-  );
+  const value = useMemo<WikiState>(() => {
+    const pages = [...byId.values()];
+    return { pages, byId, titles: titleIndex(pages), loaded, reload, refreshOne };
+  }, [byId, loaded, reload, refreshOne]);
   return <WikiContext.Provider value={value}>{children}</WikiContext.Provider>;
 }
 

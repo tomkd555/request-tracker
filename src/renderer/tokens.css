@@ -22,6 +22,9 @@
   --link: color-mix(in srgb, var(--brand) 95%, black); /* gantt: issue title link; approximates the sampled #4f8d78 */
   --text-overdue: #b3261e; /* issue list: overdue due date; own choice, 5.9:1 on --bg-row (measured) */
   --text-due-soon: #8a5a00; /* issue list: due within 3 days; own choice, 5.3:1 on --bg-row (measured) */
+  --link-missing: #a63d2f; /* wiki: link to a page that does not exist yet; own choice, 5.6:1 on --bg-panel */
+  --diff-added: #d8f0dc; /* wiki history: added line */
+  --diff-removed: #f8d7d3; /* wiki history: removed line */
 
   /* brand; theme.ts overrides --brand and --text-on-brand with the chosen preset or accent */
   --brand: #52987c; /* issue list: selected filter chip, count badge */
@@ -82,6 +85,9 @@
   --link: color-mix(in srgb, var(--brand) 70%, white);
   --text-overdue: #ff9a8f;
   --text-due-soon: #f0c060;
+  --link-missing: #f0a090;
+  --diff-added: #24422c;
+  --diff-removed: #4d2a27;
   --gantt-bar: #3f5f7d;
   --gantt-bar-overdue: #7d4a45;
   --gantt-bar-muted: #4a4a4a;

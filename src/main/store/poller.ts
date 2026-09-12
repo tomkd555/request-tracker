@@ -6,9 +6,19 @@ import type { Layout } from "./paths";
 type Entry = { collection: string; id: string; sig: string };
 export type Snapshot = Map<string, Entry>; // absolute path -> entry
 
+/** A collection directory a share made by an older build lacks (wiki-attachments/ before it existed) counts as empty. */
+async function readdirOrEmpty(dir: string): Promise<string[]> {
+  try {
+    return await fsp.readdir(dir);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
+  }
+}
+
 async function statDir(dir: string): Promise<{ name: string; sig: string; isDir: boolean }[]> {
   const out: { name: string; sig: string; isDir: boolean }[] = [];
-  for (const name of await fsp.readdir(dir)) {
+  for (const name of await readdirOrEmpty(dir)) {
     if (name.startsWith(".")) continue;
     try {
       const s = await fsp.stat(join(dir, name));
@@ -22,8 +32,9 @@ async function statDir(dir: string): Promise<{ name: string; sig: string; isDir:
 
 const idOf = (name: string): string => name.replace(/\.json$/, "");
 
-/** One full scan: project.json, issues/, wiki/, users/ by record, comments/<KEY>/ and attachments/<KEY>/ by issue key. */
+/** One full scan: project.json, issues/, wiki/, users/ by record; comments/<KEY>/, attachments/<KEY>/ and wiki-attachments/<id>/ by owner. */
 export async function scan(l: Layout): Promise<Snapshot> {
+  await fsp.stat(l.root); // an unreachable share (drive offline) throws here and is logged; a missing subdirectory below is empty
   const snap: Snapshot = new Map();
   try {
     const s = await fsp.stat(l.projectFile);
@@ -41,6 +52,7 @@ export async function scan(l: Layout): Promise<Snapshot> {
   for (const [collection, root] of [
     ["comments", l.commentsRoot],
     ["attachments", l.attachmentsRoot],
+    ["wiki-attachments", l.wikiAttachmentsRoot],
   ] as const) {
     for (const key of await statDir(root)) {
       if (!key.isDir) continue;

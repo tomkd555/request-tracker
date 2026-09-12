@@ -1,29 +1,50 @@
-import { createElement } from "react";
+import { createElement, useContext } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import { WikiContext } from "../wiki/useWiki";
+import { normalizeTitle } from "../wiki/wikiTree";
 import { linkIssueKeys } from "./linkIssueKeys";
+import { linkWikiPages, MISSING_PAGE_PATH } from "./wikiLinks";
 
 type Level = 1 | 2 | 3 | 4 | 5 | 6;
 
+/** The id a heading gets, so a table of contents can point at it: its text with spaces as hyphens. */
+export const headingId = (text: string): string => text.trim().replace(/\s+/g, "-");
+
+const textOf = (children: React.ReactNode): string =>
+  Array.isArray(children) ? children.map(textOf).join("") : typeof children === "string" || typeof children === "number" ? String(children) : "";
+
 /** Headings written in Markdown render `demote` ranks lower, so a screen's own h1/h2 stay above the content. */
-function demotedHeadings(demote: number): Components {
-  const out: Components = {};
+function components(demote: number): Components {
+  const out: Components = {
+    a: ({ node: _node, href, ...props }) => <a href={href} className={href?.startsWith(MISSING_PAGE_PATH) ? "link--missing" : undefined} {...props} />,
+  };
   for (const level of [1, 2, 3, 4, 5, 6] as Level[]) {
     const tag = `h${Math.min(6, level + demote)}`;
-    out[`h${level}`] = ({ node: _node, ...props }) => createElement(tag, props);
+    out[`h${level}`] = ({ node: _node, ...props }) => createElement(tag, { ...props, id: headingId(textOf(props.children)) });
   }
   return out;
 }
 
-const COMPONENTS: Record<number, Components> = { 1: demotedHeadings(1), 2: demotedHeadings(2) };
+const COMPONENTS: Record<number, Components> = { 1: components(1), 2: components(2) };
+
+type Props = {
+  source: string;
+  /** 2 under an h2 section (issue description, comments); 1 under a page title (wiki). */
+  demote?: 1 | 2;
+  /** The page a `[[missing title]]` link creates its page under. */
+  wikiParentId?: string | null;
+};
 
 /**
- * Markdown with raw HTML left as text (no rehype-raw): a `<script>` tag in the source renders literally. Issue keys become links.
- * `demote` is 2 under an h2 section (issue description, comments) and 1 under a page title (wiki).
+ * Markdown with raw HTML left as text (no rehype-raw): a `<script>` tag in the source renders literally.
+ * Issue keys and `[[page titles]]` become links; a title with no page links to the new-page form.
  */
-export function Markdown({ source, demote = 2 }: { source: string; demote?: 1 | 2 }): React.JSX.Element {
+export function Markdown({ source, demote = 2, wikiParentId = null }: Props): React.JSX.Element {
+  const wiki = useContext(WikiContext);
+  const resolve = (title: string): string | null => wiki?.titles.get(normalizeTitle(title)) ?? null;
   return (
     <div className="markdown">
-      <ReactMarkdown components={COMPONENTS[demote]}>{linkIssueKeys(source)}</ReactMarkdown>
+      <ReactMarkdown components={COMPONENTS[demote]}>{linkWikiPages(linkIssueKeys(source), resolve, wikiParentId)}</ReactMarkdown>
     </div>
   );
 }
