@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import type { IssueDraft } from "../../shared/api";
 import { isIssue, type Issue, type Project } from "../../shared/types";
 import { allocateKey, keyOfFileName } from "./allocateKey";
-import { collection, type Collection } from "./collection";
+import { collection, mkdirp, type Collection } from "./collection";
 import { fiscalYearOf, fiscalYy } from "./fiscalYear";
 import type { Layout } from "./paths";
 
@@ -41,7 +41,7 @@ export async function createIssue(l: Layout, project: Project, draft: IssueDraft
       if ((e as NodeJS.ErrnoException).code === "EEXIST") continue;
       throw e;
     }
-    await fsp.mkdir(l.attachments(key), { recursive: true });
+    await mkdirp(l.attachments(key));
     return issue;
   }
   throw new Error("could not allocate an issue key");

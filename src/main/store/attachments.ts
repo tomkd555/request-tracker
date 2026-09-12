@@ -2,6 +2,7 @@ import { promises as fsp } from "node:fs";
 import { basename, extname, join } from "node:path";
 import type { AddAttachmentsResult, AttachmentRefusal } from "../../shared/api";
 import type { Attachment } from "../../shared/types";
+import { mkdirp } from "./collection";
 import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
 
@@ -109,7 +110,7 @@ async function placeFolder(dir: string, tmp: string, name: string): Promise<stri
 }
 
 async function copyFolder(src: string, dest: string, refused: AttachmentRefusal[]): Promise<void> {
-  await fsp.mkdir(dest, { recursive: true });
+  await mkdirp(dest);
   for (const entry of await fsp.readdir(src, { withFileTypes: true })) {
     const from = join(src, entry.name);
     if (entry.isDirectory()) {
@@ -128,7 +129,7 @@ export async function addAttachments(l: Layout, key: string, paths: string[]): P
   const dir = l.attachments(key);
   try {
     await fsp.access(l.root);
-    await fsp.mkdir(dir, { recursive: true });
+    await mkdirp(dir);
   } catch {
     throw new Error(SHARE_UNREACHABLE);
   }
@@ -156,7 +157,7 @@ export async function addAttachments(l: Layout, key: string, paths: string[]): P
 export async function removeAttachment(l: Layout, key: string, name: string): Promise<void> {
   assertName(name);
   const trash = l.trashAttachments(key);
-  await fsp.mkdir(trash, { recursive: true });
+  await mkdirp(trash);
   let dest = join(trash, name);
   try {
     await fsp.access(dest);

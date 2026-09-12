@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { collection } from "../../../src/main/store/collection";
+import { collection, mkdirp } from "../../../src/main/store/collection";
 import { isIssue, type Issue } from "../../../src/shared/types";
 
 let root: string;
@@ -95,4 +95,12 @@ test("a corrupt file is skipped and the rest of the collection lists", async () 
   const err = vi.spyOn(console, "error").mockImplementation(() => {});
   expect((await c.list()).map((i) => i.key)).toEqual(["26-0001"]);
   expect(err).toHaveBeenCalledTimes(2);
+});
+
+test("mkdirp creates nested folders, accepts existing ones, and rejects a parent that refuses entries", async () => {
+  await mkdirp(join(root, "a", "b", "c"));
+  await mkdirp(join(root, "a", "b", "c"));
+  expect((await fsp.stat(join(root, "a", "b", "c"))).isDirectory()).toBe(true);
+  await fsp.writeFile(join(root, "file"), "", "utf8");
+  await expect(mkdirp(join(root, "file", "under"))).rejects.toMatchObject({ code: expect.stringMatching(/^E/) });
 });

@@ -36,7 +36,9 @@ export function App(): React.JSX.Element {
       setBoot({ step: nextStep(config, project, me), config, project, me, users, error: null });
     } catch (e) {
       // the share is unreachable (VPN down, drive offline): let the user pick the folder again
-      setBoot({ step: "folder", config, project: null, me: null, users: [], error: "共有フォルダに接続できません" });
+      const where = config ? `共有フォルダ（${config.rootDir}）` : "共有フォルダ";
+      const error = `${where}に接続できません。ネットワークドライブや VPN を確認して再読み込みするか、別のフォルダを選んでください。`;
+      setBoot({ step: "folder", config, project: null, me: null, users: [], error });
     }
   }, []);
 

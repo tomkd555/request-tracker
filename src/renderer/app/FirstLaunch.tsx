@@ -3,43 +3,62 @@ import type { BootStep } from "./boot";
 
 interface Props { step: Exclude<BootStep, "ready">; onDone(): void; error?: string | null }
 
+const STEPS: { id: Exclude<BootStep, "ready">; label: string }[] = [
+  { id: "folder", label: "共有フォルダ" },
+  { id: "month", label: "プロジェクト" },
+  { id: "name", label: "名前" },
+];
+
 export function FirstLaunch({ step, onDone, error: bootError = null }: Props): React.JSX.Element {
   const [month, setMonth] = useState(4);
   const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(bootError);
+  const [error, setError] = useState<string | null>(null);
+  const current = STEPS.findIndex((s) => s.id === step);
 
+  // An action that returns false (a cancelled dialog) leaves the screen as it is.
   const run = async (action: () => Promise<unknown>): Promise<void> => {
     setError(null);
     try {
-      await action();
-      onDone();
+      if ((await action()) !== false) onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
+  const chooseFolder = (): Promise<void> => run(async () => (await window.api.config.chooseRoot()) !== null);
 
   return (
     <div className="first-launch">
       <h1>Request Tracker</h1>
+      <ol className="stepper">
+        {STEPS.map((s, i) => (
+          <li key={s.id} className={`stepper__step${i < current ? " stepper__step--done" : ""}`} aria-current={i === current ? "step" : undefined}>
+            {s.label}
+          </li>
+        ))}
+      </ol>
       {step === "folder" && (
         <section>
           <h2>共有フォルダ</h2>
-          <button
-            onClick={() =>
-              run(async () => {
-                if ((await window.api.config.chooseRoot()) === null) throw new Error("共有フォルダが選ばれていません");
-              })
-            }
-          >
-            フォルダを選ぶ
-          </button>
+          <p>課題と Wiki はこのフォルダに保存され、同じフォルダを選んだメンバー全員で共有されます。全員が読み書きできるネットワーク上のフォルダが必要です。</p>
+          {bootError && <p className="text--error">{bootError}</p>}
+          <div className="form-actions">
+            {bootError && (
+              <button type="button" onClick={onDone}>
+                再読み込み
+              </button>
+            )}
+            <button type="button" onClick={() => void chooseFolder()}>
+              {bootError ? "別のフォルダを選ぶ" : "フォルダを選ぶ"}
+            </button>
+          </div>
         </section>
       )}
       {step === "month" && (
         <section>
-          <h2>年度の開始月</h2>
+          <h2>プロジェクトの作成</h2>
+          <p>このフォルダにはまだプロジェクトがありません。</p>
           <label className="first-launch__label">
-            開始月
+            年度の開始月
             <select className="first-launch__field" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m}>
@@ -48,22 +67,42 @@ export function FirstLaunch({ step, onDone, error: bootError = null }: Props): R
               ))}
             </select>
           </label>
-          <button onClick={() => run(() => window.api.project.init(month))}>決定</button>
+          <p className="first-launch__hint">課題キー（例: 26-0001）の年度はこの月から数えます。</p>
+          <div className="form-actions">
+            <button type="button" onClick={() => void run(() => window.api.project.init(month))}>
+              プロジェクトを作成
+            </button>
+          </div>
         </section>
       )}
       {step === "name" && (
         <section>
-          <h2>表示名</h2>
-          <label className="first-launch__label">
-            表示名
-            <input className="first-launch__field" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          </label>
-          <button disabled={name.trim() === ""} onClick={() => run(() => window.api.users.register(name))}>
-            登録
-          </button>
+          <h2>あなたの名前</h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run(() => window.api.users.register(name));
+            }}
+          >
+            <label className="first-launch__label">
+              名前
+              <input className="first-launch__field" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+            </label>
+            <p className="first-launch__hint">メンバーの画面に表示されます。</p>
+            <div className="form-actions">
+              <button type="submit" disabled={name.trim() === ""}>
+                はじめる
+              </button>
+            </div>
+          </form>
         </section>
       )}
       {error && <p className="text--error">{error}</p>}
+      {step !== "folder" && (
+        <button type="button" className="first-launch__reselect" onClick={() => void chooseFolder()}>
+          別の共有フォルダを選ぶ
+        </button>
+      )}
     </div>
   );
 }

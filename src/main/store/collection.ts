@@ -1,5 +1,5 @@
 import { promises as fsp } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileStamp } from "./fileStamp";
 
 export type Collection<T> = {
@@ -24,6 +24,22 @@ export type CollectionOptions<T> = {
   /** ISO timestamp that names the history copy of a record; default: updatedAt, then createdAt. */
   stampOf?: (record: T) => string;
 };
+
+/** fs.mkdir with recursive: true never returns when a folder refuses new entries with ENOENT (seen on a OneDrive "Documents" folder), so parents are created one level at a time and the refusal surfaces as an error. */
+export async function mkdirp(dir: string): Promise<void> {
+  try {
+    await fsp.mkdir(dir);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "EEXIST") return;
+    const parent = dirname(dir);
+    if (code !== "ENOENT" || parent === dir) throw e;
+    await mkdirp(parent);
+    await fsp.mkdir(dir).catch((e2: NodeJS.ErrnoException) => {
+      if (e2.code !== "EEXIST") throw e2;
+    });
+  }
+}
 
 const ID = /^[A-Za-z0-9._-]{1,64}$/;
 
@@ -76,7 +92,7 @@ let tmpSeq = 0; // two overlapping saves of the same record in one process get d
 export async function writeAtomic(target: string, text: string): Promise<void> {
   const dir = join(target, "..");
   const tmp = join(dir, `.${target.slice(dir.length + 1)}.tmp-${process.pid}-${tmpSeq++}`);
-  await fsp.mkdir(dir, { recursive: true });
+  await mkdirp(dir);
   await fsp.writeFile(tmp, text, "utf8");
   await fsp.rename(tmp, target);
 }
@@ -96,7 +112,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
     const current = await readRecord(file(dir, id), guard);
     if (current === null) return;
     const dest = join(historyDir, id);
-    await fsp.mkdir(dest, { recursive: true });
+    await mkdirp(dest);
     await fsp.copyFile(file(dir, id), join(dest, `${fileStamp(stampOf(current))}.json`));
   }
 
@@ -104,7 +120,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
     list: () => readDir(dir, guard),
     get: (id) => readRecord(file(dir, id), guard),
     async create(id, record) {
-      await fsp.mkdir(dir, { recursive: true });
+      await mkdirp(dir);
       await fsp.writeFile(file(dir, id), serialize(record), { encoding: "utf8", flag: "wx" });
     },
     async put(id, record) {
@@ -113,7 +129,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
     },
     async remove(id) {
       if (!trashDir) throw new Error(`collection ${dir} keeps no trash`);
-      await fsp.mkdir(trashDir, { recursive: true });
+      await mkdirp(trashDir);
       let dest = file(trashDir, id);
       try {
         await fsp.access(dest);
