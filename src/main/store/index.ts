@@ -1,4 +1,5 @@
 import type { StoreApi } from "../../shared/api";
+import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection } from "./issues";
 import { layout, type Layout } from "./paths";
@@ -63,7 +64,10 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       history: async (key) => issuesCollection(need()).history(key),
     },
     summary: { exportCsv: notImplemented("summary.exportCsv") },
-    comments: { list: notImplemented("comments.list"), add: notImplemented("comments.add") },
+    comments: {
+      list: async (key) => commentsCollection(need(), key).list(),
+      add: async (c) => addComment(need(), c),
+    },
     attachments: {
       list: notImplemented("attachments.list"),
       add: notImplemented("attachments.add"),

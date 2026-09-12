@@ -108,6 +108,23 @@ test("concurrent creates from two stores get distinct keys", async () => {
   expect(new Set(keys).size).toBe(3);
 });
 
+test("comments are one file each and list in creation order", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.issues.create(draft());
+  const at = (sec: number): string => `2026-09-12T00:00:0${sec}.000Z`;
+  await Promise.all([
+    s.comments.add({ id: "", issueKey: "26-0001", author: "bob", body: "second", createdAt: at(2) }),
+    s.comments.add({ id: "", issueKey: "26-0001", author: "alice", body: "first ", createdAt: at(1) }),
+    s.comments.add({ id: "", issueKey: "26-0001", author: "alice", body: "same second", createdAt: at(2) }),
+  ]);
+  const list = await s.comments.list("26-0001");
+  expect(list.map((c) => `${c.author}:${c.body}`)).toEqual(["alice:first", "alice:same second", "bob:second"]);
+  expect(await fsp.readdir(join(shared, "comments", "26-0001"))).toHaveLength(3);
+  await expect(s.comments.add({ id: "", issueKey: "26-0001", author: "bob", body: "  ", createdAt: at(3) })).rejects.toThrow("empty");
+});
+
 test("methods needing the shared folder reject before it is configured", async () => {
   await expect(store(null).users.me()).rejects.toThrow("not configured");
 });

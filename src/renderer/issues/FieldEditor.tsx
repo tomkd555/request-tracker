@@ -22,7 +22,10 @@ export function TextField({ value, onSave, className, required }: TextProps): Re
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Enter") {
+          commit();
+          (e.target as HTMLInputElement).blur();
+        }
         if (e.key === "Escape") setDraft(value);
       }}
     />

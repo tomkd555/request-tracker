@@ -176,12 +176,12 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `comments/<KEY>/<stamp>-<username>.json`, `comments.list` and `comments.add`, the コメント section with chronological list and 投稿 textarea, poller coverage of `comments/*/`.
 
 **Acceptance criteria:**
-- [ ] A comment posted in instance A appears in instance B within 10 s
-- [ ] A comment posted while another user saves the summary survives both saves
+- [x] A comment posted in instance A appears in instance B within 10 s
+- [x] A comment posted while another user saves the summary survives both saves
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store`
-- [ ] Manual check: two instances
+- [x] Tests pass: `npx vitest run tests/main/store`
+- [x] Manual check: two instances
 
 **Dependencies:** Task 8
 

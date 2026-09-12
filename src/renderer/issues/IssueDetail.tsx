@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/UserContext";
+import { Comments } from "./Comments";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
 import { HistoryList } from "./HistoryList";
 import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL } from "./labels";
@@ -117,6 +118,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           )}
         </section>
       )}
+      <Comments issueKey={issue.key} />
       <section>
         <h2>履歴</h2>
         <HistoryList
