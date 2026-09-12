@@ -356,7 +356,7 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Package with `npm run build` followed by `npx electron-builder --win portable` and run the exe on a machine without Node or the repo.
 
 **Acceptance criteria:**
-- [ ] One `.exe` under `dist/` runs on a clean Windows 11 machine and reaches the issue list (runs on the build machine and shows the first-launch screen; a clean machine is still to be tried)
+- [ ] One `.exe` under `dist/` runs on a clean Windows 11 machine and reaches the issue list (the 18:10 build ran on the build machine and showed the first-launch screen; the 18:20 rebuild after the review fixes was packaged but its launch was not observed — run `dist\RequestTracker-0.1.0.exe` by hand, and try a clean machine)
 - [x] Packaging steps and the Developer Mode / symlink note are in `SPEC.md` Commands
 
 **Verification:**
