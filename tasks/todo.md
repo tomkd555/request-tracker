@@ -295,12 +295,12 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** 履歴 section with 戻す on the view screen, 削除 moving the page to `trash/wiki/`.
 
 **Acceptance criteria:**
-- [ ] Two edits yield two history files; 戻す restores the first
-- [ ] 削除 removes the page from both instances' lists
+- [x] Two edits yield two history files; 戻す restores the first
+- [x] 削除 removes the page from both instances' lists
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store`
-- [ ] Manual check: two instances
+- [x] Tests pass: `npx vitest run tests/main/store`
+- [x] Manual check: two instances
 
 **Dependencies:** Task 14
 
