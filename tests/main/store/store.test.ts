@@ -1,7 +1,7 @@
 import { promises as fsp } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createStore } from "../../../src/main/store";
 import { collectionDirs, layout } from "../../../src/main/store/paths";
 import type { IssueDraft } from "../../../src/shared/api";
@@ -13,6 +13,7 @@ beforeEach(async () => {
   shared = await fsp.mkdtemp(join(tmpdir(), "rt-shared-"));
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   await fsp.rm(userData, { recursive: true, force: true });
   await fsp.rm(shared, { recursive: true, force: true });
 });
@@ -24,7 +25,7 @@ const store = (chosen: string | null) =>
     chooseDirectory: async () => chosen,
     chooseFiles: async () => null,
     openPath: async () => "",
-    saveTextFile: async () => true,
+    chooseSavePath: async () => join(userData, "out.csv"),
   });
 
 test("config.get is null on fresh userData and returns the root after chooseRoot", async () => {
@@ -164,6 +165,39 @@ test("wiki pages get stamp ids, keep history on put, and move to trash on remove
   await s.wiki.remove(first.id);
   expect((await s.wiki.list()).map((p) => p.title)).toEqual([second.title]);
   expect(await fsp.readdir(join(shared, "trash", "wiki"))).toEqual(["20260912T000000000Z.json"]);
+});
+
+test("ids and keys from other people's files never reach a path join", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const planted = { ...draft(), key: "../../escape" };
+  await fsp.writeFile(join(shared, "issues", "planted.json"), JSON.stringify(planted), "utf8");
+  const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  expect(await s.issues.list()).toEqual([]); // guard rejects the key shape
+  expect(err).toHaveBeenCalled();
+  await expect(s.issues.put({ ...planted, key: "../../escape" })).rejects.toThrow("invalid");
+  await expect(s.attachments.list("../../escape")).rejects.toThrow("invalid issue key");
+  await expect(s.attachments.open("26-0001", "..\\..\\x")).rejects.toThrow("invalid attachment name");
+  await expect(s.attachments.remove("26-0001", "../x")).rejects.toThrow("invalid attachment name");
+  await expect(s.comments.list("26-0001/../x")).rejects.toThrow("invalid issue key");
+});
+
+test("opening a refused extension placed in the folder by hand is refused", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.issues.create(draft());
+  await fsp.writeFile(join(shared, "attachments", "26-0001", "run.bat"), "echo", "utf8");
+  await expect(s.attachments.open("26-0001", "run.bat")).rejects.toThrow("refused-extension");
+});
+
+test("summary.exportCsv writes UTF-8 with BOM to the chosen path", async () => {
+  const s = store(shared);
+  expect(await s.summary.exportCsv("a,b")).toBe(true);
+  const bytes = await fsp.readFile(join(userData, "out.csv"));
+  expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+  expect(bytes.subarray(3).toString("utf8")).toBe("a,b");
 });
 
 test("methods needing the shared folder reject before it is configured", async () => {

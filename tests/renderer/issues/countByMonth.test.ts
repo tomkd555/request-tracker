@@ -48,6 +48,11 @@ test("three issues from two reporters in one month; other months excluded", () =
   expect(countByMonth(all, "2026-07").total).toBe(0);
 });
 
+test("a name that would be an Excel formula is prefixed", () => {
+  const csv = toCsv(countByMonth(all, "2026-09"), { user: (u) => (u === "alice" ? "=1+1" : u), status: (s) => s });
+  expect(csv).toContain("'=1+1,2");
+});
+
 test("csv has CRLF rows, quoted names when needed, and labels", () => {
   const csv = toCsv(countByMonth(all, "2026-09"), {
     user: (u) => (u === "alice" ? "山田, 花子" : u),

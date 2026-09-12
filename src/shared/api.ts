@@ -1,7 +1,7 @@
 import type { Attachment, Comment, Issue, Project, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
-export interface AttachmentRefusal { path: string; reason: "size" | "extension" }
+export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
 export interface ChangeEvent { collection: string; id: string }
 

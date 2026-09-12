@@ -1,12 +1,12 @@
 import { useState } from "react";
 import type { BootStep } from "./boot";
 
-type Props = { step: Exclude<BootStep, "ready">; onDone(): void };
+interface Props { step: Exclude<BootStep, "ready">; onDone(): void; error?: string | null }
 
-export function FirstLaunch({ step, onDone }: Props): React.JSX.Element {
+export function FirstLaunch({ step, onDone, error: bootError = null }: Props): React.JSX.Element {
   const [month, setMonth] = useState(4);
   const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(bootError);
 
   const run = async (action: () => Promise<unknown>): Promise<void> => {
     setError(null);

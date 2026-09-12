@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { WikiPage } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { useSession } from "../app/UserContext";
@@ -14,6 +14,14 @@ export function WikiEdit({ id }: { id: string | null }): React.JSX.Element {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // On a reload at #/wiki/<id>/edit the page arrives after the first render; take its content then.
+  useEffect(() => {
+    if (existing) {
+      setTitle(existing.title);
+      setBody(existing.body);
+    }
+  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (id !== null && !loaded) return <div className="text--loading">読み込み中</div>;
   if (id !== null && !existing) return <p>ページは見つかりません。</p>;

@@ -60,10 +60,14 @@ export function isUser(v: unknown): v is User {
   return isRec(v) && str(v.username) && str(v.displayName) && str(v.createdAt);
 }
 
+export const ISSUE_KEY = /^\d{2}-\d{4,}$/;
+export const STAMP_ID = /^\d{8}T\d{9}Z$/;
+
 export function isIssue(v: unknown): v is Issue {
   return (
     isRec(v) &&
     str(v.key) &&
+    ISSUE_KEY.test(v.key) &&
     str(v.summary) &&
     str(v.description) &&
     ISSUE_STATUSES.includes(v.status as IssueStatus) &&
@@ -87,6 +91,7 @@ export function isWikiPage(v: unknown): v is WikiPage {
   return (
     isRec(v) &&
     str(v.id) &&
+    STAMP_ID.test(v.id) &&
     str(v.title) &&
     str(v.body) &&
     str(v.createdAt) &&

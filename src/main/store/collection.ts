@@ -25,7 +25,15 @@ export type CollectionOptions<T> = {
   stampOf?: (record: T) => string;
 };
 
-const file = (dir: string, id: string): string => join(dir, `${id}.json`);
+const ID = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** Record ids and attachment names come from files other people wrote; they never carry path separators. */
+export function assertId(id: string): string {
+  if (!ID.test(id) || id === "." || id === "..") throw new Error(`invalid id: ${id}`);
+  return id;
+}
+
+const file = (dir: string, id: string): string => join(dir, `${assertId(id)}.json`);
 const serialize = (record: unknown): string => JSON.stringify(record, null, 2) + "\n";
 
 export async function readRecord<T>(path: string, guard: (v: unknown) => v is T): Promise<T | null> {
@@ -63,9 +71,11 @@ export async function readDir<T>(dir: string, guard: (v: unknown) => v is T): Pr
 }
 
 /** Write to a temp file in the same directory, then rename over the target. */
+let tmpSeq = 0; // two overlapping saves of the same record in one process get distinct temp names
+
 export async function writeAtomic(target: string, text: string): Promise<void> {
   const dir = join(target, "..");
-  const tmp = join(dir, `.${target.slice(dir.length + 1)}.tmp-${process.pid}`);
+  const tmp = join(dir, `.${target.slice(dir.length + 1)}.tmp-${process.pid}-${tmpSeq++}`);
   await fsp.mkdir(dir, { recursive: true });
   await fsp.writeFile(tmp, text, "utf8");
   await fsp.rename(tmp, target);

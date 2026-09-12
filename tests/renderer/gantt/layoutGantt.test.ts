@@ -52,6 +52,11 @@ test("start falls back to the created date; overdue and muted tones", () => {
   expect(closed.tone).toBe("muted");
 });
 
+test("a due date before the start date still draws a one-day bar", () => {
+  const l = layoutGantt([issue({ startDate: "2026-09-10", dueDate: "2026-09-05" })], range, today);
+  expect(l.rows[0]).toMatchObject({ startCol: 16, span: 1 });
+});
+
 test("children sit under their parent", () => {
   const l = layoutGantt(
     [

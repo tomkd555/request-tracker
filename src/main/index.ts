@@ -11,7 +11,9 @@ function createWindow(): void {
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
-      sandbox: false,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 
@@ -19,9 +21,25 @@ function createWindow(): void {
     mainWindow.show();
   });
 
+  // Links in colleagues' Markdown open in the browser; the app window itself never leaves its own document.
+  const openExternally = (url: string): void => {
+    let protocol = "";
+    try {
+      protocol = new URL(url).protocol;
+    } catch {
+      return;
+    }
+    if (protocol === "http:" || protocol === "https:") void shell.openExternal(url);
+  };
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
+    openExternally(details.url);
     return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url !== mainWindow.webContents.getURL()) {
+      event.preventDefault();
+      openExternally(url);
+    }
   });
 
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {

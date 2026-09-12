@@ -34,7 +34,7 @@ export async function createIssue(l: Layout, project: Project, draft: IssueDraft
   for (let attempt = 0; attempt < 100; attempt++) {
     const used = [...(await keysIn(l.issues)), ...(await keysIn(l.trashIssues))];
     const key = allocateKey(used, yy);
-    const issue: Issue = { key, ...draft };
+    const issue: Issue = { ...draft, key }; // key last: IPC arguments arrive untyped
     try {
       await c.create(key, issue);
     } catch (e) {

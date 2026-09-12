@@ -1,7 +1,7 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import type { StoreApi } from "../../shared/api";
-import { addAttachments, listAttachments, removeAttachment } from "./attachments";
+import { addAttachments, assertName, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
@@ -19,8 +19,8 @@ export interface StoreDeps {
   chooseFiles(): Promise<string[] | null>;
   /** Opens a file or folder with the OS; resolves to an error message, or "" on success (shell.openPath). */
   openPath(path: string): Promise<string>;
-  /** Save dialog plus write; false when cancelled. */
-  saveTextFile(defaultName: string, text: string): Promise<boolean>;
+  /** Save dialog; the chosen path, or null when cancelled. */
+  chooseSavePath(defaultName: string): Promise<string | null>;
 }
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
@@ -70,7 +70,12 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       history: async (key) => issuesCollection(need()).history(key),
     },
     summary: {
-      exportCsv: (csv) => deps.saveTextFile(`summary-${new Date().toISOString().slice(0, 10)}.csv`, "﻿" + csv),
+      async exportCsv(csv) {
+        const path = await deps.chooseSavePath(`summary-${new Date().toISOString().slice(0, 10)}.csv`);
+        if (path === null) return false;
+        await fsp.writeFile(path, "﻿" + csv, "utf8");
+        return true;
+      },
     },
     comments: {
       list: async (key) => commentsCollection(need(), key).list(),
@@ -84,6 +89,8 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         return addAttachments(need(), key, chosen);
       },
       async open(key, name) {
+        assertName(name);
+        if (isRefusedExtension(name)) throw new Error("refused-extension"); // a file placed in the folder by hand
         const err = await deps.openPath(join(need().attachments(key), name));
         if (err !== "") throw new Error(`open-failed: ${err}`);
       },

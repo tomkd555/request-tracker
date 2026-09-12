@@ -85,7 +85,7 @@ export type Api = {
 };
 ```
 
-`attachments.add` with `paths: null` opens the file dialog in main; with paths it copies those files. Either way it returns what was added and what was refused, so the renderer can show one message per refusal. `wiki.create` rejects with an error whose `code` is `EEXIST` when the id is taken; `issues.create` handles that retry itself and returns the record with its allocated key.
+`attachments.add` with `paths: null` opens the file dialog in main; with paths it copies those files. Either way it returns what was added and what was refused, so the renderer can show one message per refusal. `wiki.create` allocates the id from `createdAt` and, when that stamp is taken, retries at the next millisecond; `issues.create` retries the key the same way and returns the record with its allocated key. Neither surfaces `EEXIST` to the renderer.
 
 ## Success Criteria
 

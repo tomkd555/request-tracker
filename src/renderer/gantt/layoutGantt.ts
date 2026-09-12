@@ -46,7 +46,8 @@ export function layoutGantt(issues: Issue[], range: DateRange, today: string): G
     const to = due > range.end ? range.end : due;
     const tone: Tone =
       i.status === "closed" || i.status === "resolved" ? "muted" : due < today ? "overdue" : "normal";
-    return { key: i.key, summary: i.summary, depth, startCol: dayDiff(range.start, from), span: dayDiff(from, to) + 1, tone };
+    // a due date before the start date (each field saves on its own) still draws a one-day bar
+    return { key: i.key, summary: i.summary, depth, startCol: dayDiff(range.start, from), span: Math.max(1, dayDiff(from, to) + 1), tone };
   });
   const todayCol = today >= range.start && today <= range.end ? dayDiff(range.start, today) : null;
   return { days, rows, todayCol };

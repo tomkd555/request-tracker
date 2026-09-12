@@ -18,17 +18,22 @@ import { WikiProvider } from "../wiki/useWiki";
 import "./app.css";
 import "../issues/issues.css";
 
-type Boot = { step: BootStep; project: Project | null; me: User | null; users: User[] };
+interface Boot { step: BootStep; project: Project | null; me: User | null; users: User[]; error: string | null }
 
 export function App(): React.JSX.Element {
   const [boot, setBoot] = useState<Boot | null>(null);
 
   const load = useCallback(async () => {
-    const config = await window.api.config.get();
-    const project = config ? await window.api.project.get() : null;
-    const me = project ? await window.api.users.me() : null;
-    const users = project ? await window.api.users.list() : [];
-    setBoot({ step: nextStep(config, project, me), project, me, users });
+    try {
+      const config = await window.api.config.get();
+      const project = config ? await window.api.project.get() : null;
+      const me = project ? await window.api.users.me() : null;
+      const users = project ? await window.api.users.list() : [];
+      setBoot({ step: nextStep(config, project, me), project, me, users, error: null });
+    } catch (e) {
+      // the share is unreachable (VPN down, drive offline): let the user pick the folder again
+      setBoot({ step: "folder", project: null, me: null, users: [], error: "共有フォルダに接続できません" });
+    }
   }, []);
 
   useEffect(() => {
@@ -42,7 +47,7 @@ export function App(): React.JSX.Element {
 
   if (boot === null) return <div className="text--loading">読み込み中</div>;
   if (boot.step !== "ready" || boot.me === null || boot.project === null) {
-    return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} onDone={load} />;
+    return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} onDone={load} error={boot.error} />;
   }
   return (
     <Ready me={boot.me} users={boot.users} project={boot.project} refreshUsers={refreshUsers}>

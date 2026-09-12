@@ -71,8 +71,10 @@ test("a write interrupted before rename leaves the target intact and only the te
   vi.spyOn(fsp, "rename").mockRejectedValueOnce(Object.assign(new Error("boom"), { code: "EIO" }));
   await expect(c.put("26-0001", issue({ summary: "lost" }))).rejects.toThrow("boom");
   expect((await c.get("26-0001"))?.summary).toBe("first");
-  const names = await fsp.readdir(join(root, "issues"));
-  expect(names.sort()).toEqual([`.26-0001.json.tmp-${process.pid}`, "26-0001.json"]);
+  const names = (await fsp.readdir(join(root, "issues"))).sort();
+  expect(names).toHaveLength(2);
+  expect(names[0]).toMatch(new RegExp(`^\\.26-0001\\.json\\.tmp-${process.pid}-\\d+$`));
+  expect(names[1]).toBe("26-0001.json");
   expect(await c.list()).toHaveLength(1);
 });
 
