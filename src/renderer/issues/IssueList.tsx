@@ -30,7 +30,7 @@ export function IssueList(): React.JSX.Element {
   const [message, setMessage] = useState<string | null>(null);
   const day = today();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const rows = groupByParent(filterIssues(issues, filter, day), issueComparator(sort, nameOf));
+  const rows = groupByParent(filterIssues(issues, filter, day, me.username), issueComparator(sort, nameOf));
 
   const exportCsv = async (): Promise<void> => {
     setMessage(null);

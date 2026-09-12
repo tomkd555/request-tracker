@@ -29,25 +29,30 @@ const all = [
 const keys = (r: Issue[]): string[] => r.map((i) => i.key);
 
 test("default filter hides closed issues", () => {
-  expect(keys(filterIssues(all, DEFAULT_FILTER, today))).toEqual(["26-0001", "26-0003", "26-0004"]);
+  expect(keys(filterIssues(all, DEFAULT_FILTER, today, "alice"))).toEqual(["26-0001", "26-0003", "26-0004"]);
 });
 
 test("status list, assignee, reporter and keyword combine", () => {
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, statuses: ["closed"] }, today))).toEqual(["26-0002"]);
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, assignee: "bob" }, today))).toEqual(["26-0001"]);
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, statuses: ["closed"], reporter: "carol" }, today))).toEqual(["26-0002"]);
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, keyword: "LOGIN" }, today))).toEqual(["26-0003"]);
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, keyword: "0001" }, today))).toEqual(["26-0001"]);
-  expect(filterIssues(all, { ...DEFAULT_FILTER, keyword: "nothing" }, today)).toEqual([]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, statuses: ["closed"] }, today, "alice"))).toEqual(["26-0002"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, assignee: "bob" }, today, "alice"))).toEqual(["26-0001"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, statuses: ["closed"], reporter: "carol" }, today, "alice"))).toEqual(["26-0002"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, keyword: "LOGIN" }, today, "alice"))).toEqual(["26-0003"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, keyword: "0001" }, today, "alice"))).toEqual(["26-0001"]);
+  expect(filterIssues(all, { ...DEFAULT_FILTER, keyword: "nothing" }, today, "alice")).toEqual([]);
 });
 
 test("keyword also searches the description", () => {
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, keyword: "password" }, today))).toEqual(["26-0003"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, keyword: "password" }, today, "alice"))).toEqual(["26-0003"]);
 });
 
 test("due conditions: overdue, within a week, none", () => {
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "overdue" }, today))).toEqual(["26-0001"]);
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "week" }, today))).toEqual(["26-0003"]);
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "week" }, "2026-09-11"))).toEqual([]);
-  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "none" }, today))).toEqual(["26-0004"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "overdue" }, today, "alice"))).toEqual(["26-0001"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "week" }, today, "alice"))).toEqual(["26-0003"]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "week" }, "2026-09-11", "alice"))).toEqual([]);
+  expect(keys(filterIssues(all, { ...DEFAULT_FILTER, due: "none" }, today, "alice"))).toEqual(["26-0004"]);
+});
+
+test("awaitingConfirmation keeps resolved issues reported by me", () => {
+  const withResolved = [...all, issue({ key: "26-0005", status: "resolved", reporter: "alice" }), issue({ key: "26-0006", status: "resolved", reporter: "carol" })];
+  expect(keys(filterIssues(withResolved, { ...DEFAULT_FILTER, awaitingConfirmation: true }, today, "alice"))).toEqual(["26-0005"]);
 });

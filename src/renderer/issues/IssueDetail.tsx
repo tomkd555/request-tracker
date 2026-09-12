@@ -87,6 +87,11 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           onSave={(status) => save({ status })}
         />
         <div className="issue-detail__actions">
+          {issue.status === "resolved" && issue.reporter === me.username && (
+            <button type="button" className="link-button" onClick={() => void save({ status: "closed" })}>
+              確認して完了にする
+            </button>
+          )}
           <a className="link-button" href={`#/issues/new?copy=${issue.key}`}>
             複製
           </a>

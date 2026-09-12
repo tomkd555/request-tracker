@@ -9,6 +9,8 @@ export interface IssueFilter {
   reporter: string | null;
   keyword: string;
   due: DueFilter;
+  /** Only issues 処理済み that `me` reported and has yet to confirm. */
+  awaitingConfirmation: boolean;
 }
 
 export const DEFAULT_FILTER: IssueFilter = {
@@ -17,6 +19,7 @@ export const DEFAULT_FILTER: IssueFilter = {
   reporter: null,
   keyword: "",
   due: "all",
+  awaitingConfirmation: false,
 };
 
 const WEEK_DAYS = 7;
@@ -34,14 +37,15 @@ function matchesDue(i: Issue, due: DueFilter, today: string): boolean {
   }
 }
 
-/** `today` is YYYY-MM-DD; the due conditions compare against it. */
-export function filterIssues(issues: Issue[], filter: IssueFilter, today: string): Issue[] {
+/** `today` is YYYY-MM-DD; the due conditions compare against it. `me` is the current username for 確認待ち. */
+export function filterIssues(issues: Issue[], filter: IssueFilter, today: string, me: string): Issue[] {
   const kw = filter.keyword.trim().toLowerCase();
   return issues.filter(
     (i) =>
       filter.statuses.includes(i.status) &&
       (filter.assignee === null || i.assignee === filter.assignee) &&
       (filter.reporter === null || i.reporter === filter.reporter) &&
+      (!filter.awaitingConfirmation || (i.status === "resolved" && i.reporter === me)) &&
       matchesDue(i, filter.due, today) &&
       (kw === "" ||
         i.summary.toLowerCase().includes(kw) ||

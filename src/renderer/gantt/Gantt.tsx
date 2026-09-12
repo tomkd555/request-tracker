@@ -17,13 +17,13 @@ const shiftMonth = (month: string, by: number): string => {
 };
 
 export function Gantt(): React.JSX.Element {
-  const { users } = useSession();
+  const { me, users } = useSession();
   const { issues } = useIssues();
   const [month, setMonth] = useState(thisMonth());
   const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
   const range = rangeForMonth(month);
   const today = ymd(new Date());
-  const { days, rows, todayCol } = layoutGantt(filterIssues(issues, filter, today), range, today);
+  const { days, rows, todayCol } = layoutGantt(filterIssues(issues, filter, today, me.username), range, today);
   const gridWidth = LABEL_PX + days.length * DAY_PX;
 
   return (

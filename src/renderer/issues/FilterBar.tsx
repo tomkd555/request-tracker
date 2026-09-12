@@ -70,6 +70,14 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
       </label>
       {mine("assignee", "自分の担当")}
       {mine("reporter", "自分が登録")}
+      <button
+        type="button"
+        className={`filter-bar__toggle${filter.awaitingConfirmation ? " filter-bar__toggle--on" : ""}`}
+        aria-pressed={filter.awaitingConfirmation}
+        onClick={() => onChange({ ...filter, awaitingConfirmation: !filter.awaitingConfirmation })}
+      >
+        確認待ち
+      </button>
       <input
         type="search"
         className="filter-bar__search"
