@@ -10,6 +10,10 @@ import { IssueDetail } from "../issues/IssueDetail";
 import { IssueList } from "../issues/IssueList";
 import { IssuesProvider } from "../issues/useIssues";
 import { Summary } from "../issues/Summary";
+import { WikiEdit } from "../wiki/WikiEdit";
+import { WikiList } from "../wiki/WikiList";
+import { WikiView } from "../wiki/WikiView";
+import { WikiProvider } from "../wiki/useWiki";
 import "./app.css";
 import "../issues/issues.css";
 
@@ -42,7 +46,9 @@ export function App(): React.JSX.Element {
   return (
     <Ready me={boot.me} users={boot.users} project={boot.project} refreshUsers={refreshUsers}>
       <IssuesProvider>
-        <Shell />
+        <WikiProvider>
+          <Shell />
+        </WikiProvider>
       </IssuesProvider>
     </Ready>
   );
@@ -75,8 +81,10 @@ function Shell(): React.JSX.Element {
 
 function Screen({ route }: { route: Route }): React.JSX.Element {
   const { path, query } = route;
-  // Placeholders; the module tasks replace each branch.
-  if (path.startsWith("/wiki")) return <h1>Wiki</h1>;
+  if (path === "/wiki/new") return <WikiEdit key="new" id={null} />;
+  const w = /^\/wiki\/([^/]+)(\/edit)?$/.exec(path);
+  if (w) return w[2] ? <WikiEdit key={w[1]} id={w[1]} /> : <WikiView key={w[1]} id={w[1]} />;
+  if (path.startsWith("/wiki")) return <WikiList />;
   if (path.startsWith("/gantt")) return <h1>ガントチャート</h1>;
   if (path.startsWith("/summary")) return <Summary />;
   if (path === "/issues/new") return <IssueCreate key={query.get("parent") ?? ""} parentKey={query.get("parent")} />;

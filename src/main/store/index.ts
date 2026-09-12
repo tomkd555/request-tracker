@@ -8,6 +8,7 @@ import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
 import { initProject, readProject } from "./project";
 import { registerUser, usersCollection } from "./users";
+import { createPage, wikiCollection } from "./wiki";
 
 export type StoreDeps = {
   userDataDir: string;
@@ -20,10 +21,6 @@ export type StoreDeps = {
   openPath(path: string): Promise<string>;
   /** Save dialog plus write; false when cancelled. */
   saveTextFile(defaultName: string, text: string): Promise<boolean>;
-};
-
-const notImplemented = (name: string) => (): never => {
-  throw new Error(`${name}: not implemented yet`);
 };
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
@@ -99,12 +96,12 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       remove: async (key, name) => removeAttachment(need(), key, name),
     },
     wiki: {
-      list: notImplemented("wiki.list"),
-      get: notImplemented("wiki.get"),
-      create: notImplemented("wiki.create"),
-      put: notImplemented("wiki.put"),
-      remove: notImplemented("wiki.remove"),
-      history: notImplemented("wiki.history"),
+      list: async () => wikiCollection(need()).list(),
+      get: async (id) => wikiCollection(need()).get(id),
+      create: async (p) => createPage(need(), p),
+      put: async (p) => wikiCollection(need()).put(p.id, p),
+      remove: async (id) => wikiCollection(need()).remove(id),
+      history: async (id) => wikiCollection(need()).history(id),
     },
   };
 }

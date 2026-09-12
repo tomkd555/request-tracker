@@ -277,12 +277,12 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `wiki/<id>.json` through the generic collection; list (title sort, keyword filter, 新規ページ), view (rendered Markdown, 編集), edit (タイトル, textarea with preview, 保存, キャンセル); `useWiki` with poller coverage.
 
 **Acceptance criteria:**
-- [ ] Create, edit and view a page; a second instance lists it within 10 s
-- [ ] Markdown with `<script>` renders as text
+- [x] Create, edit and view a page; a second instance lists it within 10 s
+- [x] Markdown with `<script>` renders as text
 
 **Verification:**
-- [ ] Build succeeds: `npm run build`
-- [ ] Manual check: two instances
+- [x] Build succeeds: `npm run build`
+- [x] Manual check: two instances
 
 **Dependencies:** Task 8
 

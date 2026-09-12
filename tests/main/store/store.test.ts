@@ -147,6 +147,25 @@ test("comments are one file each and list in creation order", async () => {
   await expect(s.comments.add({ id: "", issueKey: "26-0001", author: "bob", body: "  ", createdAt: at(3) })).rejects.toThrow("empty");
 });
 
+test("wiki pages get stamp ids, keep history on put, and move to trash on remove", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const at = "2026-09-12T00:00:00.000Z";
+  const page = { id: "", title: "手順", body: "a", createdAt: at, createdBy: "alice", updatedAt: at, updatedBy: "alice" };
+  await Promise.all([s.wiki.create(page), s.wiki.create({ ...page, title: "同時" })]);
+  const list = await s.wiki.list();
+  expect(list.map((p) => p.id)).toEqual(["20260912T000000000Z", "20260912T000000001Z"]);
+  const first = list[0];
+  await s.wiki.put({ ...first, body: "b", updatedAt: "2026-09-12T01:00:00.000Z" });
+  await s.wiki.put({ ...first, body: "c", updatedAt: "2026-09-12T02:00:00.000Z" });
+  expect((await s.wiki.history(first.id)).map((p) => p.body)).toEqual(["a", "b"]);
+  expect((await s.wiki.get(first.id))?.body).toBe("c");
+  await s.wiki.remove(first.id);
+  expect((await s.wiki.list()).map((p) => p.title)).toEqual(["同時"]);
+  expect(await fsp.readdir(join(shared, "trash", "wiki"))).toEqual(["20260912T000000000Z.json"]);
+});
+
 test("methods needing the shared folder reject before it is configured", async () => {
   await expect(store(null).users.me()).rejects.toThrow("not configured");
 });
