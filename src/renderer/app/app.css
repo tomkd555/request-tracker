@@ -42,6 +42,7 @@
 }
 
 .shell__content {
+  min-width: 0; /* a wide gantt scrolls inside its own box; the page keeps its width */
   padding: var(--space-6);
 }
 

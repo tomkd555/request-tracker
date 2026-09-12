@@ -50,6 +50,8 @@
   --gantt-today: #fae9d3; /* gantt: today column */
   --gantt-weekend: #f0f0f0; /* gantt: weekend column */
   --gantt-grid: #e8e8e8; /* gantt: day grid line */
+  --gantt-bracket: #7a8a99; /* gantt: a parent's span taken from its children; own choice */
+  --gantt-late: #e06b5c; /* gantt: days past the due date; own choice */
 
   /* spacing */
   --space-1: 4px;
@@ -94,6 +96,8 @@
   --gantt-today: #4a3d2a;
   --gantt-weekend: #1b1b1b;
   --gantt-grid: #333333;
+  --gantt-bracket: #9aa8b5;
+  --gantt-late: #c0665a;
 }
 
 html,
