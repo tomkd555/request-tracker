@@ -5,7 +5,7 @@ export interface AttachmentRefusal { path: string; reason: "size" | "extension" 
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
 export interface ChangeEvent { collection: string; id: string }
 
-// IPC surface from SPEC-store.md. Each group.method maps to the channel "group:method".
+// IPC surface between renderer and main. Each group.method maps to the channel "group:method".
 export type StoreApi = {
   config: { get(): Promise<{ rootDir: string } | null>; chooseRoot(): Promise<string | null> };
   project: {

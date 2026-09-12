@@ -8,7 +8,7 @@ export function assertKey(key: string): string {
   return key;
 }
 
-// Shared-folder layout from SPEC-store.md.
+// Shared-folder layout; documented in README.md, "How it works".
 export function layout(root: string) {
   return {
     root,

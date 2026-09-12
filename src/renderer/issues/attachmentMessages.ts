@@ -2,7 +2,7 @@ import type { AddAttachmentsResult } from "../../shared/api";
 
 const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
-/** Turns the main process's error tokens into the messages of SPEC-issues.md. */
+/** Turns the main process's error tokens into the messages shown in the attachments section. */
 export function messageFor(error: unknown): string {
   const m = error instanceof Error ? error.message : String(error);
   if (m.includes("share-unreachable")) return "共有フォルダに接続できません";
