@@ -18,7 +18,13 @@ afterEach(async () => {
 });
 
 const store = (chosen: string | null) =>
-  createStore({ userDataDir: userData, username: "alice", chooseDirectory: async () => chosen });
+  createStore({
+    userDataDir: userData,
+    username: "alice",
+    chooseDirectory: async () => chosen,
+    chooseFiles: async () => null,
+    openPath: async () => "",
+  });
 
 test("config.get is null on fresh userData and returns the root after chooseRoot", async () => {
   const s = store(shared);

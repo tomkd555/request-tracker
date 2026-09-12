@@ -195,6 +195,27 @@ select.pill {
   color: var(--text-muted);
 }
 
+.attachments {
+  border: 2px dashed transparent;
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  margin: 0 calc(-1 * var(--space-2));
+}
+
+.attachments.dragging {
+  border-color: var(--brand);
+  background: var(--bg-row);
+}
+
+.attachment-table {
+  border-collapse: collapse;
+}
+
+.attachment-table td {
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+  border-bottom: 1px solid var(--border-row);
+}
+
 .comments {
   list-style: none;
   margin: 0 0 var(--space-3);

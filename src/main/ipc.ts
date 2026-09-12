@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { API_METHODS, type StoreApi } from "../shared/api";
 import { createStore } from "./store";
 import { startPoller } from "./store/poller";
@@ -15,6 +15,11 @@ export function registerIpc(): ReturnType<typeof createStore> {
       const r = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
       return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0];
     },
+    async chooseFiles() {
+      const r = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
+      return r.canceled ? null : r.filePaths;
+    },
+    openPath: (path) => shell.openPath(path),
   });
 
   for (const group of Object.keys(API_METHODS) as (keyof StoreApi)[]) {

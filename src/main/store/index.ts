@@ -1,4 +1,7 @@
+import { promises as fsp } from "node:fs";
+import { join } from "node:path";
 import type { StoreApi } from "../../shared/api";
+import { addAttachments, listAttachments, removeAttachment } from "./attachments";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection } from "./issues";
@@ -11,6 +14,10 @@ export type StoreDeps = {
   username: string;
   /** Opens the folder picker; null when cancelled. */
   chooseDirectory(): Promise<string | null>;
+  /** Opens the multi-select file picker; null when cancelled. */
+  chooseFiles(): Promise<string[] | null>;
+  /** Opens a file or folder with the OS; resolves to an error message, or "" on success (shell.openPath). */
+  openPath(path: string): Promise<string>;
 };
 
 const notImplemented = (name: string) => (): never => {
@@ -69,11 +76,23 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       add: async (c) => addComment(need(), c),
     },
     attachments: {
-      list: notImplemented("attachments.list"),
-      add: notImplemented("attachments.add"),
-      open: notImplemented("attachments.open"),
-      openIssueFolder: notImplemented("attachments.openIssueFolder"),
-      remove: notImplemented("attachments.remove"),
+      list: async (key) => listAttachments(need(), key),
+      async add(key, paths) {
+        const chosen = paths ?? (await deps.chooseFiles());
+        if (chosen === null || chosen.length === 0) return { added: [], refused: [] };
+        return addAttachments(need(), key, chosen);
+      },
+      async open(key, name) {
+        const err = await deps.openPath(join(need().attachments(key), name));
+        if (err !== "") throw new Error(`open-failed: ${err}`);
+      },
+      async openIssueFolder(key) {
+        const dir = need().attachments(key);
+        await fsp.mkdir(dir, { recursive: true });
+        const err = await deps.openPath(dir);
+        if (err !== "") throw new Error(`open-failed: ${err}`);
+      },
+      remove: async (key, name) => removeAttachment(need(), key, name),
     },
     wiki: {
       list: notImplemented("wiki.list"),

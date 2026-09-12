@@ -194,14 +194,14 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** `attachments.list/add/open/openIssueFolder/remove` for files: dialog and drag-and-drop (`webUtils.getPathForFile`), 50 MB and extension checks, temp-then-rename copy, ` (n)` suffix, list with name/size/date, open with default app, フォルダを開く, 削除 to trash, poller coverage.
 
 **Acceptance criteria:**
-- [ ] Dropping `report.xlsx` twice yields `report.xlsx` and `report (2).xlsx`; a 60 MB file in the same drop is refused and the others copied
-- [ ] A `.exe` is refused with 「実行ファイルは添付できません」
-- [ ] A file placed in the folder from Explorer is listed within 10 s
-- [ ] With the share unreachable, an add attempt writes nothing and shows 「共有フォルダに接続できません」; a failed open shows 「開けません」 with the OS message
+- [x] Dropping `report.xlsx` twice yields `report.xlsx` and `report (2).xlsx`; a 60 MB file in the same drop is refused and the others copied
+- [x] A `.exe` is refused with 「実行ファイルは添付できません」
+- [x] A file placed in the folder from Explorer is listed within 10 s
+- [x] With the share unreachable, an add attempt writes nothing and shows 「共有フォルダに接続できません」; a failed open shows 「開けません」 with the OS message
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store/attachments.test.ts`
-- [ ] Manual check: drag from Explorer into the running app
+- [x] Tests pass: `npx vitest run tests/main/store/attachments.test.ts`
+- [x] Manual check: drag from Explorer into the running app
 
 **Dependencies:** Task 8
 
@@ -214,13 +214,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Extend `attachments.add` to accept a folder path: recursive copy into `.<name>.tmp-<pid>/` with a filter that skips refused files and reports them, rename on completion, folder rows first in the list, click opens in Explorer, remove moves the folder to trash.
 
 **Acceptance criteria:**
-- [ ] A dropped folder with a subfolder and one `.bat` is copied without the `.bat`; the message names it
-- [ ] Folder rows sort before file rows; clicking one opens Explorer
-- [ ] 削除 moves the whole folder to `trash/attachments/<KEY>/`
+- [x] A dropped folder with a subfolder and one `.bat` is copied without the `.bat`; the message names it
+- [x] Folder rows sort before file rows; clicking one opens Explorer
+- [x] 削除 moves the whole folder to `trash/attachments/<KEY>/`
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store/attachments.test.ts`
-- [ ] Manual check: drop a folder from Explorer
+- [x] Tests pass: `npx vitest run tests/main/store/attachments.test.ts`
+- [x] Manual check: drop a folder from Explorer
 
 **Dependencies:** Task 10
 
