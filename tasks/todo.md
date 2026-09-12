@@ -28,14 +28,14 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Implement `src/main/store/collection.ts` (list, get, create with `wx`, put with atomic rename and history copy, remove to trash, history list) over a directory of JSON files. The directory comes from a resolver (a constant for issues, wiki and users; `comments/<KEY>` for comments), and history and trash are each optional per collection. Add `fileStamp(iso: string): string` producing the `YYYYMMDDTHHmmssSSSZ` file-name stamp used by history files, comment ids and wiki ids. Add `src/shared/types.ts` with every record type from the specs and a type guard per record. Nothing in `src/main/store/` imports `electron`: paths such as userData are passed in as arguments, so vitest runs these modules without a mock.
 
 **Acceptance criteria:**
-- [ ] A write interrupted between temp write and rename leaves the target intact and the temp file as the only leftover
-- [ ] A corrupt file is skipped and logged; the rest of the collection lists
-- [ ] Concurrent `create` of the same id: one succeeds, one rejects with `EEXIST`
-- [ ] `put` on an existing record leaves the old content under `history/<collection>/<id>/`; `remove` moves the file to `trash/<collection>/`
+- [x] A write interrupted between temp write and rename leaves the target intact and the temp file as the only leftover
+- [x] A corrupt file is skipped and logged; the rest of the collection lists
+- [x] Concurrent `create` of the same id: one succeeds, one rejects with `EEXIST`
+- [x] `put` on an existing record leaves the old content under `history/<collection>/<id>/`; `remove` moves the file to `trash/<collection>/`
 
 **Verification:**
-- [ ] Tests pass: `npx vitest run tests/main/store`
-- [ ] Manual check: none
+- [x] Tests pass: `npx vitest run tests/main/store`
+- [x] Manual check: none
 
 **Dependencies:** Task 1
 
