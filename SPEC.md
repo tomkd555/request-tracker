@@ -20,11 +20,11 @@ Out of scope for v1: board, notifications, Git, any connection to Nulab Backlog,
 
 ## Tech Stack
 
-- Electron (version pinned by the electron-vite template at scaffold time), electron-vite, React 18, TypeScript 5 with `strict`
+- Electron 39 (installed by the electron-vite 5 template on 2026-09-12), electron-vite 5, Vite 7, React 19, TypeScript 5.9 with `strict`
 - `react-markdown` for issue descriptions and wiki pages; raw HTML in Markdown stays disabled
 - `electron-builder` with target `portable` for Windows x64
 - `vitest`
-- Plain CSS. Palette and spacing live as CSS variables in `src/renderer/tokens.css`; values are Backlog's, sampled from the product at implementation time.
+- Plain CSS. Palette and spacing live as CSS variables in `src/renderer/tokens.css`; values are Backlog's, sampled from the product screenshots on backlog.com/ja/function/ (the file comments name the screen per colour).
 - No database, no ORM, no state library, no CSS framework, no file-watcher library.
 
 ## Commands

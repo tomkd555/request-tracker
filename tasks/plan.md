@@ -39,7 +39,7 @@ T18 packaging (after everything)
 ## Task List
 
 ### Phase 1: Foundation
-- [ ] Task 1: Scaffold, tokens, test and package commands
+- [x] Task 1: Scaffold, tokens, test and package commands
 - [ ] Task 2: Store collection primitives and record types
 - [ ] Task 3: Store config, project, users, IPC and preload
 - [ ] Task 4: First-launch screens and app shell

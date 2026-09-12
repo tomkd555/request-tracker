@@ -1,0 +1,79 @@
+/*
+ * Palette sampled from Backlog product screenshots published on backlog.com/ja/function/
+ * (issue list: capture_subtask_summarize.webp; parent/child tree: 6cec55c0….webp;
+ * board: capture_kanbanboard_column.webp; gantt: capture_ganttchart_visible.webp).
+ * Each colour names the screen and element it was read from.
+ */
+:root {
+  /* surfaces */
+  --bg-page: #f0f0f0; /* issue list: page background */
+  --bg-panel: #ffffff; /* issue list: table header row, panels */
+  --bg-row: #edf5f0; /* issue list: table rows */
+  --bg-row-selected: #fbfbe0; /* issue list: selected row */
+  --bg-row-parent: #ecf6f0; /* parent/child tree: parent row */
+  --border-row: #cdcfcc; /* parent/child tree: row separator */
+  --border-panel: #cccccc; /* board: panel edge */
+  --border-button: #aaaaaa; /* issue list: outlined button */
+
+  /* text */
+  --text: #242424; /* board: column header */
+  --text-muted: #737373; /* board: card key */
+  --text-table-header: #6f9a89; /* issue list: column labels */
+  --link: #4f8d78; /* gantt: issue title link */
+
+  /* brand */
+  --brand: #52987c; /* issue list: selected filter chip, count badge */
+  --brand-border: #44987b; /* parent/child tree: parent row left border */
+
+  /* status pills (board: column dots; issue list: pills) */
+  --status-open: #ed8276; /* 未対応 */
+  --status-in-progress: #4488c5; /* 処理中 */
+  --status-resolved: #5fb5a6; /* 処理済み */
+  --status-closed: #a1af2f; /* 完了 */
+  --status-text: #ffffff;
+
+  /* priority markers (issue list: arrows) */
+  --priority-high: #d35365;
+  --priority-normal: #6c8ab2;
+  --priority-low: #83aea0;
+
+  /* type pill (issue list: タスク) */
+  --type-pill: #a4ae49;
+
+  /* gantt */
+  --gantt-bar: #a9c4dd; /* gantt: scheduled bar */
+  --gantt-bar-overdue: #efc3bd; /* gantt: overdue bar */
+  --gantt-bar-muted: #d8d8d8; /* closed and resolved; own choice, no Backlog sample */
+  --gantt-today: #fae9d3; /* gantt: today column */
+  --gantt-weekend: #f0f0f0; /* gantt: weekend column */
+  --gantt-grid: #e8e8e8; /* gantt: day grid line */
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius: 4px;
+  --radius-pill: 999px;
+
+  /* type scale */
+  --font-body: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg-page);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+}
+
+a {
+  color: var(--link);
+}

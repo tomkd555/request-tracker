@@ -9,13 +9,13 @@ Verification commands for every task: `npm run typecheck`, `npx vitest run`, and
 **Description:** Run `git init` and commit the spec and task files first. Scaffold the electron-vite React + TypeScript template into an empty subdirectory and move the generated files up, so the scaffolder never sees a non-empty target. Move the renderer entry from the template's `src/renderer/src/` to the `SPEC.md` layout and add `src/shared` to the include list of both tsconfig files. Add vitest and the typecheck script. Write `tokens.css` with Backlog's palette sampled from the product UI (issue list and issue detail screens): page background, table header, row border, link, one status pill colour per status, priority marker, overdue and muted bar tones. Configure electron-builder for a Windows portable exe. The window opens with a placeholder shell.
 
 **Acceptance criteria:**
-- [ ] `npm run dev` opens a window; `npm run typecheck` (covering `src/shared`) and `npx vitest run` (one trivial test) succeed; `npm run build` followed by `npx electron-builder --win portable` produces an exe
-- [ ] `src/renderer/tokens.css` defines the listed colours plus spacing and type-scale variables, with a comment naming the screen each colour was sampled from
-- [ ] `SPEC.md` Tech Stack records the installed Electron version; the six spec files and `tasks/` are unchanged and committed
+- [x] `npm run dev` opens a window; `npm run typecheck` (covering `src/shared`) and `npx vitest run` (one trivial test) succeed; `npm run build` followed by `npx electron-builder --win portable` produces an exe
+- [x] `src/renderer/tokens.css` defines the listed colours plus spacing and type-scale variables, with a comment naming the screen each colour was sampled from
+- [x] `SPEC.md` Tech Stack records the installed Electron version; the six spec files and `tasks/` are unchanged and committed
 
 **Verification:**
-- [ ] Build succeeds: `npm run build`
-- [ ] Manual check: the produced exe starts on this machine
+- [x] Build succeeds: `npm run build`
+- [x] Manual check: the produced exe starts on this machine (window title "Request Tracker" confirmed 2026-09-12)
 
 **Dependencies:** None
 
