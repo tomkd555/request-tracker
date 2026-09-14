@@ -53,8 +53,15 @@ export function Gantt(): React.JSX.Element {
   const today = ymd(new Date());
   const range = rangeFor(month, months);
   const dayPx = DAY_PX[months];
-  const compare = issueComparator(sort, (u) => displayNameOf(users, u));
-  const layout = layoutGantt(filterIssues(issues, filter, today, me.username), range, { today, groupBy, collapsed, includeUndated, compare });
+  const nameOf = (u: string | null): string => displayNameOf(users, u);
+  const layout = layoutGantt(filterIssues(issues, filter, today, me.username), range, {
+    today,
+    groupBy,
+    collapsed,
+    includeUndated,
+    compare: issueComparator(sort, nameOf),
+    groupLabel: nameOf,
+  });
   const dayCount = layout.days.length;
   const bodyRows = layout.groups.reduce((n, g) => n + g.rows.length + (g.label !== null || groupBy === "assignee" ? 1 : 0), 0);
 

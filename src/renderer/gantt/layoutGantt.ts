@@ -40,6 +40,8 @@ export interface LayoutOptions {
   includeUndated: boolean;
   /** Order of the top-level rows; default key descending. Children always follow their parent in key order. */
   compare?: (a: Issue, b: Issue) => number;
+  /** Display name of an assignee, which orders the 担当者 groups; default: the username itself. */
+  groupLabel?: (username: string) => string;
 }
 
 /** Whole months: the first day of `month` (YYYY-MM) to the last day of the month `months - 1` later. */
@@ -177,7 +179,8 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
       if (r.depth === 0) current = r.assignee;
       map.set(current, [...(map.get(current) ?? []), r]);
     }
-    const keys = [...map.keys()].filter((k): k is string => k !== null).sort((a, b) => a.localeCompare(b, "ja"));
+    const label = opts.groupLabel ?? ((k: string): string => k);
+    const keys = [...map.keys()].filter((k): k is string => k !== null).sort((a, b) => label(a).localeCompare(label(b), "ja"));
     groups = keys.map((k) => ({ label: k, rows: map.get(k) ?? [] }));
     if (map.has(null)) groups.push({ label: null, rows: map.get(null) ?? [] });
   } else {
