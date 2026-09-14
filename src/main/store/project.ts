@@ -27,14 +27,14 @@ export async function readProject(l: Layout): Promise<Project | null> {
     if (exists) throw new Error(PROJECT_INVALID);
     return null;
   }
-  return { ...p, categories: p.categories ?? DEFAULT_CATEGORIES, categoryColors: p.categoryColors ?? {}, categoryTemplates: p.categoryTemplates ?? {} };
+  return { ...p, categories: p.categories ?? DEFAULT_CATEGORIES, categoryColors: p.categoryColors ?? {}, categoryTemplates: p.categoryTemplates ?? {}, fields: p.fields ?? [] };
 }
 
 export async function initProject(l: Layout, fiscalYearStartMonth: number): Promise<Project> {
   if (!Number.isInteger(fiscalYearStartMonth) || fiscalYearStartMonth < 1 || fiscalYearStartMonth > 12) {
     throw new Error(`fiscal year start month out of range: ${fiscalYearStartMonth}`);
   }
-  const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString(), categories: DEFAULT_CATEGORIES, categoryColors: {}, categoryTemplates: {} };
+  const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString(), categories: DEFAULT_CATEGORIES, categoryColors: {}, categoryTemplates: {}, fields: [] };
   for (const dir of collectionDirs(l)) await mkdirp(dir);
   await fsp.writeFile(l.projectFile, serialize(project), { encoding: "utf8", flag: "wx" }); // exclusive: a file that appeared meanwhile stays
   return project;

@@ -17,6 +17,7 @@ const issue = (over: Partial<Issue>): Issue => ({
   createdAt: "2026-09-01T00:00:00.000Z",
   updatedAt: "2026-09-01T00:00:00.000Z",
   updatedBy: "alice",
+  fields: {},
   ...over,
 });
 const nameOf = (u: string | null): string => (u === "bob" ? "Bob" : u ?? "");

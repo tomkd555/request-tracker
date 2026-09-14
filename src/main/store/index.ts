@@ -25,8 +25,8 @@ export interface StoreDeps {
   chooseSavePath(defaultName: string): Promise<string | null>;
 }
 
-/** Records written before `category` existed come back with "" so the renderer always sees a string. */
-const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "" });
+/** Records written before `category` or `fields` existed come back with "" and {} so the renderer always sees them. */
+const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "", fields: i.fields ?? {} });
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
 export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings } {

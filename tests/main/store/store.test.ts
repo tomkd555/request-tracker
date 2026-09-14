@@ -100,6 +100,7 @@ const draft = (over: Partial<IssueDraft> = {}): IssueDraft => ({
   createdAt: "2027-03-15T03:00:00.000Z",
   updatedAt: "2027-03-15T03:00:00.000Z",
   updatedBy: "alice",
+  fields: {},
   ...over,
 });
 
@@ -232,11 +233,12 @@ test("records and project.json written before category existed load with default
   const l = layout(shared);
   await fsp.writeFile(l.projectFile, JSON.stringify({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z" }), "utf8");
   expect((await s.project.get())?.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
-  const { category: _dropped, ...old } = { ...draft(), key: "26-0001" };
+  expect((await s.project.get())?.fields).toEqual([]);
+  const { category: _dropped, fields: _dropped2, ...old } = { ...draft(), key: "26-0001" };
   await fsp.writeFile(join(l.issues, "26-0001.json"), JSON.stringify(old), "utf8");
-  expect((await s.issues.get("26-0001"))?.category).toBe("");
-  expect((await s.issues.list())[0].category).toBe("");
-  await s.issues.put({ ...old, category: "依頼" });
+  expect(await s.issues.get("26-0001")).toMatchObject({ category: "", fields: {} });
+  expect((await s.issues.list())[0]).toMatchObject({ category: "", fields: {} });
+  await s.issues.put({ ...old, category: "依頼", fields: {} });
   expect((await s.issues.history("26-0001"))[0].category).toBe("");
   const p = await s.project.put([" 相談 ", "", "不具合", "相談"], {}, {});
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
