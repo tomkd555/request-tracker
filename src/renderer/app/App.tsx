@@ -65,7 +65,7 @@ export function App(): React.JSX.Element {
 
   if (boot === null) return <div className="text--loading">読み込み中</div>;
   if (boot.step !== "ready" || boot.me === null || boot.project === null || boot.config === null) {
-    return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} onDone={load} error={boot.error} />;
+    return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} users={boot.users} onDone={load} error={boot.error} />;
   }
   return (
     <Ready me={boot.me} users={boot.users} project={boot.project} config={boot.config} refreshUsers={refreshUsers} refreshProject={refreshProject} refreshConfig={refreshConfig}>

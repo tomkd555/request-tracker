@@ -19,10 +19,10 @@ afterEach(async () => {
   await fsp.rm(shared, { recursive: true, force: true });
 });
 
-const store = (chosen: string | null) =>
+const store = (chosen: string | null, username = "alice") =>
   createStore({
     userDataDir: userData,
-    username: "alice",
+    username,
     chooseDirectory: async () => chosen,
     chooseFiles: async () => null,
     openPath: async () => "",
@@ -286,6 +286,35 @@ test("users.register a second time renames and keeps createdAt", async () => {
   const second = await s.users.register("Alice B");
   expect(second).toEqual({ ...first, displayName: "Alice B" });
   expect(await s.users.me()).toEqual(second);
+});
+
+test("a member added by name is claimed by the OS login on first launch, keeps the login through a rename, and is trashed only while unassigned", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.users.register("Alice");
+  const member = await s.users.add(" 田中 ");
+  expect(member.username).toMatch(/^\d{8}T\d{9}Z$/);
+  expect(member.displayName).toBe("田中");
+  expect("login" in member).toBe(false);
+  const bob = store(null, "bob");
+  await bob.config.get();
+  expect(await bob.users.me()).toBeNull();
+  const claimed = await bob.users.claim(member.username);
+  expect(claimed).toEqual({ ...member, login: "bob" });
+  expect(await bob.users.me()).toEqual(claimed);
+  await expect(s.users.claim(member.username)).rejects.toThrow("already-claimed");
+  const renamed = await bob.users.rename(member.username, "田中 太郎");
+  expect(renamed).toEqual({ ...claimed, displayName: "田中 太郎" });
+  expect(await bob.users.me()).toEqual(renamed);
+  await expect(s.users.rename(member.username, " ")).rejects.toThrow("empty");
+  await s.issues.create(draft({ assignee: member.username }));
+  await expect(s.users.remove(member.username)).rejects.toThrow("in-use");
+  await s.issues.put({ ...(await s.issues.get("26-0001"))!, assignee: null });
+  await s.users.remove(member.username);
+  expect((await s.users.list()).map((u) => u.username)).toEqual(["alice"]);
+  expect(await fsp.readdir(join(shared, "trash", "users"))).toEqual([`${member.username}.json`]);
+  expect(await bob.users.me()).toBeNull();
 });
 
 test("wiki: old records load with parentId null and note empty; put refuses a cycle; remove refuses a parent with children; page attachments live under wiki-attachments/", async () => {

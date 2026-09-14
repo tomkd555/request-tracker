@@ -9,7 +9,7 @@ import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
 import { initProject, putCategories, readProject } from "./project";
-import { registerUser, usersCollection } from "./users";
+import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
 
 export interface StoreDeps {
@@ -77,9 +77,13 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       put: async (categories, categoryColors, categoryTemplates) => putCategories(need(), categories, categoryColors, categoryTemplates),
     },
     users: {
-      me: async () => usersCollection(need()).get(deps.username),
-      register: async (displayName) => registerUser(need(), deps.username, displayName),
+      me: async () => findUser(need(), deps.username),
+      register: async (displayName) => putDisplayName(need(), deps.username, displayName),
       list: async () => usersCollection(need()).list(),
+      add: async (displayName) => addUser(need(), displayName),
+      rename: async (username, displayName) => putDisplayName(need(), username, displayName),
+      claim: async (username) => claimUser(need(), username, deps.username),
+      remove: async (username) => removeUser(need(), username),
     },
     issues: {
       list: async () => (await issuesCollection(need()).list()).map(withDefaults),

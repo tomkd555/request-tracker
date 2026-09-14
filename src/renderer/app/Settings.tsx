@@ -121,7 +121,7 @@ function DisplayNameSection(): React.JSX.Element {
         onSubmit={(e) => {
           e.preventDefault();
           void run(async () => {
-            await window.api.users.register(name);
+            await window.api.users.rename(me.username, name);
             await refreshUsers();
           });
         }}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { CategoryTemplate, Project } from "../../shared/types";
+import { TextField } from "../issues/FieldEditor";
 import { useSaveMessage } from "./Settings";
 import { TYPE_PILL_DEFAULT } from "./theme";
 import { useSession } from "./UserContext";
 
-/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates. */
+/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, and the members. */
 export function ProjectSettings(): React.JSX.Element {
   return (
     <div>
@@ -13,8 +14,58 @@ export function ProjectSettings(): React.JSX.Element {
       </header>
       <div className="settings">
         <CategorySection />
+        <MemberSection />
       </div>
     </div>
+  );
+}
+
+function MemberSection(): React.JSX.Element {
+  const { users, refreshUsers } = useSession();
+  const [name, setName] = useState("");
+  const [message, run] = useSaveMessage();
+  const members = [...users].sort((a, b) => a.displayName.localeCompare(b.displayName, "ja"));
+  const act = (action: () => Promise<unknown>): Promise<void> =>
+    run(async () => {
+      try {
+        await action();
+      } catch (e) {
+        const m = e instanceof Error ? e.message : String(e);
+        throw new Error(m.includes("in-use") ? "担当者か登録者になっている課題があるため削除できません" : m);
+      }
+      await refreshUsers();
+    });
+
+  return (
+    <section className="issue-form settings__section">
+      <h3 className="settings__heading">メンバー</h3>
+      <ul className="settings__list">
+        {members.map((u) => (
+          <li key={u.username} className="settings__row">
+            <TextField className="settings__name" value={u.displayName} required onSave={(v) => void act(() => window.api.users.rename(u.username, v))} />
+            <button type="button" onClick={() => void act(() => window.api.users.remove(u.username))}>
+              削除
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form
+        className="settings__row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void act(async () => {
+            await window.api.users.add(name);
+            setName("");
+          });
+        }}
+      >
+        <input className="settings__name" aria-label="名前" value={name} onChange={(e) => setName(e.target.value)} />
+        <button type="submit" disabled={name.trim() === ""}>
+          追加
+        </button>
+      </form>
+      {message && <p className="text--muted">{message}</p>}
+    </section>
   );
 }
 

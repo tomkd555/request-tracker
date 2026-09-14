@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { STAMP_ID, type User } from "../../shared/types";
 import type { BootStep } from "./boot";
 
-interface Props { step: Exclude<BootStep, "ready">; onDone(): void; error?: string | null }
+interface Props { step: Exclude<BootStep, "ready">; users: User[]; onDone(): void; error?: string | null }
+
+/** Members added by name in project settings that nobody has picked yet. */
+export const claimable = (users: User[]): User[] => users.filter((u) => u.login === undefined && STAMP_ID.test(u.username));
 
 const STEPS: { id: Exclude<BootStep, "ready">; label: string }[] = [
   { id: "folder", label: "共有フォルダ" },
@@ -9,11 +13,14 @@ const STEPS: { id: Exclude<BootStep, "ready">; label: string }[] = [
   { id: "name", label: "名前" },
 ];
 
-export function FirstLaunch({ step, onDone, error: bootError = null }: Props): React.JSX.Element {
+export function FirstLaunch({ step, users, onDone, error: bootError = null }: Props): React.JSX.Element {
   const [month, setMonth] = useState(4);
   const [name, setName] = useState("");
+  const [chosen, setChosen] = useState(""); // username of the registered member picked, "" for a new name
   const [error, setError] = useState<string | null>(null);
   const current = STEPS.findIndex((s) => s.id === step);
+  const members = claimable(users);
+  const picking = members.length > 0 && chosen !== "";
 
   // An action that returns false (a cancelled dialog) leaves the screen as it is.
   const run = async (action: () => Promise<unknown>): Promise<void> => {
@@ -21,7 +28,8 @@ export function FirstLaunch({ step, onDone, error: bootError = null }: Props): R
     try {
       if ((await action()) !== false) onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setError(m.includes("already-claimed") ? "この名前は別の端末で使われています" : m);
     }
   };
   const chooseFolder = (): Promise<void> => run(async () => (await window.api.config.chooseRoot()) !== null);
@@ -80,15 +88,28 @@ export function FirstLaunch({ step, onDone, error: bootError = null }: Props): R
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void run(() => window.api.users.register(name));
+              void run(() => (picking ? window.api.users.claim(chosen) : window.api.users.register(name)));
             }}
           >
+            {members.length > 0 && (
+              <label className="first-launch__label">
+                登録済みの名前から選ぶ
+                <select className="first-launch__field" value={chosen} onChange={(e) => setChosen(e.target.value)}>
+                  <option value="">新しい名前で登録する</option>
+                  {members.map((u) => (
+                    <option key={u.username} value={u.username}>
+                      {u.displayName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="first-launch__label">
               名前
-              <input className="first-launch__field" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+              <input className="first-launch__field" value={name} onChange={(e) => setName(e.target.value)} disabled={picking} autoFocus />
             </label>
             <div className="form-actions">
-              <button type="submit" disabled={name.trim() === ""}>
+              <button type="submit" disabled={picking ? false : name.trim() === ""}>
                 はじめる
               </button>
             </div>
