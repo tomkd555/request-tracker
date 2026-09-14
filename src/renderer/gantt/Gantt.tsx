@@ -5,6 +5,7 @@ import { ymd } from "../issues/dates";
 import { FilterBar } from "../issues/FilterBar";
 import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "../issues/filterIssues";
 import { STATUS_LABEL, statusClass } from "../issues/labels";
+import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
 import { datesAfterDrag, layoutGantt, rangeFor, shiftMonth, type DragMode, type GanttRow, type GroupBy, type Months, type Segment } from "./layoutGantt";
 import "./gantt.css";
@@ -13,6 +14,16 @@ const DAY_PX: Record<Months, number> = { 1: 28, 2: 20, 3: 14, 6: 8 };
 const MONTH_OPTIONS: Months[] = [1, 2, 3, 6];
 const LEFT_COLS = [320, 90, 90, 100]; // 件名, 担当者, 状態, 期限日
 const LEFT_TOTAL = LEFT_COLS.reduce((a, b) => a + b, 0);
+// Sort buttons per left column; the first column carries キー as well so the default order stays reachable.
+const HEADERS: { key: SortKey; label: string }[][] = [
+  [
+    { key: "key", label: "キー" },
+    { key: "summary", label: "件名" },
+  ],
+  [{ key: "assignee", label: "担当者" }],
+  [{ key: "status", label: "状態" }],
+  [{ key: "dueDate", label: "期限日" }],
+];
 const EDGE_PX = 8;
 
 interface Drag { key: string; mode: DragMode; originX: number; delta: number; pointerId: number }
@@ -35,13 +46,22 @@ export function Gantt(): React.JSX.Element {
   const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [includeUndated, setIncludeUndated] = useState(false);
+  const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<Drag | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const today = ymd(new Date());
   const range = rangeFor(month, months);
   const dayPx = DAY_PX[months];
-  const layout = layoutGantt(filterIssues(issues, filter, today, me.username), range, { today, groupBy, collapsed, includeUndated });
+  const nameOf = (u: string | null): string => displayNameOf(users, u);
+  const layout = layoutGantt(filterIssues(issues, filter, today, me.username), range, {
+    today,
+    groupBy,
+    collapsed,
+    includeUndated,
+    compare: issueComparator(sort, nameOf),
+    groupLabel: nameOf,
+  });
   const dayCount = layout.days.length;
   const bodyRows = layout.groups.reduce((n, g) => n + g.rows.length + (g.label !== null || groupBy === "assignee" ? 1 : 0), 0);
 
@@ -228,11 +248,25 @@ export function Gantt(): React.JSX.Element {
           className="gantt"
           style={{ gridTemplateColumns: `${LEFT_COLS.map((w) => `${w}px`).join(" ")} repeat(${dayCount}, ${dayPx}px)`, width: LEFT_TOTAL + dayCount * dayPx }}
         >
-          {["件名", "担当者", "状態", "期限日"].map((h, i) => (
-            <div key={h} className="gantt__corner" style={{ gridRow: "1 / span 2", gridColumn: i + 1, left: LEFT_COLS.slice(0, i).reduce((a, b) => a + b, 0) }}>
-              {h}
-            </div>
-          ))}
+          {HEADERS.map((buttons, i) => {
+            const active = buttons.find((b) => b.key === sort.key);
+            return (
+              <div
+                key={i}
+                className="gantt__corner"
+                role="columnheader"
+                aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                style={{ gridRow: "1 / span 2", gridColumn: i + 1, left: LEFT_COLS.slice(0, i).reduce((a, b) => a + b, 0) }}
+              >
+                {buttons.map((b) => (
+                  <button key={b.key} type="button" className="issue-table__sort" onClick={() => setSort((s) => nextSort(s, b.key))}>
+                    {b.label}
+                    {sort.key === b.key && <span className="issue-table__sort-mark">{sort.dir === "asc" ? "▲" : "▼"}</span>}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
           {layout.months.map((m) => (
             <div key={m.label} className="gantt__month" style={{ gridRow: 1, gridColumn: `${5 + m.startCol} / span ${m.span}` }}>
               {m.label}

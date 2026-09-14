@@ -8,8 +8,8 @@ import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
-import { initProject, putCategories, readProject } from "./project";
-import { registerUser, usersCollection } from "./users";
+import { initProject, putCategories, putFields, readProject } from "./project";
+import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
 
 export interface StoreDeps {
@@ -25,8 +25,8 @@ export interface StoreDeps {
   chooseSavePath(defaultName: string): Promise<string | null>;
 }
 
-/** Records written before `category` existed come back with "" so the renderer always sees a string. */
-const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "" });
+/** Records written before `category` or `fields` existed come back with "" and {} so the renderer always sees them. */
+const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "", fields: i.fields ?? {} });
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
 export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings } {
@@ -75,11 +75,16 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       get: async () => readProject(need()),
       init: async (month) => initProject(need(), month),
       put: async (categories, categoryColors, categoryTemplates) => putCategories(need(), categories, categoryColors, categoryTemplates),
+      putFields: async (fields) => putFields(need(), fields),
     },
     users: {
-      me: async () => usersCollection(need()).get(deps.username),
-      register: async (displayName) => registerUser(need(), deps.username, displayName),
+      me: async () => findUser(need(), deps.username),
+      register: async (displayName) => putDisplayName(need(), deps.username, displayName),
       list: async () => usersCollection(need()).list(),
+      add: async (displayName) => addUser(need(), displayName),
+      rename: async (username, displayName) => putDisplayName(need(), username, displayName),
+      claim: async (username) => claimUser(need(), username, deps.username),
+      remove: async (username) => removeUser(need(), username),
     },
     issues: {
       list: async () => (await issuesCollection(need()).list()).map(withDefaults),

@@ -18,6 +18,7 @@ const issue = (key: string, over: Partial<Issue> = {}): Issue => ({
   createdAt: "",
   updatedAt: "",
   updatedBy: "",
+  fields: {},
   ...over,
 });
 
@@ -53,4 +54,12 @@ test("nextSort flips the same column and starts a new one in its natural directi
   expect(nextSort({ key: "key", dir: "desc" }, "key")).toEqual({ key: "key", dir: "asc" });
   expect(nextSort({ key: "key", dir: "desc" }, "summary")).toEqual({ key: "summary", dir: "asc" });
   expect(nextSort({ key: "summary", dir: "asc" }, "updatedAt")).toEqual({ key: "updatedAt", dir: "desc" });
+});
+
+test("a 汎用列 sorts by its value with empty values last, and starts ascending", () => {
+  const tagged = [issue("26-0001", { fields: { env: "検証" } }), issue("26-0002"), issue("26-0003", { fields: { env: "本番" } })];
+  const order = (sort: IssueSort): string[] => groupByParent(tagged, issueComparator(sort, nameOf)).map((r) => r.issue.key);
+  expect(order({ key: "field:env", dir: "asc" })).toEqual(["26-0003", "26-0001", "26-0002"]);
+  expect(order({ key: "field:env", dir: "desc" })).toEqual(["26-0001", "26-0003", "26-0002"]);
+  expect(nextSort({ key: "key", dir: "desc" }, "field:env")).toEqual({ key: "field:env", dir: "asc" });
 });

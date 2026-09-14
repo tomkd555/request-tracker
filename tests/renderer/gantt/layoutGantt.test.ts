@@ -17,6 +17,7 @@ const issue = (over: Partial<Issue>): Issue => ({
   createdAt: "2026-09-10T03:00:00.000Z",
   updatedAt: "",
   updatedBy: "",
+  fields: {},
   ...over,
 });
 
@@ -89,4 +90,21 @@ test("grouping by assignee keeps children under their parent and puts 未設定 
     { ...opts, groupBy: "assignee" },
   );
   expect(l.groups.map((g) => `${g.label}:${g.rows.map((r) => r.key).join(",")}`)).toEqual(["amy:26-0003", "bob:26-0001,26-0002", "null:26-0004"]);
+});
+
+test("groups are ordered by the display name, so a member with a stamp id sorts by name", () => {
+  const l = layoutGantt(
+    [issue({ key: "26-0001", assignee: "20260914T000000000Z", dueDate: "2026-09-30" }), issue({ key: "26-0002", assignee: "karid", dueDate: "2026-09-15" })],
+    range,
+    { ...opts, groupBy: "assignee", groupLabel: (u) => (u === "karid" ? "奥平" : "田中") },
+  );
+  expect(l.groups.map((g) => g.label)).toEqual(["karid", "20260914T000000000Z"]);
+});
+
+test("compare orders the top-level rows; children still follow their parent in key order", () => {
+  const dated = (key: string, dueDate: string, parentKey: string | null = null): Issue => issue({ key, dueDate, parentKey, startDate: "2026-09-01" });
+  const all = [dated("26-0001", "2026-09-20"), dated("26-0002", "2026-09-05"), dated("26-0004", "2026-09-02", "26-0002"), dated("26-0003", "2026-09-01", "26-0002")];
+  const byDue = (a: Issue, b: Issue): number => (a.dueDate ?? "").localeCompare(b.dueDate ?? "");
+  expect(rows(all, { compare: byDue }).map((r) => `${r.depth}:${r.key}`)).toEqual(["0:26-0002", "1:26-0003", "1:26-0004", "0:26-0001"]);
+  expect(rows(all).map((r) => r.key)).toEqual(["26-0002", "26-0003", "26-0004", "26-0001"]);
 });

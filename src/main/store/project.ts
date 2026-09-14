@@ -1,6 +1,6 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
-import { DEFAULT_CATEGORIES, HEX_COLOR, isProject, type CategoryTemplate, type Project } from "../../shared/types";
+import { DEFAULT_CATEGORIES, HEX_COLOR, isProject, type CategoryTemplate, type CustomField, type Project } from "../../shared/types";
 import { SHARE_UNREACHABLE } from "./attachments";
 import { mkdirp, readRecord, writeAtomic } from "./collection";
 import { fileStamp } from "./fileStamp";
@@ -27,14 +27,14 @@ export async function readProject(l: Layout): Promise<Project | null> {
     if (exists) throw new Error(PROJECT_INVALID);
     return null;
   }
-  return { ...p, categories: p.categories ?? DEFAULT_CATEGORIES, categoryColors: p.categoryColors ?? {}, categoryTemplates: p.categoryTemplates ?? {} };
+  return { ...p, categories: p.categories ?? DEFAULT_CATEGORIES, categoryColors: p.categoryColors ?? {}, categoryTemplates: p.categoryTemplates ?? {}, fields: p.fields ?? [] };
 }
 
 export async function initProject(l: Layout, fiscalYearStartMonth: number): Promise<Project> {
   if (!Number.isInteger(fiscalYearStartMonth) || fiscalYearStartMonth < 1 || fiscalYearStartMonth > 12) {
     throw new Error(`fiscal year start month out of range: ${fiscalYearStartMonth}`);
   }
-  const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString(), categories: DEFAULT_CATEGORIES, categoryColors: {}, categoryTemplates: {} };
+  const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString(), categories: DEFAULT_CATEGORIES, categoryColors: {}, categoryTemplates: {}, fields: [] };
   for (const dir of collectionDirs(l)) await mkdirp(dir);
   await fsp.writeFile(l.projectFile, serialize(project), { encoding: "utf8", flag: "wx" }); // exclusive: a file that appeared meanwhile stays
   return project;
@@ -63,9 +63,28 @@ export async function putCategories(
     const t = categoryTemplates[name];
     if (t !== undefined && (t.summary.trim() !== "" || t.body.trim() !== "")) templates[name] = { summary: t.summary, body: t.body };
   }
+  return writeProject(l, { ...current, categories: cleaned, categoryColors: colors, categoryTemplates: templates });
+}
+
+/** Replaces the 汎用列 definitions only: a row with an empty name is dropped, a repeated id keeps its first row, options are trimmed and deduplicated. */
+export async function putFields(l: Layout, fields: CustomField[]): Promise<Project> {
+  const current = await readProject(l);
+  if (current === null) throw new Error("project.json is missing");
+  const seen = new Set<string>();
+  const cleaned: CustomField[] = [];
+  for (const f of fields) {
+    const name = f.name.trim();
+    if (name === "" || f.id === "" || seen.has(f.id)) continue;
+    seen.add(f.id);
+    cleaned.push({ id: f.id, name, options: [...new Set(f.options.map((o) => o.trim()).filter((o) => o !== ""))] });
+  }
+  return writeProject(l, { ...current, fields: cleaned });
+}
+
+/** The previous file goes to history/project/ before the atomic overwrite. */
+async function writeProject(l: Layout, project: Project): Promise<Project> {
   await mkdirp(l.historyProject);
   await fsp.copyFile(l.projectFile, join(l.historyProject, `${fileStamp(new Date().toISOString())}.json`));
-  const project: Project = { ...current, categories: cleaned, categoryColors: colors, categoryTemplates: templates };
   await writeAtomic(l.projectFile, serialize(project));
   return project;
 }

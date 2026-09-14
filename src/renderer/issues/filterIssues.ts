@@ -13,6 +13,8 @@ export interface IssueFilter {
   category: string | null;
   /** Only issues 処理済み that `me` reported and has yet to confirm. */
   awaitingConfirmation: boolean;
+  /** 汎用列 id -> the one value to keep; an id absent here matches every value. */
+  fields: Record<string, string>;
 }
 
 export const DEFAULT_FILTER: IssueFilter = {
@@ -23,6 +25,7 @@ export const DEFAULT_FILTER: IssueFilter = {
   due: "all",
   category: null,
   awaitingConfirmation: false,
+  fields: {},
 };
 
 const WEEK_DAYS = 7;
@@ -52,6 +55,7 @@ export function filterIssues(issues: Issue[], filter: IssueFilter, today: string
       (filter.reporter === null || i.reporter === filter.reporter) &&
       (filter.category === null || i.category === filter.category) &&
       (!filter.awaitingConfirmation || (i.status === "resolved" && i.reporter === me)) &&
+      Object.entries(filter.fields).every(([id, v]) => (i.fields[id] ?? "") === v) &&
       matchesDue(i, filter.due, today) &&
       (kw === "" ||
         i.summary.toLowerCase().includes(kw) ||

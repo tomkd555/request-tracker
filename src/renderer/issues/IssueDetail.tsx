@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
-import { categoryOptions, displayNameOf, useSession } from "../app/UserContext";
+import { categoryOptions, displayNameOf, useSession, withCurrent } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { Attachments } from "./Attachments";
 import { Comments } from "./Comments";
@@ -164,7 +164,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               issueKey={issue.key}
               version={version}
               onRestore={(old) =>
-                save({ summary: old.summary, description: old.description, category: old.category, status: old.status, priority: old.priority, assignee: old.assignee, startDate: old.startDate, dueDate: old.dueDate })
+                save({ summary: old.summary, description: old.description, category: old.category, status: old.status, priority: old.priority, assignee: old.assignee, startDate: old.startDate, dueDate: old.dueDate, fields: old.fields })
               }
             />
           </section>
@@ -223,6 +223,26 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
             <span className="issue-detail__term">期限日</span>
             <DateField className="issue-detail__control" ariaLabel="期限日" value={issue.dueDate} onSave={(dueDate) => save({ dueDate })} />
           </div>
+          {project.fields.map((f) => {
+            const value = issue.fields[f.id] ?? "";
+            const saveField = (v: string): Promise<void> => save({ fields: { ...issue.fields, [f.id]: v } });
+            return (
+              <div key={f.id} className="issue-detail__prop">
+                <span className="issue-detail__term">{f.name}</span>
+                {f.options.length === 0 ? (
+                  <TextField className="issue-detail__control" value={value} onSave={saveField} />
+                ) : (
+                  <SelectField
+                    className="issue-detail__control"
+                    ariaLabel={f.name}
+                    value={value}
+                    options={[{ value: "", label: "未設定" }, ...withCurrent(f.options, value).map((o) => ({ value: o, label: o }))]}
+                    onSave={saveField}
+                  />
+                )}
+              </div>
+            );
+          })}
           {children.length === 0 && (
             <div className="issue-detail__prop">
               <span className="issue-detail__term">親課題</span>

@@ -21,14 +21,22 @@ export interface Project {
   categories: string[]; // 種別 choices, in display order; a project.json written before this field gets DEFAULT_CATEGORIES on read
   categoryColors: Record<string, string>; // 種別 name -> "#rrggbb"; {} on files written before this field
   categoryTemplates: Record<string, CategoryTemplate>; // 種別 name -> text preset on the new-issue form; {} on files written before this field
+  fields: CustomField[]; // 汎用列 definitions, in display order; [] on files written before this field
 }
 
 /** Text the new-issue form loads when its 種別 is chosen. */
 export interface CategoryTemplate { summary: string; body: string }
 
+/** A per-project column on every issue: free text when `options` is empty, otherwise one of the options. Never required. */
+export interface CustomField { id: string; name: string; options: string[] }
+
 export const DEFAULT_CATEGORIES: string[] = ["問い合わせ", "不具合", "依頼", "その他"];
 
-export interface User { username: string; displayName: string; createdAt: string }
+/**
+ * username is the OS login for a user who registered on first launch, or a file stamp for a member added by name in
+ * project settings; `login` is the OS login bound to such a member once that person picks the name on first launch.
+ */
+export interface User { username: string; displayName: string; createdAt: string; login?: string }
 
 export type IssueStatus = "open" | "in_progress" | "resolved" | "closed";
 export type IssuePriority = "high" | "normal" | "low";
@@ -48,6 +56,7 @@ export interface Issue {
   createdAt: string;
   updatedAt: string;
   updatedBy: string;
+  fields: Record<string, string>; // CustomField id -> value; {} on records written before this field
 }
 
 export interface Comment {
@@ -86,8 +95,10 @@ const strMapOrAbsent = (v: unknown): v is Record<string, string> | undefined => 
 const isTemplate = (v: unknown): v is CategoryTemplate => isRec(v) && str(v.summary) && str(v.body);
 const templateMapOrAbsent = (v: unknown): v is Record<string, CategoryTemplate> | undefined =>
   v === undefined || (isRec(v) && Object.values(v).every(isTemplate));
+const isField = (v: unknown): v is CustomField => isRec(v) && str(v.id) && str(v.name) && Array.isArray(v.options) && v.options.every(str);
+const fieldsOrAbsent = (v: unknown): v is CustomField[] | undefined => v === undefined || (Array.isArray(v) && v.every(isField));
 
-/** Accepts a project.json without `categories`, `categoryColors` or `categoryTemplates`; `readProject` fills the defaults. */
+/** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates` or `fields`; `readProject` fills the defaults. */
 export function isProject(v: unknown): v is Project {
   return (
     isRec(v) &&
@@ -95,7 +106,8 @@ export function isProject(v: unknown): v is Project {
     str(v.createdAt) &&
     strArrayOrAbsent(v.categories) &&
     strMapOrAbsent(v.categoryColors) &&
-    templateMapOrAbsent(v.categoryTemplates)
+    templateMapOrAbsent(v.categoryTemplates) &&
+    fieldsOrAbsent(v.fields)
   );
 }
 
@@ -121,13 +133,13 @@ export function localSettingsFrom(v: Record<string, unknown>): LocalSettings {
 }
 
 export function isUser(v: unknown): v is User {
-  return isRec(v) && str(v.username) && str(v.displayName) && str(v.createdAt);
+  return isRec(v) && str(v.username) && str(v.displayName) && str(v.createdAt) && strOrAbsent(v.login);
 }
 
 export const ISSUE_KEY = /^\d{2}-\d{4,}$/;
 export const STAMP_ID = /^\d{8}T\d{9}Z$/;
 
-/** Accepts a record without `category` (written before the field existed); the store fills "" on read. */
+/** Accepts a record without `category` or `fields` (written before the fields existed); the store fills "" and {} on read. */
 export function isIssue(v: unknown): v is Issue {
   return (
     isRec(v) &&
@@ -136,6 +148,7 @@ export function isIssue(v: unknown): v is Issue {
     str(v.summary) &&
     str(v.description) &&
     strOrAbsent(v.category) &&
+    strMapOrAbsent(v.fields) &&
     ISSUE_STATUSES.includes(v.status as IssueStatus) &&
     ISSUE_PRIORITIES.includes(v.priority as IssuePriority) &&
     strOrNull(v.assignee) &&

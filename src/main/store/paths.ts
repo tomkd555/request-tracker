@@ -32,6 +32,7 @@ export function layout(root: string) {
     historyIssues: join(root, "history", "issues"),
     historyWiki: join(root, "history", "wiki"),
     historyProject: join(root, "history", "project"),
+    trashUsers: join(root, "trash", "users"),
     trashIssues: join(root, "trash", "issues"),
     trashWiki: join(root, "trash", "wiki"),
     trashAttachments: (key: string) => join(root, "trash", "attachments", assertKey(key)),

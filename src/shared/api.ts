@@ -1,4 +1,4 @@
-import type { Attachment, CategoryTemplate, Comment, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
+import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
@@ -20,8 +20,23 @@ export type StoreApi = {
     init(fiscalYearStartMonth: number): Promise<Project>;
     /** Replaces the 種別 list, its colours and its templates; other fields stay as on disk. */
     put(categories: string[], categoryColors: Record<string, string>, categoryTemplates: Record<string, CategoryTemplate>): Promise<Project>;
+    /** Replaces the 汎用列 definitions; other fields stay as on disk. */
+    putFields(fields: CustomField[]): Promise<Project>;
   };
-  users: { me(): Promise<User | null>; register(displayName: string): Promise<User>; list(): Promise<User[]> };
+  users: {
+    /** The record keyed by the OS login, or the member who bound that login with `claim`. */
+    me(): Promise<User | null>;
+    /** Creates or renames the current user's own record under the OS login (first launch). */
+    register(displayName: string): Promise<User>;
+    list(): Promise<User[]>;
+    /** A member added by name in project settings; the username is a file stamp. */
+    add(displayName: string): Promise<User>;
+    rename(username: string, displayName: string): Promise<User>;
+    /** Binds the OS login to a member added by name; rejects with "already-claimed" once bound. */
+    claim(username: string): Promise<User>;
+    /** Rejects with "in-use" while an issue names the member as assignee or reporter. */
+    remove(username: string): Promise<void>;
+  };
   issues: {
     list(): Promise<Issue[]>;
     get(key: string): Promise<Issue | null>;
@@ -62,8 +77,8 @@ export type Api = StoreApi & {
 
 export const API_METHODS = {
   config: ["get", "chooseRoot", "put"],
-  project: ["get", "init", "put"],
-  users: ["me", "register", "list"],
+  project: ["get", "init", "put", "putFields"],
+  users: ["me", "register", "list", "add", "rename", "claim", "remove"],
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],
   comments: ["list", "add"],

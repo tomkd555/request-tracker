@@ -7,6 +7,7 @@ const ITEMS: { path: string; label: string }[] = [
   { path: "/wiki", label: "Wiki" },
   { path: "/gantt", label: "ガントチャート" },
   { path: "/summary", label: "集計" },
+  { path: "/project", label: "プロジェクト設定" },
   { path: "/settings", label: "設定" },
 ];
 

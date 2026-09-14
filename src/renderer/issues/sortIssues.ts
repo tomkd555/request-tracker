@@ -1,13 +1,17 @@
 import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
 
-export type SortKey = "key" | "summary" | "category" | "assignee" | "status" | "priority" | "dueDate" | "updatedAt";
+type FixedKey = "key" | "summary" | "category" | "assignee" | "status" | "priority" | "dueDate" | "updatedAt";
+/** A fixed column, or a 汎用列 as "field:<CustomField id>". */
+export type SortKey = FixedKey | `field:${string}`;
 export interface IssueSort { key: SortKey; dir: "asc" | "desc" }
 
 export const DEFAULT_SORT: IssueSort = { key: "key", dir: "desc" };
 
+export const fieldSortKey = (id: string): SortKey => `field:${id}`;
+
 const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Comparator for top-level rows. An empty assignee and a missing due date sort last in either direction; ties fall back to key descending. */
+/** Comparator for top-level rows. An empty assignee, 汎用列 or due date sorts last in either direction; ties fall back to key descending. */
 export function issueComparator(sort: IssueSort, nameOf: (username: string | null) => string): (a: Issue, b: Issue) => number {
   const sign = sort.dir === "asc" ? 1 : -1;
   const emptyLast = (va: string, vb: string): number => (va === "" && vb !== "" ? 1 : vb === "" && va !== "" ? -1 : cmpStr(va, vb) * sign);
@@ -29,6 +33,10 @@ export function issueComparator(sort: IssueSort, nameOf: (username: string | nul
         return (ISSUE_STATUSES.indexOf(a.status) - ISSUE_STATUSES.indexOf(b.status)) * sign;
       case "priority":
         return (ISSUE_PRIORITIES.indexOf(a.priority) - ISSUE_PRIORITIES.indexOf(b.priority)) * sign;
+      default: {
+        const id = sort.key.slice("field:".length);
+        return emptyLast(a.fields[id] ?? "", b.fields[id] ?? "");
+      }
     }
   }
 }

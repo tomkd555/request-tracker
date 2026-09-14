@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { IssueDraft } from "../../shared/api";
-import { ISSUE_PRIORITIES, type IssuePriority } from "../../shared/types";
+import { ISSUE_PRIORITIES, type CustomField, type IssuePriority } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
-import { categoryOptions, useSession } from "../app/UserContext";
+import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { messageFor, refusalMessages } from "./attachmentMessages";
 import { MarkdownEditor } from "./FieldEditor";
@@ -25,6 +25,32 @@ export function IssueCreate(props: Props): React.JSX.Element {
 
 const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
+/** One 汎用列 in the attribute grid: a text input, or a select when the column has options. */
+function FieldRow({ field, value, onChange }: { field: CustomField; value: string; onChange(v: string): void }): React.JSX.Element {
+  const id = `new-field-${field.id}`;
+  return (
+    <>
+      <label htmlFor={id} className="issue-form__term">
+        {field.name}
+      </label>
+      <div className="issue-form__cell">
+        {field.options.length === 0 ? (
+          <input id={id} className="issue-form__control" value={value} onChange={(e) => onChange(e.target.value)} />
+        ) : (
+          <select id={id} className="issue-form__control" value={value} onChange={(e) => onChange(e.target.value)}>
+            <option value="">未設定</option>
+            {withCurrent(field.options, value).map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </>
+  );
+}
+
 function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const { me, users, project } = useSession();
   const { byKey, issues, refreshOne } = useIssues();
@@ -38,6 +64,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const [assignee, setAssignee] = useState<string>(source?.assignee ?? "");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [fields, setFields] = useState<Record<string, string>>(source?.fields ?? {});
   const [parent, setParent] = useState<string | null>(parentKey ?? source?.parentKey ?? null);
   const [parentInvalid, setParentInvalid] = useState(false);
   const [paths, setPaths] = useState<string[]>([]);
@@ -86,6 +113,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       createdAt: now,
       updatedAt: now,
       updatedBy: me.username,
+      fields,
     };
     try {
       const issue = await window.api.issues.create(draft);
@@ -245,6 +273,9 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           )}
           {parentInvalid && <span className="issue-form__error">該当する課題がありません</span>}
         </div>
+        {project.fields.map((f) => (
+          <FieldRow key={f.id} field={f} value={fields[f.id] ?? ""} onChange={(v) => setFields((x) => ({ ...x, [f.id]: v }))} />
+        ))}
       </div>
       <div
         className="issue-form__field attachments"

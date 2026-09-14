@@ -10,10 +10,10 @@ import { groupByParent } from "./groupByParent";
 import { defaultStatusName, issuesToCsv } from "./issuesToCsv";
 import { formatDate, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
 import { isUnseen } from "./seen";
-import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "./sortIssues";
+import { DEFAULT_SORT, fieldSortKey, issueComparator, nextSort, type IssueSort, type SortKey } from "./sortIssues";
 import { useIssues } from "./useIssues";
 
-const COLUMNS: { key: SortKey; label: string }[] = [
+const FIXED_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "key", label: "キー" },
   { key: "summary", label: "件名" },
   { key: "category", label: "種別" },
@@ -33,11 +33,12 @@ export function IssueList(): React.JSX.Element {
   const day = today();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
   const rows = groupByParent(filterIssues(issues, filter, day, me.username), issueComparator(sort, nameOf));
+  const columns = [...FIXED_COLUMNS, ...project.fields.map((f) => ({ key: fieldSortKey(f.id), label: f.name }))];
 
   const exportCsv = async (): Promise<void> => {
     setMessage(null);
     try {
-      const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: defaultStatusName }), `issues-${day}.csv`);
+      const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: defaultStatusName }, project.fields), `issues-${day}.csv`);
       setMessage(saved ? "CSVを保存しました" : null);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
@@ -62,7 +63,7 @@ export function IssueList(): React.JSX.Element {
       <table className="issue-table">
         <thead>
           <tr>
-            {COLUMNS.map((c) => (
+            {columns.map((c) => (
               <th key={c.key} className="issue-table__header" aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
                 <button type="button" className="issue-table__sort" onClick={() => setSort((s) => nextSort(s, c.key))}>
                   {c.label}
@@ -101,12 +102,17 @@ export function IssueList(): React.JSX.Element {
                 <td className={`issue-table__cell priority--${i.priority}`}>{PRIORITY_LABEL[i.priority]}</td>
                 <td className={`issue-table__cell${tone === "none" ? "" : ` issue-table__cell--${tone}`}`}>{formatDate(i.dueDate)}</td>
                 <td className="issue-table__cell">{formatDate(i.updatedAt)}</td>
+                {project.fields.map((f) => (
+                  <td key={f.id} className="issue-table__cell">
+                    {i.fields[f.id] ?? ""}
+                  </td>
+                ))}
               </tr>
             );
           })}
           {loaded && rows.length === 0 && (
             <tr className="issue-table__row">
-              <td colSpan={COLUMNS.length} className="issue-table__cell text--muted">
+              <td colSpan={columns.length} className="issue-table__cell text--muted">
                 該当する課題はありません
               </td>
             </tr>

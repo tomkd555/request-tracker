@@ -19,6 +19,7 @@ const issue = (startDate: string | null, dueDate: string | null): Issue => ({
   createdAt: "2026-09-10T03:00:00.000Z",
   updatedAt: "",
   updatedBy: "",
+  fields: {},
 });
 
 test("move shifts both dates; a bar drawn from the created day gets that day as its start; a point keeps no due date", () => {

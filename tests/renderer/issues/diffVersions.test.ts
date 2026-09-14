@@ -17,6 +17,7 @@ const issue = (over: Partial<Issue>): Issue => ({
   createdAt: "2026-09-01T00:00:00.000Z",
   updatedAt: "2026-09-01T00:00:00.000Z",
   updatedBy: "alice",
+  fields: {},
   ...over,
 });
 const nameOf = (u: string | null): string => (u === "bob" ? "Bob" : u ?? "");
@@ -37,4 +38,10 @@ test("changeEntries stamps each change with the later version and skips empty di
     { at: "2026-09-03T00:00:00.000Z", by: "alice", lines: ["件名: A → B"] },
   ]);
   expect(changeEntries([], cur, nameOf)).toEqual([]);
+});
+
+test("a 汎用列 that changed yields one line named after the column", () => {
+  const fields = [{ id: "env", name: "環境", options: [] }];
+  expect(diffVersions(issue({}), issue({ fields: { env: "本番" } }), nameOf, fields)).toEqual(["環境: 未設定 → 本番"]);
+  expect(diffVersions(issue({ fields: { env: "本番" } }), issue({ fields: { env: "本番" } }), nameOf, fields)).toEqual([]);
 });

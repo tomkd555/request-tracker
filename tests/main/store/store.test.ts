@@ -19,10 +19,10 @@ afterEach(async () => {
   await fsp.rm(shared, { recursive: true, force: true });
 });
 
-const store = (chosen: string | null) =>
+const store = (chosen: string | null, username = "alice") =>
   createStore({
     userDataDir: userData,
-    username: "alice",
+    username,
     chooseDirectory: async () => chosen,
     chooseFiles: async () => null,
     openPath: async () => "",
@@ -100,6 +100,7 @@ const draft = (over: Partial<IssueDraft> = {}): IssueDraft => ({
   createdAt: "2027-03-15T03:00:00.000Z",
   updatedAt: "2027-03-15T03:00:00.000Z",
   updatedBy: "alice",
+  fields: {},
   ...over,
 });
 
@@ -232,11 +233,12 @@ test("records and project.json written before category existed load with default
   const l = layout(shared);
   await fsp.writeFile(l.projectFile, JSON.stringify({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z" }), "utf8");
   expect((await s.project.get())?.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
-  const { category: _dropped, ...old } = { ...draft(), key: "26-0001" };
+  expect((await s.project.get())?.fields).toEqual([]);
+  const { category: _dropped, fields: _dropped2, ...old } = { ...draft(), key: "26-0001" };
   await fsp.writeFile(join(l.issues, "26-0001.json"), JSON.stringify(old), "utf8");
-  expect((await s.issues.get("26-0001"))?.category).toBe("");
-  expect((await s.issues.list())[0].category).toBe("");
-  await s.issues.put({ ...old, category: "依頼" });
+  expect(await s.issues.get("26-0001")).toMatchObject({ category: "", fields: {} });
+  expect((await s.issues.list())[0]).toMatchObject({ category: "", fields: {} });
+  await s.issues.put({ ...old, category: "依頼", fields: {} });
   expect((await s.issues.history("26-0001"))[0].category).toBe("");
   const p = await s.project.put([" 相談 ", "", "不具合", "相談"], {}, {});
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
@@ -286,6 +288,35 @@ test("users.register a second time renames and keeps createdAt", async () => {
   expect(await s.users.me()).toEqual(second);
 });
 
+test("a member added by name is claimed by the OS login on first launch, keeps the login through a rename, and is trashed only while unassigned", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.users.register("Alice");
+  const member = await s.users.add(" 田中 ");
+  expect(member.username).toMatch(/^\d{8}T\d{9}Z$/);
+  expect(member.displayName).toBe("田中");
+  expect("login" in member).toBe(false);
+  const bob = store(null, "bob");
+  await bob.config.get();
+  expect(await bob.users.me()).toBeNull();
+  const claimed = await bob.users.claim(member.username);
+  expect(claimed).toEqual({ ...member, login: "bob" });
+  expect(await bob.users.me()).toEqual(claimed);
+  await expect(s.users.claim(member.username)).rejects.toThrow("already-claimed");
+  const renamed = await bob.users.rename(member.username, "田中 太郎");
+  expect(renamed).toEqual({ ...claimed, displayName: "田中 太郎" });
+  expect(await bob.users.me()).toEqual(renamed);
+  await expect(s.users.rename(member.username, " ")).rejects.toThrow("empty");
+  await s.issues.create(draft({ assignee: member.username }));
+  await expect(s.users.remove(member.username)).rejects.toThrow("in-use");
+  await s.issues.put({ ...(await s.issues.get("26-0001"))!, assignee: null });
+  await s.users.remove(member.username);
+  expect((await s.users.list()).map((u) => u.username)).toEqual(["alice"]);
+  expect(await fsp.readdir(join(shared, "trash", "users"))).toEqual([`${member.username}.json`]);
+  expect(await bob.users.me()).toBeNull();
+});
+
 test("wiki: old records load with parentId null and note empty; put refuses a cycle; remove refuses a parent with children; page attachments live under wiki-attachments/", async () => {
   const s = store(shared);
   await s.config.chooseRoot();
@@ -310,4 +341,23 @@ test("wiki: old records load with parentId null and note empty; put refuses a cy
   await s.wiki.remove(child.id);
   await s.wiki.remove(old.id);
   expect(await s.wiki.list()).toEqual([]);
+});
+
+test("project.putFields drops unnamed rows and repeated ids, cleans the options, and keeps the other fields", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const p = await s.project.putFields([
+    { id: "a", name: " 環境 ", options: [" 本番", "検証", "", "本番"] },
+    { id: "b", name: " ", options: [] },
+    { id: "a", name: "重複", options: [] },
+    { id: "", name: "無id", options: [] },
+    { id: "c", name: "チケット番号", options: [] },
+  ]);
+  expect(p.fields).toEqual([{ id: "a", name: "環境", options: ["本番", "検証"] }, { id: "c", name: "チケット番号", options: [] }]);
+  expect(await s.project.get()).toEqual(p);
+  expect(p.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
+  expect(await fsp.readdir(layout(shared).historyProject)).toHaveLength(1);
+  await s.issues.create(draft({ fields: { a: "本番" } }));
+  expect((await s.issues.get("26-0001"))?.fields).toEqual({ a: "本番" });
 });

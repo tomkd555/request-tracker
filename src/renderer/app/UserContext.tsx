@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { LocalConfig, Project, User } from "../../shared/types";
+import { STAMP_ID, type LocalConfig, type Project, type User } from "../../shared/types";
 
 export interface Session {
   me: User;
@@ -22,12 +22,18 @@ export function useSession(): Session {
   return s;
 }
 
+/** A username with no record shows as it is when it is an OS login, and as 削除済みメンバー when it is the stamp of a removed member. */
 export function displayNameOf(users: User[], username: string | null): string {
   if (username === null) return "";
-  return users.find((u) => u.username === username)?.displayName ?? username;
+  return users.find((u) => u.username === username)?.displayName ?? (STAMP_ID.test(username) ? "削除済みメンバー" : username);
 }
 
 /** The project's 種別 list plus `current` when it is set and absent from the list, so an orphaned value stays selectable. */
 export function categoryOptions(project: Project, current: string): string[] {
-  return current !== "" && !project.categories.includes(current) ? [...project.categories, current] : project.categories;
+  return withCurrent(project.categories, current);
+}
+
+/** `options` plus `current` when it is set and absent, so a value typed before the choices changed stays selectable. */
+export function withCurrent(options: string[], current: string): string[] {
+  return current !== "" && !options.includes(current) ? [...options, current] : options;
 }
