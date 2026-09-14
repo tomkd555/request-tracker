@@ -102,13 +102,19 @@ A `// ponytail:` comment marks a deliberate shortcut and names its ceiling and t
 
 See `SECURITY.md` for how to report a problem.
 
-## Release checklist
+## Release
 
-Before publishing a new exe:
+A release is a tag. Pushing `vX.Y.Z` runs `.github/workflows/release.yml`, which type-checks, tests, builds the portable exe on a Windows runner and attaches it to the GitHub Release of that tag. Before tagging:
 
-- `npm run typecheck`, `npx vitest run` and `npm run package` pass
+- Set `version` in `package.json` to `X.Y.Z`
+- `npm run typecheck`, `npx vitest run` and `npm run package` pass locally
 - The exe starts on a machine without Node or this repository
 - Two instances pointed at the real network share see each other's changes within 10 seconds, and simultaneous creation yields distinct keys
+
+```
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## License
 
