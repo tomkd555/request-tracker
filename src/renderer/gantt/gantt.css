@@ -45,6 +45,7 @@
 .gantt__corner {
   z-index: 3;
   justify-content: flex-start;
+  gap: var(--space-3);
   padding-left: var(--space-3);
   font-weight: 600;
   border-right: 1px solid var(--border-row);

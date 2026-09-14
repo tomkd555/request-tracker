@@ -38,6 +38,8 @@ export interface LayoutOptions {
   collapsed: Set<string>;
   /** Also list issues with no dates, without a bar. */
   includeUndated: boolean;
+  /** Order of the top-level rows; default key descending. Children always follow their parent in key order. */
+  compare?: (a: Issue, b: Issue) => number;
 }
 
 /** Whole months: the first day of `month` (YYYY-MM) to the last day of the month `months - 1` later. */
@@ -159,7 +161,7 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
   };
 
   const desc = (a: Issue, b: Issue): number => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0);
-  const tops = issues.filter((i) => (i.parentKey === null || !byKey.has(i.parentKey)) && (visible(i) || (childrenOf.get(i.key) ?? []).some(visible))).sort(desc);
+  const tops = issues.filter((i) => (i.parentKey === null || !byKey.has(i.parentKey)) && (visible(i) || (childrenOf.get(i.key) ?? []).some(visible))).sort(opts.compare ?? desc);
   const rows: GanttRow[] = [];
   for (const top of tops) {
     rows.push(row(top, 0));
