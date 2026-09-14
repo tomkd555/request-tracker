@@ -1,7 +1,7 @@
 // Record types stored on the shared folder, and the per-machine config. This file is the schema.
 
-export type ThemeName = "backlog" | "blue" | "gray" | "dark";
-export const THEME_NAMES: ThemeName[] = ["backlog", "blue", "gray", "dark"];
+export type ThemeName = "green" | "blue" | "gray" | "dark";
+export const THEME_NAMES: ThemeName[] = ["green", "blue", "gray", "dark"];
 
 /** Per-machine preferences in %APPDATA%\request-tracker\config.json; a file written before a field existed gets the default on read. */
 export interface LocalSettings {
@@ -12,7 +12,7 @@ export interface LocalSettings {
 }
 export interface LocalConfig extends LocalSettings { rootDir: string }
 
-export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "backlog", accent: null, dueSoonDays: 3, pollIntervalMs: 5000 };
+export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "green", accent: null, dueSoonDays: 3, pollIntervalMs: 5000 };
 export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 export interface Project {
@@ -23,7 +23,7 @@ export interface Project {
   categoryTemplates: Record<string, CategoryTemplate>; // 種別 name -> text preset on the new-issue form; {} on files written before this field
 }
 
-/** Text the new-issue form loads when its 種別 is chosen (Backlog 課題テンプレート). */
+/** Text the new-issue form loads when its 種別 is chosen. */
 export interface CategoryTemplate { summary: string; body: string }
 
 export const DEFAULT_CATEGORIES: string[] = ["問い合わせ", "不具合", "依頼", "その他"];

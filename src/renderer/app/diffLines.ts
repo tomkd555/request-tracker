@@ -1,4 +1,4 @@
-// Line diff for the wiki history: an LCS over lines, then hunks with two lines of context, the way Redmine and Backlog show a version diff.
+// Line diff for the wiki history: an LCS over lines, then hunks with two lines of context.
 
 export type DiffKind = "same" | "add" | "del";
 export interface DiffLine { kind: DiffKind; text: string }

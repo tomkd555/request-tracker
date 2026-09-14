@@ -1,13 +1,13 @@
 import type { LocalSettings, ThemeName } from "../../shared/types";
 
 export const THEMES: Record<ThemeName, { label: string; dark: boolean; accent: string }> = {
-  backlog: { label: "Backlog", dark: false, accent: "#52987c" },
+  green: { label: "グリーン", dark: false, accent: "#52987c" },
   blue: { label: "ブルー", dark: false, accent: "#3d6fb4" },
   gray: { label: "グレー", dark: false, accent: "#5c6b73" },
   dark: { label: "ダーク", dark: true, accent: "#52987c" },
 };
 
-/** Backlog's type pill (issue list: タスク); a 種別 without a saved colour uses it. */
+/** Pill colour for a 種別 without a saved colour. */
 export const TYPE_PILL_DEFAULT = "#a4ae49";
 
 /** WCAG relative luminance of "#rrggbb". */
@@ -19,7 +19,7 @@ export function luminance(hex: string): number {
   return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
 }
 
-/** White while white keeps 3:1 on the colour (the Backlog green stays white, 3.42:1); dark text on lighter colours. */
+/** White while white keeps 3:1 on the colour (the green preset stays white, 3.42:1); dark text on lighter colours. */
 export function textOn(hex: string): "#ffffff" | "#242424" {
   return 1.05 / (luminance(hex) + 0.05) >= 3 ? "#ffffff" : "#242424";
 }

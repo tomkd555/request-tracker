@@ -1,8 +1,5 @@
 /*
- * Palette sampled from Backlog product screenshots published on backlog.com/ja/function/
- * (issue list: capture_subtask_summarize.webp; parent/child tree: 6cec55c0….webp;
- * board: capture_kanbanboard_column.webp; gantt: capture_ganttchart_visible.webp).
- * Each colour names the screen and element it was read from.
+ * Palette. Each colour names the screen and element it is used on.
  */
 :root {
   /* surfaces */
@@ -47,7 +44,7 @@
   /* gantt */
   --gantt-bar: #a9c4dd; /* gantt: scheduled bar */
   --gantt-bar-overdue: #efc3bd; /* gantt: overdue bar */
-  --gantt-bar-muted: #d8d8d8; /* closed and resolved; own choice, no Backlog sample */
+  --gantt-bar-muted: #d8d8d8; /* closed and resolved */
   --gantt-today: #fae9d3; /* gantt: today column */
   --gantt-weekend: #f0f0f0; /* gantt: weekend column */
   --gantt-grid: #e8e8e8; /* gantt: day grid line */

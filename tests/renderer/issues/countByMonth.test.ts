@@ -61,7 +61,7 @@ test("closed in the month counts by updatedAt regardless of creation month", () 
   expect(countByMonth(all, "2026-08").closedTotal).toBe(1);
 });
 
-test("a name that would be an Excel formula is prefixed", () => {
+test("a name that would be a spreadsheet formula is prefixed", () => {
   const csv = toCsv(countByMonth(all, "2026-09"), { user: (u) => (u === "alice" ? "=1+1" : u), status: (s) => s });
   expect(csv).toContain("'=1+1,2");
 });

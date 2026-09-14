@@ -1,4 +1,4 @@
-// Issue keys written in Markdown text ("26-0012") become links to the issue, the way Backlog links keys in comments and wiki pages.
+// Issue keys written in Markdown text ("26-0012") become links to the issue.
 
 // A key preceded by "/" is part of a URL path and stays as it is.
 const KEY = /(?<![\w\-/])(\d{2}-\d{4,})(?![\w\]\)-])/g;

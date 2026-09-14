@@ -1,7 +1,7 @@
 {
   "name": "request-tracker",
   "version": "0.1.0",
-  "description": "Backlog-style request tracker over a shared folder",
+  "description": "Request tracker for a small team over a shared folder",
   "main": "./out/main/index.js",
   "author": "TOMKD",
   "license": "MIT",

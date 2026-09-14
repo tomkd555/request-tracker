@@ -4,7 +4,7 @@ import { formatDateTime } from "../issues/labels";
 import { useWiki } from "./useWiki";
 import { flattenTree } from "./wikiTree";
 
-/** Every page as a tree, with who touched it last (Redmine's Index by title). */
+/** Every page as a tree, with who touched it last. */
 export function WikiIndex(): React.JSX.Element {
   const { users } = useSession();
   const { pages, loaded } = useWiki();

@@ -25,7 +25,7 @@ export type CollectionOptions<T> = {
   stampOf?: (record: T) => string;
 };
 
-/** fs.mkdir with recursive: true never returns when a folder refuses new entries with ENOENT (seen on a OneDrive "Documents" folder), so parents are created one level at a time and the refusal surfaces as an error. */
+/** fs.mkdir with recursive: true never returns when a folder refuses new entries with ENOENT (seen on a cloud-synced folder), so parents are created one level at a time and the refusal surfaces as an error. */
 export async function mkdirp(dir: string): Promise<void> {
   try {
     await fsp.mkdir(dir);

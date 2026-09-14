@@ -1,4 +1,4 @@
-// `[[タイトル]]` and `[[タイトル|表示文字]]` in Markdown become links to the wiki page of that title, the way Redmine and GitLab link pages.
+// `[[タイトル]]` and `[[タイトル|表示文字]]` in Markdown become links to the wiki page of that title.
 
 const LINK = /\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]/g;
 
