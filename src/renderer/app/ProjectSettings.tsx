@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import type { CategoryTemplate, Project } from "../../shared/types";
+import type { CategoryTemplate, CustomField, Project } from "../../shared/types";
 import { TextField } from "../issues/FieldEditor";
 import { useSaveMessage } from "./Settings";
 import { TYPE_PILL_DEFAULT } from "./theme";
 import { useSession } from "./UserContext";
 
-/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, and the members. */
+/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the members, the 汎用列. */
 export function ProjectSettings(): React.JSX.Element {
   return (
     <div>
@@ -15,8 +15,93 @@ export function ProjectSettings(): React.JSX.Element {
       <div className="settings">
         <CategorySection />
         <MemberSection />
+        <FieldSection />
       </div>
     </div>
+  );
+}
+
+interface FieldRow { id: string; name: string; optionsText: string }
+
+const fieldRowsOf = (p: Project): FieldRow[] => p.fields.map((f) => ({ id: f.id, name: f.name, optionsText: f.options.join("\n") }));
+
+function FieldSection(): React.JSX.Element {
+  const { project, refreshProject } = useSession();
+  const [rows, setRows] = useState<FieldRow[]>(() => fieldRowsOf(project));
+  const [dirty, setDirty] = useState(false);
+  const [message, run] = useSaveMessage();
+  useEffect(() => {
+    if (!dirty) setRows(fieldRowsOf(project));
+  }, [project, dirty]);
+
+  const update = (next: FieldRow[]): void => {
+    setRows(next);
+    setDirty(true);
+  };
+  const move = (i: number, d: -1 | 1): void => {
+    const next = [...rows];
+    const [row] = next.splice(i, 1);
+    next.splice(i + d, 0, row);
+    update(next);
+  };
+  const save = (): Promise<void> =>
+    run(async () => {
+      const fields: CustomField[] = rows.map((r) => ({ id: r.id, name: r.name, options: r.optionsText.split("\n") }));
+      await window.api.project.putFields(fields);
+      setDirty(false);
+      await refreshProject();
+    });
+
+  return (
+    <section className="issue-form settings__section">
+      <h3 className="settings__heading">汎用列</h3>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <ul className="settings__list">
+          {rows.map((r, i) => (
+            <li key={r.id} className="settings__row">
+              <input
+                className="settings__name"
+                aria-label="列名"
+                value={r.name}
+                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+              />
+              <button type="button" aria-label="上へ" disabled={i === 0} onClick={() => move(i, -1)}>
+                ↑
+              </button>
+              <button type="button" aria-label="下へ" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
+                ↓
+              </button>
+              <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>
+                削除
+              </button>
+              <div className="settings__template">
+                <label className="issue-form__field">
+                  選択肢
+                  <textarea
+                    className="issue-form__control"
+                    rows={3}
+                    value={r.optionsText}
+                    onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, optionsText: e.target.value } : x)))}
+                  />
+                </label>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {message && <p className="text--muted">{message}</p>}
+        <div className="form-actions">
+          <button type="button" onClick={() => update([...rows, { id: crypto.randomUUID(), name: "", optionsText: "" }])}>
+            追加
+          </button>
+          <button type="submit">保存</button>
+        </div>
+      </form>
+    </section>
   );
 }
 

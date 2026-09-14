@@ -8,7 +8,7 @@ import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
-import { initProject, putCategories, readProject } from "./project";
+import { initProject, putCategories, putFields, readProject } from "./project";
 import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
 
@@ -75,6 +75,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       get: async () => readProject(need()),
       init: async (month) => initProject(need(), month),
       put: async (categories, categoryColors, categoryTemplates) => putCategories(need(), categories, categoryColors, categoryTemplates),
+      putFields: async (fields) => putFields(need(), fields),
     },
     users: {
       me: async () => findUser(need(), deps.username),

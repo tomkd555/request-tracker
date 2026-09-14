@@ -39,3 +39,9 @@ test("changeEntries stamps each change with the later version and skips empty di
   ]);
   expect(changeEntries([], cur, nameOf)).toEqual([]);
 });
+
+test("a 汎用列 that changed yields one line named after the column", () => {
+  const fields = [{ id: "env", name: "環境", options: [] }];
+  expect(diffVersions(issue({}), issue({ fields: { env: "本番" } }), nameOf, fields)).toEqual(["環境: 未設定 → 本番"]);
+  expect(diffVersions(issue({ fields: { env: "本番" } }), issue({ fields: { env: "本番" } }), nameOf, fields)).toEqual([]);
+});

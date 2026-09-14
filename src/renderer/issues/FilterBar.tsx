@@ -79,6 +79,27 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
           ))}
         </select>
       </label>
+      {project.fields
+        .filter((f) => f.options.length > 0)
+        .map((f) => (
+          <label key={f.id} className="filter-bar__field">
+            {f.name}
+            <select
+              value={filter.fields[f.id] ?? ""}
+              onChange={(e) => {
+                const { [f.id]: _cleared, ...rest } = filter.fields;
+                onChange({ ...filter, fields: e.target.value === "" ? rest : { ...rest, [f.id]: e.target.value } });
+              }}
+            >
+              <option value="">すべて</option>
+              {f.options.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
       {mine("assignee", "自分の担当")}
       {mine("reporter", "自分が登録")}
       <button

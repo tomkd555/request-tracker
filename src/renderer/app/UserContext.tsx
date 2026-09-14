@@ -30,5 +30,10 @@ export function displayNameOf(users: User[], username: string | null): string {
 
 /** The project's 種別 list plus `current` when it is set and absent from the list, so an orphaned value stays selectable. */
 export function categoryOptions(project: Project, current: string): string[] {
-  return current !== "" && !project.categories.includes(current) ? [...project.categories, current] : project.categories;
+  return withCurrent(project.categories, current);
+}
+
+/** `options` plus `current` when it is set and absent, so a value typed before the choices changed stays selectable. */
+export function withCurrent(options: string[], current: string): string[] {
+  return current !== "" && !options.includes(current) ? [...options, current] : options;
 }

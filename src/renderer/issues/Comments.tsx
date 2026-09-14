@@ -16,7 +16,7 @@ interface Props {
 type FeedItem = { kind: "comment"; at: string; comment: Comment } | { kind: "change"; at: string; change: ChangeEntry };
 
 export function Comments({ issue, version, onStatus }: Props): React.JSX.Element {
-  const { me, users } = useSession();
+  const { me, users, project } = useSession();
   const [items, setItems] = useState<Comment[]>([]);
   const [changes, setChanges] = useState<ChangeEntry[]>([]);
   const [showChanges, setShowChanges] = useState(true);
@@ -29,8 +29,8 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   const load = useCallback(async () => setItems(await window.api.comments.list(issueKey)), [issueKey]);
   const loadChanges = useCallback(async () => {
     const history = await window.api.issues.history(issueKey);
-    setChanges(changeEntries(history, issue, nameOf));
-  }, [issueKey, issue, nameOf]);
+    setChanges(changeEntries(history, issue, nameOf, project.fields));
+  }, [issueKey, issue, nameOf, project.fields]);
 
   useEffect(() => {
     void load();

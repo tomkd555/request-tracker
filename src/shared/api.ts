@@ -1,4 +1,4 @@
-import type { Attachment, CategoryTemplate, Comment, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
+import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
@@ -20,6 +20,8 @@ export type StoreApi = {
     init(fiscalYearStartMonth: number): Promise<Project>;
     /** Replaces the 種別 list, its colours and its templates; other fields stay as on disk. */
     put(categories: string[], categoryColors: Record<string, string>, categoryTemplates: Record<string, CategoryTemplate>): Promise<Project>;
+    /** Replaces the 汎用列 definitions; other fields stay as on disk. */
+    putFields(fields: CustomField[]): Promise<Project>;
   };
   users: {
     /** The record keyed by the OS login, or the member who bound that login with `claim`. */
@@ -75,7 +77,7 @@ export type Api = StoreApi & {
 
 export const API_METHODS = {
   config: ["get", "chooseRoot", "put"],
-  project: ["get", "init", "put"],
+  project: ["get", "init", "put", "putFields"],
   users: ["me", "register", "list", "add", "rename", "claim", "remove"],
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],

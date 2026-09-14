@@ -35,3 +35,13 @@ test("header row, one line per row, quoting and formula guard applied", () => {
     "26-0003,'=1+1,,,未対応,中,,2026-09-02,ALICE,2026-09-01",
   ]);
 });
+
+test("汎用列 follow the fixed columns, empty where the issue has no value", () => {
+  const fields = [{ id: "env", name: "環境", options: ["本番", "検証"] }, { id: "ticket", name: "チケット番号", options: [] }];
+  const rows = [{ issue: issue({ fields: { env: "本番" } }), depth: 0 as const }, { issue: issue({ key: "26-0002" }), depth: 0 as const }];
+  expect(issuesToCsv(rows, names, fields).split("\r\n")).toEqual([
+    "キー,件名,種別,担当者,状態,優先度,期限日,更新日,登録者,登録日,環境,チケット番号",
+    "26-0001,A,,,未対応,中,,2026-09-02,ALICE,2026-09-01,本番,",
+    "26-0002,A,,,未対応,中,,2026-09-02,ALICE,2026-09-01,,",
+  ]);
+});

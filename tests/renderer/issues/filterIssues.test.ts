@@ -60,3 +60,9 @@ test("awaitingConfirmation keeps resolved issues reported by me", () => {
   const withResolved = [...all, issue({ key: "26-0005", status: "resolved", reporter: "alice" }), issue({ key: "26-0006", status: "resolved", reporter: "carol" })];
   expect(keys(filterIssues(withResolved, { ...DEFAULT_FILTER, awaitingConfirmation: true }, today, "alice"))).toEqual(["26-0005"]);
 });
+
+test("a 汎用列 filter keeps the chosen value only; a record without the value counts as empty", () => {
+  const tagged = [...all, issue({ key: "26-0005", status: "open", fields: { env: "本番" } })];
+  expect(keys(filterIssues(tagged, { ...DEFAULT_FILTER, fields: { env: "本番" } }, today, "alice"))).toEqual(["26-0005"]);
+  expect(keys(filterIssues(tagged, { ...DEFAULT_FILTER, fields: { env: "" } }, today, "alice"))).toEqual(["26-0001", "26-0003", "26-0004"]);
+});

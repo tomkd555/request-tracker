@@ -342,3 +342,22 @@ test("wiki: old records load with parentId null and note empty; put refuses a cy
   await s.wiki.remove(old.id);
   expect(await s.wiki.list()).toEqual([]);
 });
+
+test("project.putFields drops unnamed rows and repeated ids, cleans the options, and keeps the other fields", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const p = await s.project.putFields([
+    { id: "a", name: " 環境 ", options: [" 本番", "検証", "", "本番"] },
+    { id: "b", name: " ", options: [] },
+    { id: "a", name: "重複", options: [] },
+    { id: "", name: "無id", options: [] },
+    { id: "c", name: "チケット番号", options: [] },
+  ]);
+  expect(p.fields).toEqual([{ id: "a", name: "環境", options: ["本番", "検証"] }, { id: "c", name: "チケット番号", options: [] }]);
+  expect(await s.project.get()).toEqual(p);
+  expect(p.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
+  expect(await fsp.readdir(layout(shared).historyProject)).toHaveLength(1);
+  await s.issues.create(draft({ fields: { a: "本番" } }));
+  expect((await s.issues.get("26-0001"))?.fields).toEqual({ a: "本番" });
+});
