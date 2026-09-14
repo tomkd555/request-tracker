@@ -157,11 +157,6 @@ button:disabled {
   gap: var(--space-4);
 }
 
-.settings__group {
-  margin: var(--space-3) 0 0;
-  font-size: var(--text-lg);
-}
-
 .settings__heading {
   margin: 0 0 var(--space-3);
   font-size: var(--text-md);

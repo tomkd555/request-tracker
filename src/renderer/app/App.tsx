@@ -3,6 +3,7 @@ import { DEFAULT_LOCAL_SETTINGS, type LocalConfig, type Project, type User } fro
 import { nextStep, type BootStep } from "./boot";
 import { FirstLaunch } from "./FirstLaunch";
 import { Nav } from "./Nav";
+import { ProjectSettings } from "./ProjectSettings";
 import { Settings } from "./Settings";
 import { applyAppearance } from "./theme";
 import { SessionContext } from "./UserContext";
@@ -119,6 +120,7 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   if (path.startsWith("/wiki")) return <WikiScreen route={route} />;
   if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
+  if (path.startsWith("/project")) return <ProjectSettings />;
   if (path.startsWith("/settings")) return <Settings />;
   if (path === "/issues/new") {
     return <IssueCreate key={query.get("parent") ?? query.get("copy") ?? ""} parentKey={query.get("parent")} copyFrom={query.get("copy")} />;
