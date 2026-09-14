@@ -1,0 +1,234 @@
+.shell {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  min-height: 100vh;
+}
+
+.nav {
+  background: var(--brand);
+  color: var(--text-on-brand);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+}
+
+.nav__title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-6);
+}
+
+.nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+}
+
+.nav__link {
+  display: block;
+  color: var(--text-on-brand);
+  text-decoration: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+}
+
+.nav__link--active {
+  background: var(--bg-nav-active);
+}
+
+.nav__user {
+  font-size: var(--text-sm);
+}
+
+.shell__content {
+  min-width: 0; /* a wide gantt scrolls inside its own box; the page keeps its width */
+  padding: var(--space-6);
+}
+
+.first-launch {
+  max-width: 480px;
+  margin: 80px auto;
+  background: var(--bg-panel);
+  padding: var(--space-6);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-panel);
+}
+
+.first-launch__label {
+  display: block;
+  margin: var(--space-3) 0;
+}
+
+.first-launch__reselect {
+  margin-top: var(--space-6);
+}
+
+.stepper {
+  display: flex;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0 0 var(--space-3);
+  border-bottom: 1px solid var(--border-panel);
+  counter-reset: step;
+}
+
+.stepper__step {
+  color: var(--text-muted);
+  counter-increment: step;
+}
+
+.stepper__step::before {
+  content: counter(step) ". ";
+}
+
+.stepper__step[aria-current="step"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stepper__step--done {
+  color: var(--brand);
+}
+
+.first-launch__field {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-md);
+  padding: var(--space-1) var(--space-2);
+  min-width: 240px;
+}
+
+button {
+  font-size: var(--text-md);
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--border-button);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.button--primary {
+  background: var(--brand);
+  color: var(--text-on-brand);
+  border-color: var(--brand);
+}
+
+.button--quiet {
+  display: inline-block;
+  padding: 2px var(--space-3);
+  border: 1px solid var(--border-button);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button--link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.text--error {
+  color: var(--text-overdue); /* the pill colour reads at 2.6:1 on white; this one is measured at 5.9:1 */
+}
+
+.text--loading {
+  padding: var(--space-6);
+  color: var(--text-muted);
+}
+
+.settings {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settings__group {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-lg);
+}
+
+.settings__heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+}
+
+.settings__fieldset {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+}
+
+.settings__radio,
+.settings__inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.settings__template {
+  flex-basis: 100%;
+  padding: var(--space-2) var(--space-3) 0;
+  border-left: 3px solid var(--border-panel);
+}
+
+.settings__number {
+  width: 5em;
+  font-size: var(--text-md);
+  padding: var(--space-1) var(--space-2);
+}
+
+.settings__path {
+  margin: 0 0 var(--space-3);
+  word-break: break-all;
+}
+
+.settings__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settings__name {
+  flex: 1;
+  font-size: var(--text-md);
+  padding: var(--space-1) var(--space-2);
+}
+
+.nav__badge {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--bg-panel);
+  color: var(--brand);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: center;
+}

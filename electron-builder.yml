@@ -1,0 +1,15 @@
+appId: jp.tomkd.request-tracker
+productName: RequestTracker
+files:
+  - "!src/*"
+  - "!tests/*"
+  - "!electron.vite.config.{js,ts,mjs,cjs}"
+  - "!vitest.config.{js,ts,mjs,cjs}"
+  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+  - "!{*.md,tasks,docs}"
+win:
+  target:
+    - portable
+  executableName: RequestTracker
+  artifactName: RequestTracker-${version}.${ext}
+npmRebuild: false

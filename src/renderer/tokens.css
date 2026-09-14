@@ -1,0 +1,117 @@
+/*
+ * Palette. Each colour names the screen and element it is used on.
+ */
+:root {
+  /* surfaces */
+  --bg-page: #f0f0f0; /* issue list: page background */
+  --bg-panel: #ffffff; /* issue list: table header row, panels */
+  --bg-row: #edf5f0; /* issue list: table rows */
+  --bg-row-selected: #fbfbe0; /* issue list: selected row */
+  --bg-row-parent: #ecf6f0; /* parent/child tree: parent row */
+  --border-row: #cdcfcc; /* parent/child tree: row separator */
+  --border-panel: #cccccc; /* board: panel edge */
+  --border-button: #aaaaaa; /* issue list: outlined button */
+
+  /* text */
+  --text: #242424; /* board: column header */
+  --text-muted: #737373; /* board: card key */
+  --text-table-header: color-mix(in srgb, var(--brand) 70%, #999999); /* issue list: column labels; approximates the sampled #6f9a89 */
+  --link: color-mix(in srgb, var(--brand) 95%, black); /* gantt: issue title link; approximates the sampled #4f8d78 */
+  --text-overdue: #b3261e; /* issue list: overdue due date; own choice, 5.9:1 on --bg-row (measured) */
+  --text-due-soon: #8a5a00; /* issue list: due within 3 days; own choice, 5.3:1 on --bg-row (measured) */
+  --link-missing: #a63d2f; /* wiki: link to a page that does not exist yet; own choice, 5.6:1 on --bg-panel */
+  --diff-added: #d8f0dc; /* wiki history: added line */
+  --diff-removed: #f8d7d3; /* wiki history: removed line */
+
+  /* brand; theme.ts overrides --brand and --text-on-brand with the chosen preset or accent */
+  --brand: #52987c; /* issue list: selected filter chip, count badge */
+  --brand-border: color-mix(in srgb, var(--brand) 90%, black); /* parent/child tree: parent row left border; approximates the sampled #44987b */
+  --text-on-brand: #ffffff; /* text on the brand colour */
+  --bg-nav-active: rgba(255, 255, 255, 0.2); /* nav: the current item, a light wash over the brand colour */
+
+  /* status pills (board: column dots; issue list: pills) */
+  --status-open: #ed8276; /* 未対応 */
+  --status-in-progress: #4488c5; /* 処理中 */
+  --status-resolved: #5fb5a6; /* 処理済み */
+  --status-closed: #a1af2f; /* 完了 */
+  --status-text: #ffffff;
+
+  /* priority markers (issue list: arrows) */
+  --priority-high: #d35365;
+  --priority-normal: #6c8ab2;
+  --priority-low: #83aea0;
+
+  /* gantt */
+  --gantt-bar: #a9c4dd; /* gantt: scheduled bar */
+  --gantt-bar-overdue: #efc3bd; /* gantt: overdue bar */
+  --gantt-bar-muted: #d8d8d8; /* closed and resolved */
+  --gantt-today: #fae9d3; /* gantt: today column */
+  --gantt-weekend: #f0f0f0; /* gantt: weekend column */
+  --gantt-grid: #e8e8e8; /* gantt: day grid line */
+  --gantt-bracket: #7a8a99; /* gantt: a parent's span taken from its children; own choice */
+  --gantt-late: #e06b5c; /* gantt: days past the due date; own choice */
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius: 4px;
+  --radius-pill: 999px;
+
+  /* type scale */
+  --font-body: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+}
+
+/* Dark preset: surfaces, borders and text change; status and priority colours stay. Text pairs measured at 4.5:1 or better. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-page: #1b1b1b;
+  --bg-panel: #262626;
+  --bg-row: #222825;
+  --bg-row-selected: #33331f;
+  --bg-row-parent: #24302b;
+  --border-row: #3f423f;
+  --border-panel: #444444;
+  --border-button: #666666;
+  --text: #e6e6e6;
+  --text-muted: #a8a8a8;
+  --text-table-header: color-mix(in srgb, var(--brand) 60%, #e0e0e0);
+  --link: color-mix(in srgb, var(--brand) 70%, white);
+  --text-overdue: #ff9a8f;
+  --text-due-soon: #f0c060;
+  --link-missing: #f0a090;
+  --diff-added: #24422c;
+  --diff-removed: #4d2a27;
+  --gantt-bar: #3f5f7d;
+  --gantt-bar-overdue: #7d4a45;
+  --gantt-bar-muted: #4a4a4a;
+  --gantt-today: #4a3d2a;
+  --gantt-weekend: #1b1b1b;
+  --gantt-grid: #333333;
+  --gantt-bracket: #9aa8b5;
+  --gantt-late: #c0665a;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg-page);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+}
+
+a {
+  color: var(--link);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
