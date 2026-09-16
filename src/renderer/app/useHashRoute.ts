@@ -12,20 +12,19 @@ export function navigate(to: string): void {
   window.location.hash = to;
 }
 
-/** Returns false to keep the current screen; set by a form with unsaved changes. */
-type Guard = () => boolean;
-let guard: Guard | null = null;
+// Forms with unsaved changes, counted so two dirty sections on one screen keep the guard until both are saved.
+let activeGuards = 0;
 let restoring = false;
 
 /** While `active`, leaving the route asks 「編集内容を破棄しますか」 and closing the window asks the browser's own question. */
 export function useNavigationGuard(active: boolean): void {
   useEffect(() => {
     if (!active) return;
-    guard = () => window.confirm("編集内容を破棄しますか");
+    activeGuards++;
     const onUnload = (e: BeforeUnloadEvent): void => e.preventDefault();
     window.addEventListener("beforeunload", onUnload);
     return () => {
-      guard = null;
+      activeGuards--;
       window.removeEventListener("beforeunload", onUnload);
     };
   }, [active]);
@@ -41,7 +40,7 @@ export function useHashRoute(): Route {
         restoring = false;
         return;
       }
-      if (guard !== null && !guard()) {
+      if (activeGuards > 0 && !window.confirm("編集内容を破棄しますか")) {
         restoring = true;
         window.location.hash = accepted.current;
         return;
