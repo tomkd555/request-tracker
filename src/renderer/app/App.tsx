@@ -14,6 +14,7 @@ import { IssueList } from "../issues/IssueList";
 import { IssuesProvider, useIssues } from "../issues/useIssues";
 import { Summary } from "../issues/Summary";
 import { Gantt } from "../gantt/Gantt";
+import { Kanban } from "../kanban/Kanban";
 import { WikiScreen } from "../wiki/WikiFrame";
 import { useWiki, WikiProvider } from "../wiki/useWiki";
 import { Search } from "../search/Search";
@@ -122,6 +123,7 @@ function Shell(): React.JSX.Element {
 function Screen({ route }: { route: Route }): React.JSX.Element {
   const { path, query } = route;
   if (path.startsWith("/wiki")) return <WikiScreen route={route} />;
+  if (path.startsWith("/kanban")) return <Kanban />;
   if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
   if (path.startsWith("/project")) return <ProjectSettings />;
