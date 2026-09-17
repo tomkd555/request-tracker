@@ -12,6 +12,7 @@ import { HistoryList } from "./HistoryList";
 import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
 import { ParentField } from "./ParentField";
 import { relatedIssues } from "./relatedIssues";
+import { staleMessage } from "./saveError";
 import { markSeen } from "./seen";
 import { useIssues } from "./useIssues";
 
@@ -38,11 +39,11 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const related = relatedIssues(issue, byKey);
   const parentCandidates = [...byKey.values()].filter((i) => i.parentKey === null && i.key !== issue.key).sort((a, b) => (a.key < b.key ? 1 : -1));
 
-  // ponytail: last write wins, no stale-write check; history keeps the overwritten version
   const put = async (patch: Partial<Issue>): Promise<void> => {
-    const next: Issue = { ...(latest.current ?? issue), ...patch, key: issue.key, updatedAt: new Date().toISOString(), updatedBy: me.username };
-    latest.current = next; // a second edit before refreshOne resolves builds on this one
-    await window.api.issues.put(next);
+    const base = latest.current ?? issue;
+    const next: Issue = { ...base, ...patch, key: issue.key, updatedAt: new Date().toISOString(), updatedBy: me.username };
+    await window.api.issues.put(next, base.updatedAt);
+    latest.current = next; // only once the write lands, so a rejected save never becomes the base for the next one
     await refreshOne(issue.key);
     setVersion((v) => v + 1);
   };
@@ -51,8 +52,12 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     try {
       await put(patch);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(staleMessage(e));
     }
+  };
+  const reload = (): void => {
+    setError(null);
+    void refreshOne(issue.key);
   };
 
   const userOptions = [{ value: "", label: "未設定" }, ...users.map((u) => ({ value: u.username, label: u.displayName }))];
@@ -105,7 +110,14 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
         </div>
       </div>
       <TextField className="issue-detail__summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
-      {error && <p className="text--error">{error}</p>}
+      {error && (
+        <p className="text--error">
+          {error}{" "}
+          <button type="button" className="button--link" onClick={reload}>
+            再読み込み
+          </button>
+        </p>
+      )}
       <div className="issue-detail__body">
         <div className="issue-detail__main">
           <MarkdownField title="詳細" value={issue.description} onSave={(description) => save({ description })} preview={(v) => <Markdown source={v} />} />

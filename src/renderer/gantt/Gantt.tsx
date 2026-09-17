@@ -6,6 +6,7 @@ import { FilterBar } from "../issues/FilterBar";
 import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "../issues/filterIssues";
 import { STATUS_LABEL, statusClass } from "../issues/labels";
 import { SavedFilters } from "../issues/SavedFilters";
+import { staleMessage } from "../issues/saveError";
 import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
 import { datesAfterDrag, layoutGantt, rangeFor, shiftMonth, type DragMode, type GanttRow, type GroupBy, type Months, type Segment } from "./layoutGantt";
@@ -94,11 +95,13 @@ export function Gantt(): React.JSX.Element {
     if (!issue) return;
     setMessage(null);
     try {
-      // ponytail: last write wins during a drag as everywhere else; a poller refresh that lands mid-drag is ignored until pointer-up
-      await window.api.issues.put({ ...issue, ...datesAfterDrag(issue, d.mode, d.delta, range), updatedAt: new Date().toISOString(), updatedBy: me.username });
+      // Uses the bar position from when the drag started; a poller refresh mid-drag is ignored until pointer-up,
+      // when the stale-write guard below catches a conflicting edit made meanwhile.
+      await window.api.issues.put({ ...issue, ...datesAfterDrag(issue, d.mode, d.delta, range), updatedAt: new Date().toISOString(), updatedBy: me.username }, issue.updatedAt);
       await refreshOne(issue.key);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage(staleMessage(e));
+      await refreshOne(issue.key); // snaps the bar back to the record actually on disk
     }
   };
 

@@ -43,7 +43,8 @@ export type StoreApi = {
     list(): Promise<Issue[]>;
     get(key: string): Promise<Issue | null>;
     create(draft: IssueDraft): Promise<Issue>;
-    put(issue: Issue): Promise<void>;
+    /** Rejects with "stale" when `expectedUpdatedAt` is given and no longer matches the record on disk (or the record is gone). */
+    put(issue: Issue, expectedUpdatedAt?: string): Promise<void>;
     remove(key: string): Promise<void>;
     history(key: string): Promise<Issue[]>;
   };
@@ -67,8 +68,8 @@ export type StoreApi = {
     get(id: string): Promise<WikiPage | null>;
     /** Resolves to the page with its allocated id. */
     create(p: WikiPage): Promise<WikiPage>;
-    /** Rejects with "cycle" when parentId is the page itself or one of its descendants. */
-    put(p: WikiPage): Promise<void>;
+    /** Rejects with "cycle" when parentId is the page itself or one of its descendants, or with "stale" per `expectedUpdatedAt` (see issues.put). */
+    put(p: WikiPage, expectedUpdatedAt?: string): Promise<void>;
     /** Rejects with "has-children" while other pages name this one as their parent. */
     remove(id: string): Promise<void>;
     history(id: string): Promise<WikiPage[]>;

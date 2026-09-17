@@ -152,6 +152,30 @@ test("issues.remove refuses a parent with children and trashes a leaf", async ()
   expect((await fsp.stat(join(shared, "attachments", "26-0001"))).isDirectory()).toBe(true);
 });
 
+test("issues.put guards a stale write: a matching stamp succeeds with history, a stale stamp rejects leaving the file and history untouched, an omitted stamp overwrites as before, and a vanished record is stale too", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const created = await s.issues.create(draft());
+  const l = layout(shared);
+  const file = join(l.issues, "26-0001.json");
+  const before = await fsp.readFile(file);
+
+  await expect(s.issues.put({ ...created, summary: "stale" }, "2000-01-01T00:00:00.000Z")).rejects.toThrow("stale");
+  expect(await fsp.readFile(file)).toEqual(before);
+  await expect(fsp.readdir(join(l.historyIssues, "26-0001"))).rejects.toThrow();
+
+  await s.issues.put({ ...created, summary: "second" }, created.updatedAt);
+  expect((await s.issues.get("26-0001"))?.summary).toBe("second");
+  expect((await s.issues.history("26-0001")).map((i) => i.summary)).toEqual(["s"]);
+
+  await s.issues.put({ ...created, summary: "third" }); // the 0.2.0 path: no stamp, no guard
+  expect((await s.issues.get("26-0001"))?.summary).toBe("third");
+
+  await s.issues.remove("26-0001");
+  await expect(s.issues.put({ ...created, summary: "resurrected" }, created.updatedAt)).rejects.toThrow("stale");
+});
+
 test("comments are one file each and list in creation order", async () => {
   const s = store(shared);
   await s.config.chooseRoot();
@@ -186,6 +210,28 @@ test("wiki pages get stamp ids, keep history on put, and move to trash on remove
   await s.wiki.remove(first.id);
   expect((await s.wiki.list()).map((p) => p.title)).toEqual([second.title]);
   expect(await fsp.readdir(join(shared, "trash", "wiki"))).toEqual(["20260912T000000000Z.json"]);
+});
+
+test("wiki.put guards a stale write the same way, after the cycle check", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const at = "2026-09-12T00:00:00.000Z";
+  const page = await s.wiki.create({ id: "", title: "手順", body: "a", parentId: null, note: "", createdAt: at, createdBy: "alice", updatedAt: at, updatedBy: "alice" });
+  const l = layout(shared);
+  const file = join(l.wiki, `${page.id}.json`);
+  const before = await fsp.readFile(file);
+
+  await expect(s.wiki.put({ ...page, body: "stale" }, "2000-01-01T00:00:00.000Z")).rejects.toThrow("stale");
+  expect(await fsp.readFile(file)).toEqual(before);
+  await expect(fsp.readdir(join(l.historyWiki, page.id))).rejects.toThrow();
+
+  await s.wiki.put({ ...page, body: "b", updatedAt: "2026-09-12T01:00:00.000Z" }, page.updatedAt);
+  expect((await s.wiki.get(page.id))?.body).toBe("b");
+  expect((await s.wiki.history(page.id)).map((p) => p.body)).toEqual(["a"]);
+
+  await s.wiki.remove(page.id);
+  await expect(s.wiki.put({ ...page, body: "resurrected" }, page.updatedAt)).rejects.toThrow("stale");
 });
 
 test("ids and keys from other people's files never reach a path join", async () => {

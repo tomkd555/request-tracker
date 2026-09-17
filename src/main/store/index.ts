@@ -101,7 +101,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         if (project === null) throw new Error("project.json is missing");
         return createIssue(need(), project, draft);
       },
-      put: async (issue) => issuesCollection(need()).put(issue.key, issue),
+      put: async (issue, expectedUpdatedAt) => issuesCollection(need()).put(issue.key, issue, expectedUpdatedAt),
       remove: async (key) => removeIssue(need(), key),
       history: async (key) => (await issuesCollection(need()).history(key)).map(withDefaults),
     },
@@ -153,7 +153,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         return p === null ? null : withWikiDefaults(p);
       },
       create: async (p) => createPage(need(), p),
-      put: async (p) => putPage(need(), p),
+      put: async (p, expectedUpdatedAt) => putPage(need(), p, expectedUpdatedAt),
       remove: async (id) => removePage(need(), id),
       history: async (id) => (await wikiCollection(need()).history(id)).map(withWikiDefaults),
     },

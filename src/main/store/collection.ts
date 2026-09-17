@@ -7,8 +7,12 @@ export type Collection<T> = {
   get(id: string): Promise<T | null>;
   /** Exclusive create: rejects with code EEXIST when the id is taken. */
   create(id: string, record: T): Promise<void>;
-  /** Atomic overwrite; copies the previous version to history first. */
-  put(id: string, record: T): Promise<void>;
+  /**
+   * Atomic overwrite; copies the previous version to history first.
+   * When `expectedUpdatedAt` is given, rejects with `Error("stale")` and writes nothing (no history entry either)
+   * if the record on disk has moved on since, or vanished, since that read.
+   */
+  put(id: string, record: T, expectedUpdatedAt?: string): Promise<void>;
   /** Moves the file to trash. Nothing is unlinked. */
   remove(id: string): Promise<void>;
   history(id: string): Promise<T[]>;
@@ -123,7 +127,11 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
       await mkdirp(dir);
       await fsp.writeFile(file(dir, id), serialize(record), { encoding: "utf8", flag: "wx" });
     },
-    async put(id, record) {
+    async put(id, record, expectedUpdatedAt) {
+      if (expectedUpdatedAt !== undefined) {
+        const current = await readRecord(file(dir, id), guard);
+        if (current === null || stampOf(current) !== expectedUpdatedAt) throw new Error("stale");
+      }
       await archive(id);
       await writeAtomic(file(dir, id), serialize(record));
     },

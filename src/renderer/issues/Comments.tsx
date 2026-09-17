@@ -5,6 +5,7 @@ import { displayNameOf, useSession } from "../app/UserContext";
 import { useNavigationGuard } from "../app/useHashRoute";
 import { changeEntries, type ChangeEntry } from "./diffVersions";
 import { formatDateTime, STATUS_LABEL } from "./labels";
+import { staleMessage } from "./saveError";
 
 interface Props {
   issue: Issue;
@@ -57,7 +58,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
     try {
       if (statusChanged) await onStatus(status);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(staleMessage(e));
       return;
     }
     if (body === "") return;
@@ -67,7 +68,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
       setDraft("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(staleMessage(e));
     }
   };
 

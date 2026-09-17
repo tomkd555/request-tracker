@@ -40,6 +40,8 @@ export async function initProject(l: Layout, fiscalYearStartMonth: number): Prom
   return project;
 }
 
+// ponytail: no stale-write guard here (and none on putFields below) — re-read-and-replace of one section already limits the damage a race can do,
+// and a real guard would need a Project.updatedAt that serves only the guard, since categories/fields have no updatedAt of their own. Add one if a race here starts to hurt.
 /** Replaces the 種別 fields only, re-reading the file first so the other fields stay as they are on disk; the previous file goes to history/project/. */
 export async function putCategories(
   l: Layout,
