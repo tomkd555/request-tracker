@@ -91,6 +91,44 @@
   margin-left: var(--space-1);
 }
 
+.issue-table__header--check,
+.issue-table__cell--check {
+  width: 1%;
+  text-align: center;
+}
+
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.bulk-bar__count {
+  font-weight: 600;
+}
+
+.bulk-bar__field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.bulk-bar__result {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.bulk-bar__failures {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
 .filter-bar__toggle--on {
   background: var(--brand);
   color: var(--text-on-brand);
