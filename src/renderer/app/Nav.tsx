@@ -5,6 +5,7 @@ import { useSession } from "./UserContext";
 const ITEMS: { path: string; label: string }[] = [
   { path: "/issues", label: "課題" },
   { path: "/wiki", label: "Wiki" },
+  { path: "/search", label: "検索" },
   { path: "/gantt", label: "ガントチャート" },
   { path: "/summary", label: "集計" },
   { path: "/project", label: "プロジェクト設定" },

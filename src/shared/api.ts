@@ -48,7 +48,12 @@ export type StoreApi = {
     history(key: string): Promise<Issue[]>;
   };
   summary: { exportCsv(csv: string, defaultName: string): Promise<boolean> };
-  comments: { list(key: string): Promise<Comment[]>; add(c: Comment): Promise<void> };
+  comments: {
+    list(key: string): Promise<Comment[]>;
+    add(c: Comment): Promise<void>;
+    /** One pass over every issue's comments, for the search screen. */
+    listAll(): Promise<Comment[]>;
+  };
   attachments: {
     list(owner: AttachmentOwner): Promise<Attachment[]>;
     add(owner: AttachmentOwner, paths: string[] | null): Promise<AddAttachmentsResult>;
@@ -82,7 +87,7 @@ export const API_METHODS = {
   users: ["me", "register", "list", "add", "rename", "claim", "remove"],
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],
-  comments: ["list", "add"],
+  comments: ["list", "add", "listAll"],
   attachments: ["list", "add", "choose", "open", "openFolder", "remove"],
   wiki: ["list", "get", "create", "put", "remove", "history"],
 } as const satisfies { [G in keyof StoreApi]: readonly (keyof StoreApi[G])[] };

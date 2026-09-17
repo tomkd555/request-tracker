@@ -4,7 +4,7 @@ import type { StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalSettings } from "../../shared/types";
 import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
-import { addComment, commentsCollection } from "./comments";
+import { addComment, commentsCollection, listAllComments } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
@@ -112,6 +112,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
     comments: {
       list: async (key) => commentsCollection(need(), key).list(),
       add: async (c) => addComment(need(), c),
+      listAll: async () => listAllComments(need()),
     },
     attachments: {
       list: async (owner) => listAttachments(need(), owner),

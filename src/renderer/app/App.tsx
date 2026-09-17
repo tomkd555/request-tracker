@@ -16,6 +16,7 @@ import { Summary } from "../issues/Summary";
 import { Gantt } from "../gantt/Gantt";
 import { WikiScreen } from "../wiki/WikiFrame";
 import { useWiki, WikiProvider } from "../wiki/useWiki";
+import { Search } from "../search/Search";
 import "./app.css";
 import "../issues/issues.css";
 
@@ -128,6 +129,7 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   if (path === "/issues/new") {
     return <IssueCreate key={query.get("parent") ?? query.get("copy") ?? ""} parentKey={query.get("parent")} copyFrom={query.get("copy")} />;
   }
+  if (path.startsWith("/search")) return <Search />;
   const m = /^\/issues\/([^/]+)$/.exec(path);
   if (m) return <IssueDetail key={m[1]} issueKey={m[1]} />;
   return <IssueList />;

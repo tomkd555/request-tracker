@@ -194,6 +194,20 @@ test("comments are one file each and list in creation order", async () => {
   await expect(s.comments.add({ id: "", issueKey: "26-0001", author: "bob", body: "  ", createdAt: at(3) })).rejects.toThrow("empty");
 });
 
+test("comments.listAll gathers both issues' comments and ignores a stray file and a stray directory under comments/", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.issues.create(draft());
+  await s.issues.create(draft());
+  const at = (sec: number): string => `2026-09-12T00:00:0${sec}.000Z`;
+  await s.comments.add({ id: "", issueKey: "26-0001", author: "alice", body: "first", createdAt: at(1) });
+  await s.comments.add({ id: "", issueKey: "26-0002", author: "bob", body: "second", createdAt: at(2) });
+  await fsp.writeFile(join(shared, "comments", "stray.json"), "{}", "utf8");
+  await fsp.mkdir(join(shared, "comments", "trash"));
+  expect((await s.comments.listAll()).map((c) => `${c.issueKey}:${c.body}`)).toEqual(["26-0001:first", "26-0002:second"]);
+});
+
 test("wiki pages get stamp ids, keep history on put, and move to trash on remove", async () => {
   const s = store(shared);
   await s.config.chooseRoot();
