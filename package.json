@@ -1,6 +1,6 @@
 {
   "name": "request-tracker",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Request tracker for a small team over a shared folder",
   "main": "./out/main/index.js",
   "author": "TOMKD",
@@ -51,6 +51,6 @@
     "react-dom": "^19.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.1"
   }
 }

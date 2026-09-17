@@ -14,6 +14,7 @@ export function diffVersions(prev: Issue, next: Issue, nameOf: (username: string
   };
   arrow("件名", prev.summary, next.summary);
   arrow("種別", prev.category || "未設定", next.category || "未設定");
+  arrow("ラベル", prev.labels.join(" "), next.labels.join(" "));
   arrow("状態", STATUS_LABEL[prev.status], STATUS_LABEL[next.status]);
   arrow("優先度", PRIORITY_LABEL[prev.priority], PRIORITY_LABEL[next.priority]);
   arrow("担当者", nameOf(prev.assignee) || "未設定", nameOf(next.assignee) || "未設定");

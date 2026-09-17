@@ -4,11 +4,11 @@ import type { StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalSettings } from "../../shared/types";
 import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
-import { addComment, commentsCollection } from "./comments";
+import { addComment, commentsCollection, listAllComments } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
-import { initProject, putCategories, putFields, readProject } from "./project";
+import { initProject, putCategories, putFields, putLabels, readProject } from "./project";
 import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
 
@@ -25,13 +25,12 @@ export interface StoreDeps {
   chooseSavePath(defaultName: string): Promise<string | null>;
 }
 
-/** Records written before `category` or `fields` existed come back with "" and {} so the renderer always sees them. */
-const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "", fields: i.fields ?? {} });
+/** Records written before `category`, `fields`, `labels` or `relations` existed come back with "", {} and [] so the renderer always sees them. */
+const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "", fields: i.fields ?? {}, labels: i.labels ?? [], relations: i.relations ?? [] });
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
 export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings } {
   let l: Layout | null = null;
-  // The poller reads these from the first tick, before the renderer's config.get; defaults until then.
   let settings: LocalSettings = DEFAULT_LOCAL_SETTINGS;
 
   const need = (): Layout => {
@@ -76,6 +75,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       init: async (month) => initProject(need(), month),
       put: async (categories, categoryColors, categoryTemplates) => putCategories(need(), categories, categoryColors, categoryTemplates),
       putFields: async (fields) => putFields(need(), fields),
+      putLabels: async (labels) => putLabels(need(), labels),
     },
     users: {
       me: async () => findUser(need(), deps.username),
@@ -97,7 +97,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         if (project === null) throw new Error("project.json is missing");
         return createIssue(need(), project, draft);
       },
-      put: async (issue) => issuesCollection(need()).put(issue.key, issue),
+      put: async (issue, expectedUpdatedAt) => issuesCollection(need()).put(issue.key, issue, expectedUpdatedAt),
       remove: async (key) => removeIssue(need(), key),
       history: async (key) => (await issuesCollection(need()).history(key)).map(withDefaults),
     },
@@ -112,6 +112,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
     comments: {
       list: async (key) => commentsCollection(need(), key).list(),
       add: async (c) => addComment(need(), c),
+      listAll: async () => listAllComments(need()),
     },
     attachments: {
       list: async (owner) => listAttachments(need(), owner),
@@ -142,7 +143,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         return p === null ? null : withWikiDefaults(p);
       },
       create: async (p) => createPage(need(), p),
-      put: async (p) => putPage(need(), p),
+      put: async (p, expectedUpdatedAt) => putPage(need(), p, expectedUpdatedAt),
       remove: async (id) => removePage(need(), id),
       history: async (id) => (await wikiCollection(need()).history(id)).map(withWikiDefaults),
     },

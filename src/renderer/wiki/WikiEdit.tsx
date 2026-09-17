@@ -5,6 +5,7 @@ import { Markdown } from "../app/Markdown";
 import { useSession } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { MarkdownEditor } from "../issues/FieldEditor";
+import { staleMessage } from "../issues/saveError";
 import { useWiki } from "./useWiki";
 import { descendantIdsOf, flattenTree, normalizeTitle } from "./wikiTree";
 
@@ -58,7 +59,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
     try {
       if (existing) {
         const page: WikiPage = { ...existing, title: title.trim(), body, parentId, note: note.trim(), updatedAt: now, updatedBy: me.username };
-        await window.api.wiki.put(page);
+        await window.api.wiki.put(page, existing.updatedAt);
         await refreshOne(page.id);
         navigate(`/wiki/${page.id}`);
       } else {
@@ -67,7 +68,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
         navigate(`/wiki/${created.id}`);
       }
     } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
+      const m = staleMessage(e);
       setError(m.includes("cycle") ? "このページの下のページは親ページに選べません" : m);
       setBusy(false);
     }

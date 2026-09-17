@@ -4,14 +4,16 @@ import { useSession } from "./UserContext";
 
 const ITEMS: { path: string; label: string }[] = [
   { path: "/issues", label: "課題" },
+  { path: "/kanban", label: "カンバン" },
   { path: "/wiki", label: "Wiki" },
+  { path: "/search", label: "検索" },
   { path: "/gantt", label: "ガントチャート" },
   { path: "/summary", label: "集計" },
   { path: "/project", label: "プロジェクト設定" },
   { path: "/settings", label: "設定" },
 ];
 
-export function Nav({ current }: { current: string }): React.JSX.Element {
+export function Nav({ current, onRefresh }: { current: string; onRefresh(): Promise<void> }): React.JSX.Element {
   const { me } = useSession();
   const { issues } = useIssues();
   const unseen = unseenMine(issues, me.username);
@@ -28,6 +30,9 @@ export function Nav({ current }: { current: string }): React.JSX.Element {
           </li>
         ))}
       </ul>
+      <button type="button" className="nav__link nav__link--button" onClick={() => void onRefresh()}>
+        更新
+      </button>
       <div className="nav__user">{me.displayName}</div>
     </nav>
   );

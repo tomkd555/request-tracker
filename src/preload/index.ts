@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { API_METHODS, type Api, type ChangeEvent } from "../shared/api";
+import { API_METHODS, type Api } from "../shared/api";
 
 const api: Record<string, unknown> = {};
 for (const [group, methods] of Object.entries(API_METHODS)) {
@@ -9,12 +9,6 @@ for (const [group, methods] of Object.entries(API_METHODS)) {
   }
   api[group] = g;
 }
-
-api.onChanged = (cb: (e: ChangeEvent) => void): (() => void) => {
-  const listener = (_event: unknown, e: ChangeEvent): void => cb(e);
-  ipcRenderer.on("store:changed", listener);
-  return () => ipcRenderer.removeListener("store:changed", listener);
-};
 
 api.pathForFile = (file: File): string => webUtils.getPathForFile(file);
 

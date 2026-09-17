@@ -7,8 +7,12 @@ export type Collection<T> = {
   get(id: string): Promise<T | null>;
   /** Exclusive create: rejects with code EEXIST when the id is taken. */
   create(id: string, record: T): Promise<void>;
-  /** Atomic overwrite; copies the previous version to history first. */
-  put(id: string, record: T): Promise<void>;
+  /**
+   * Atomic overwrite; copies the previous version to history first.
+   * When `expectedUpdatedAt` is given, rejects with `Error("stale")` and writes nothing (no history entry either)
+   * if the record on disk has moved on since, or vanished, since that read.
+   */
+  put(id: string, record: T, expectedUpdatedAt?: string): Promise<void>;
   /** Moves the file to trash. Nothing is unlinked. */
   remove(id: string): Promise<void>;
   history(id: string): Promise<T[]>;
@@ -41,7 +45,8 @@ export async function mkdirp(dir: string): Promise<void> {
   }
 }
 
-const ID = /^[A-Za-z0-9._-]{1,64}$/;
+// Any name Windows accepts: no path separators, no drive or wildcard characters, no control characters. A login with a space or Japanese is a user id.
+const ID = /^[^\\/:*?"<>|\x00-\x1f]{1,64}$/;
 
 /** Record ids and attachment names come from files other people wrote; they never carry path separators. */
 export function assertId(id: string): string {
@@ -94,7 +99,12 @@ export async function writeAtomic(target: string, text: string): Promise<void> {
   const tmp = join(dir, `.${target.slice(dir.length + 1)}.tmp-${process.pid}-${tmpSeq++}`);
   await mkdirp(dir);
   await fsp.writeFile(tmp, text, "utf8");
-  await fsp.rename(tmp, target);
+  try {
+    await fsp.rename(tmp, target);
+  } catch (e) {
+    await fsp.unlink(tmp).catch(() => undefined); // a share that dropped between the two calls leaves no temp file behind
+    throw e;
+  }
 }
 
 const defaultStamp = (r: unknown): string => {
@@ -102,6 +112,37 @@ const defaultStamp = (r: unknown): string => {
   const iso = typeof rec.updatedAt === "string" ? rec.updatedAt : rec.createdAt;
   return typeof iso === "string" ? iso : new Date().toISOString();
 };
+
+/** A listing is served from memory while the directory's mtime is unchanged and the listing is younger than this. */
+export const LIST_TTL_MS = 60_000;
+const listings = new Map<string, { sig: string | null; at: number; records: unknown[] }>();
+
+/** mtime and size of the directory; null when it does not exist yet. Every write here is a temp file plus a rename inside the directory, so the mtime moves. */
+async function dirSig(dir: string): Promise<string | null> {
+  try {
+    const s = await fsp.stat(dir);
+    return `${s.mtimeMs}:${s.size}`;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
+}
+
+/** Forgets the listing of `dir`; called after every write of this process, so its own change is visible at once. */
+export const forgetListing = (dir: string): void => void listings.delete(dir);
+
+/** One stat per call while nothing changed; a full read otherwise. The age bound covers a share that reports directory mtimes late. */
+// ponytail: a file system with coarse mtimes (2 s on exFAT) can hide another client's write for that long; lower LIST_TTL_MS if it bites
+export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is T): Promise<T[]> {
+  const sig = await dirSig(dir);
+  const now = Date.now();
+  const hit = listings.get(dir);
+  if (hit !== undefined && hit.sig === sig && now - hit.at < LIST_TTL_MS) return hit.records.slice() as T[]; // a copy, so a caller's sort never reaches the cache
+  for (const [d, v] of listings) if (now - v.at >= LIST_TTL_MS) listings.delete(d); // expired listings go, so the map holds the directories in use alone
+  const records = await readDir(dir, guard);
+  listings.set(dir, { sig, at: now, records });
+  return records.slice();
+}
 
 export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
   const { dir, guard, historyDir, trashDir } = opts;
@@ -117,15 +158,22 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
   }
 
   return {
-    list: () => readDir(dir, guard),
+    list: () => readDirCached(dir, guard),
     get: (id) => readRecord(file(dir, id), guard),
     async create(id, record) {
       await mkdirp(dir);
       await fsp.writeFile(file(dir, id), serialize(record), { encoding: "utf8", flag: "wx" });
+      forgetListing(dir);
     },
-    async put(id, record) {
+    async put(id, record, expectedUpdatedAt) {
+      // ponytail: check-then-write leaves a window between this read and the rename; a lock file per record if two clients start colliding in practice
+      if (expectedUpdatedAt !== undefined) {
+        const current = await readRecord(file(dir, id), guard);
+        if (current === null || stampOf(current) !== expectedUpdatedAt) throw new Error("stale");
+      }
       await archive(id);
       await writeAtomic(file(dir, id), serialize(record));
+      forgetListing(dir);
     },
     async remove(id) {
       if (!trashDir) throw new Error(`collection ${dir} keeps no trash`);
@@ -138,6 +186,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
         // free name
       }
       await fsp.rename(file(dir, id), dest);
+      forgetListing(dir);
     },
     async history(id) {
       if (!historyDir) return [];

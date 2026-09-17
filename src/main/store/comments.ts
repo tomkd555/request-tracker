@@ -1,4 +1,5 @@
-import { isComment, type Comment } from "../../shared/types";
+import { promises as fsp } from "node:fs";
+import { ISSUE_KEY, isComment, type Comment } from "../../shared/types";
 import { collection, type Collection } from "./collection";
 import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
@@ -14,4 +15,18 @@ export async function addComment(l: Layout, c: Comment): Promise<void> {
   if (body === "") throw new Error("comment is empty");
   const id = commentId(c.createdAt, c.author);
   await commentsCollection(l, c.issueKey).create(id, { ...c, id, body });
+}
+
+/** Every comment of every issue, for the search screen. Only a directory whose name passes `ISSUE_KEY` is read: `commentsCollection` throws on any other name, and a file would fail the readdir. */
+export async function listAllComments(l: Layout): Promise<Comment[]> {
+  let entries: { name: string; isDirectory(): boolean }[];
+  try {
+    entries = await fsp.readdir(l.commentsRoot, { withFileTypes: true });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
+  }
+  const keys = entries.filter((e) => e.isDirectory() && ISSUE_KEY.test(e.name)).map((e) => e.name).sort();
+  const lists = await Promise.all(keys.map((key) => commentsCollection(l, key).list()));
+  return lists.flat();
 }

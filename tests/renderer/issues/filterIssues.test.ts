@@ -18,6 +18,8 @@ const issue = (over: Partial<Issue>): Issue => ({
   updatedAt: "",
   updatedBy: "",
   fields: {},
+  labels: [],
+  relations: [],
   ...over,
 });
 
@@ -65,4 +67,10 @@ test("a 汎用列 filter keeps the chosen value only; a record without the value
   const tagged = [...all, issue({ key: "26-0005", status: "open", fields: { env: "本番" } })];
   expect(keys(filterIssues(tagged, { ...DEFAULT_FILTER, fields: { env: "本番" } }, today, "alice"))).toEqual(["26-0005"]);
   expect(keys(filterIssues(tagged, { ...DEFAULT_FILTER, fields: { env: "" } }, today, "alice"))).toEqual(["26-0001", "26-0003", "26-0004"]);
+});
+
+test("an empty labels filter matches every issue; a chosen set keeps an issue carrying any one of them", () => {
+  const tagged = [...all, issue({ key: "26-0005", status: "open", labels: ["bug"] }), issue({ key: "26-0006", status: "open", labels: ["urgent"] })];
+  expect(keys(filterIssues(tagged, { ...DEFAULT_FILTER, labels: [] }, today, "alice"))).toEqual(["26-0001", "26-0003", "26-0004", "26-0005", "26-0006"]);
+  expect(keys(filterIssues(tagged, { ...DEFAULT_FILTER, labels: ["bug", "urgent"] }, today, "alice"))).toEqual(["26-0005", "26-0006"]);
 });

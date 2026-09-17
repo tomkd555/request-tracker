@@ -1,21 +1,7 @@
-import type { Issue, IssueStatus } from "../../shared/types";
+import type { DueFilter, Issue, IssueFilter } from "../../shared/types";
 import { addDays } from "./dates";
 
-export type DueFilter = "all" | "overdue" | "week" | "none";
-
-export interface IssueFilter {
-  statuses: IssueStatus[];
-  assignee: string | null;
-  reporter: string | null;
-  keyword: string;
-  due: DueFilter;
-  /** 種別; null means every category. */
-  category: string | null;
-  /** Only issues 処理済み that `me` reported and has yet to confirm. */
-  awaitingConfirmation: boolean;
-  /** 汎用列 id -> the one value to keep; an id absent here matches every value. */
-  fields: Record<string, string>;
-}
+export type { DueFilter, IssueFilter } from "../../shared/types";
 
 export const DEFAULT_FILTER: IssueFilter = {
   statuses: ["open", "in_progress", "resolved"],
@@ -25,6 +11,7 @@ export const DEFAULT_FILTER: IssueFilter = {
   due: "all",
   category: null,
   awaitingConfirmation: false,
+  labels: [],
   fields: {},
 };
 
@@ -55,6 +42,7 @@ export function filterIssues(issues: Issue[], filter: IssueFilter, today: string
       (filter.reporter === null || i.reporter === filter.reporter) &&
       (filter.category === null || i.category === filter.category) &&
       (!filter.awaitingConfirmation || (i.status === "resolved" && i.reporter === me)) &&
+      (filter.labels.length === 0 || filter.labels.some((l) => i.labels.includes(l))) &&
       Object.entries(filter.fields).every(([id, v]) => (i.fields[id] ?? "") === v) &&
       matchesDue(i, filter.due, today) &&
       (kw === "" ||

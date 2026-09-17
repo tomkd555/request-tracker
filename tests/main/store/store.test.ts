@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createStore } from "../../../src/main/store";
 import { collectionDirs, layout } from "../../../src/main/store/paths";
 import type { IssueDraft } from "../../../src/shared/api";
-import { DEFAULT_LOCAL_SETTINGS } from "../../../src/shared/types";
+import { DEFAULT_LOCAL_SETTINGS, type IssueFilter, type SavedFilter } from "../../../src/shared/types";
 
 let userData: string;
 let shared: string;
@@ -101,6 +101,8 @@ const draft = (over: Partial<IssueDraft> = {}): IssueDraft => ({
   updatedAt: "2027-03-15T03:00:00.000Z",
   updatedBy: "alice",
   fields: {},
+  labels: [],
+  relations: [],
   ...over,
 });
 
@@ -152,6 +154,30 @@ test("issues.remove refuses a parent with children and trashes a leaf", async ()
   expect((await fsp.stat(join(shared, "attachments", "26-0001"))).isDirectory()).toBe(true);
 });
 
+test("issues.put guards a stale write: a matching stamp succeeds with history, a stale stamp rejects leaving the file and history untouched, an omitted stamp overwrites as before, and a vanished record is stale too", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const created = await s.issues.create(draft());
+  const l = layout(shared);
+  const file = join(l.issues, "26-0001.json");
+  const before = await fsp.readFile(file);
+
+  await expect(s.issues.put({ ...created, summary: "stale" }, "2000-01-01T00:00:00.000Z")).rejects.toThrow("stale");
+  expect(await fsp.readFile(file)).toEqual(before);
+  await expect(fsp.readdir(join(l.historyIssues, "26-0001"))).rejects.toThrow();
+
+  await s.issues.put({ ...created, summary: "second" }, created.updatedAt);
+  expect((await s.issues.get("26-0001"))?.summary).toBe("second");
+  expect((await s.issues.history("26-0001")).map((i) => i.summary)).toEqual(["s"]);
+
+  await s.issues.put({ ...created, summary: "third" }); // the 0.2.0 path: no stamp, no guard
+  expect((await s.issues.get("26-0001"))?.summary).toBe("third");
+
+  await s.issues.remove("26-0001");
+  await expect(s.issues.put({ ...created, summary: "resurrected" }, created.updatedAt)).rejects.toThrow("stale");
+});
+
 test("comments are one file each and list in creation order", async () => {
   const s = store(shared);
   await s.config.chooseRoot();
@@ -167,6 +193,21 @@ test("comments are one file each and list in creation order", async () => {
   expect(list.map((c) => `${c.author}:${c.body}`)).toEqual(["alice:first", "alice:same second", "bob:second"]);
   expect(await fsp.readdir(join(shared, "comments", "26-0001"))).toHaveLength(3);
   await expect(s.comments.add({ id: "", issueKey: "26-0001", author: "bob", body: "  ", createdAt: at(3) })).rejects.toThrow("empty");
+});
+
+test("comments.listAll gathers both issues' comments and ignores a stray file and a stray directory under comments/", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.issues.create(draft());
+  await s.issues.create(draft());
+  const at = (sec: number): string => `2026-09-12T00:00:0${sec}.000Z`;
+  await s.comments.add({ id: "", issueKey: "26-0001", author: "alice", body: "first", createdAt: at(1) });
+  await s.comments.add({ id: "", issueKey: "26-0002", author: "bob", body: "second", createdAt: at(2) });
+  await fsp.writeFile(join(shared, "comments", "stray.json"), "{}", "utf8");
+  await fsp.writeFile(join(shared, "comments", "26-0003"), "{}", "utf8"); // a key-shaped file, as a sync client can leave
+  await fsp.mkdir(join(shared, "comments", "trash"));
+  expect((await s.comments.listAll()).map((c) => `${c.issueKey}:${c.body}`)).toEqual(["26-0001:first", "26-0002:second"]);
 });
 
 test("wiki pages get stamp ids, keep history on put, and move to trash on remove", async () => {
@@ -186,6 +227,28 @@ test("wiki pages get stamp ids, keep history on put, and move to trash on remove
   await s.wiki.remove(first.id);
   expect((await s.wiki.list()).map((p) => p.title)).toEqual([second.title]);
   expect(await fsp.readdir(join(shared, "trash", "wiki"))).toEqual(["20260912T000000000Z.json"]);
+});
+
+test("wiki.put guards a stale write the same way, after the cycle check", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const at = "2026-09-12T00:00:00.000Z";
+  const page = await s.wiki.create({ id: "", title: "手順", body: "a", parentId: null, note: "", createdAt: at, createdBy: "alice", updatedAt: at, updatedBy: "alice" });
+  const l = layout(shared);
+  const file = join(l.wiki, `${page.id}.json`);
+  const before = await fsp.readFile(file);
+
+  await expect(s.wiki.put({ ...page, body: "stale" }, "2000-01-01T00:00:00.000Z")).rejects.toThrow("stale");
+  expect(await fsp.readFile(file)).toEqual(before);
+  await expect(fsp.readdir(join(l.historyWiki, page.id))).rejects.toThrow();
+
+  await s.wiki.put({ ...page, body: "b", updatedAt: "2026-09-12T01:00:00.000Z" }, page.updatedAt);
+  expect((await s.wiki.get(page.id))?.body).toBe("b");
+  expect((await s.wiki.history(page.id)).map((p) => p.body)).toEqual(["a"]);
+
+  await s.wiki.remove(page.id);
+  await expect(s.wiki.put({ ...page, body: "resurrected" }, page.updatedAt)).rejects.toThrow("stale");
 });
 
 test("ids and keys from other people's files never reach a path join", async () => {
@@ -234,11 +297,12 @@ test("records and project.json written before category existed load with default
   await fsp.writeFile(l.projectFile, JSON.stringify({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z" }), "utf8");
   expect((await s.project.get())?.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
   expect((await s.project.get())?.fields).toEqual([]);
-  const { category: _dropped, fields: _dropped2, ...old } = { ...draft(), key: "26-0001" };
+  expect((await s.project.get())?.labels).toEqual([]);
+  const { category: _dropped, fields: _dropped2, labels: _dropped3, ...old } = { ...draft(), key: "26-0001" };
   await fsp.writeFile(join(l.issues, "26-0001.json"), JSON.stringify(old), "utf8");
-  expect(await s.issues.get("26-0001")).toMatchObject({ category: "", fields: {} });
-  expect((await s.issues.list())[0]).toMatchObject({ category: "", fields: {} });
-  await s.issues.put({ ...old, category: "依頼", fields: {} });
+  expect(await s.issues.get("26-0001")).toMatchObject({ category: "", fields: {}, labels: [] });
+  expect((await s.issues.list())[0]).toMatchObject({ category: "", fields: {}, labels: [] });
+  await s.issues.put({ ...old, category: "依頼", fields: {}, labels: [] });
   expect((await s.issues.history("26-0001"))[0].category).toBe("");
   const p = await s.project.put([" 相談 ", "", "不具合", "相談"], {}, {});
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
@@ -246,16 +310,34 @@ test("records and project.json written before category existed load with default
   await expect(s.project.put(["", " "], {}, {})).rejects.toThrow();
 });
 
+test("a record written before relations existed loads with []; a record whose relations holds a malformed type is skipped like any other invalid record", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const l = layout(shared);
+  const { relations: _dropped, ...old } = { ...draft(), key: "26-0001" };
+  await fsp.writeFile(join(l.issues, "26-0001.json"), JSON.stringify(old), "utf8");
+  expect(await s.issues.get("26-0001")).toMatchObject({ relations: [] });
+  expect((await s.issues.list())[0]).toMatchObject({ relations: [] });
+
+  const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  await fsp.writeFile(join(l.issues, "26-0002.json"), JSON.stringify({ ...draft(), key: "26-0002", relations: [{ type: "wrong", key: "26-0001" }] }), "utf8");
+  expect(await s.issues.get("26-0002")).toBeNull();
+  expect((await s.issues.list()).map((i) => i.key)).toEqual(["26-0001"]);
+  expect(err).toHaveBeenCalled();
+  err.mockRestore();
+});
+
 test("config.json holding only rootDir loads with default settings; config.put validates and chooseRoot keeps the saved settings", async () => {
   const s = store(shared);
   await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, dueSoonDays: 99 }), "utf8");
   expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
-  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, pollIntervalMs: 2000 };
+  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, savedFilters: [] };
   expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
   expect(s.settings()).toEqual(next);
   expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
   await expect(s.config.put({ ...next, accent: "red" })).rejects.toThrow("accent");
-  await expect(s.config.put({ ...next, pollIntervalMs: 1000 })).rejects.toThrow("pollIntervalMs");
+  await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
   await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
   const other = await fsp.mkdtemp(join(tmpdir(), "rt-shared2-"));
   try {
@@ -264,6 +346,36 @@ test("config.json holding only rootDir loads with default settings; config.put v
   } finally {
     await fsp.rm(other, { recursive: true, force: true });
   }
+});
+
+const issueFilter = (over: Partial<IssueFilter> = {}): IssueFilter => ({
+  statuses: ["open"],
+  assignee: null,
+  reporter: null,
+  keyword: "",
+  due: "all",
+  category: null,
+  awaitingConfirmation: false,
+  labels: [],
+  fields: {},
+  ...over,
+});
+
+test("config.put round-trips two saved filters through config.get, and a malformed row is dropped on read", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  const savedFilters: SavedFilter[] = [{ name: "a", filter: issueFilter({ keyword: "x" }) }, { name: "b", filter: issueFilter({ due: "overdue" }) }];
+  const next = { ...DEFAULT_LOCAL_SETTINGS, savedFilters };
+  expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
+  expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
+
+  await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, savedFilters: [savedFilters[0], { name: "bad" }] }), "utf8");
+  expect((await store(null).config.get())?.savedFilters).toEqual([savedFilters[0]]);
+
+  // A filter saved before `labels` existed keeps its row; the default is applied where the filter is used.
+  const { labels: _dropped, ...before } = issueFilter({ keyword: "old" });
+  await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, savedFilters: [{ name: "old", filter: before }] }), "utf8");
+  expect((await store(null).config.get())?.savedFilters).toEqual([{ name: "old", filter: before }]);
 });
 
 test("project.put keeps colours of surviving 種別 only and rejects a colour outside #rrggbb", async () => {
@@ -360,4 +472,24 @@ test("project.putFields drops unnamed rows and repeated ids, cleans the options,
   expect(await fsp.readdir(layout(shared).historyProject)).toHaveLength(1);
   await s.issues.create(draft({ fields: { a: "本番" } }));
   expect((await s.issues.get("26-0001"))?.fields).toEqual({ a: "本番" });
+});
+
+test("project.putLabels drops a blank name and a repeated name, rejects a bad colour, and leaves categories and fields untouched", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.project.putFields([{ id: "a", name: "環境", options: [] }]);
+  const before = (await fsp.readdir(layout(shared).historyProject)).length;
+  const p = await s.project.putLabels([
+    { name: " bug ", color: "#FF0000" },
+    { name: "  ", color: "#000000" },
+    { name: "bug", color: "#00ff00" },
+    { name: "urgent", color: "#123ABC" },
+  ]);
+  expect(p.labels).toEqual([{ name: "bug", color: "#ff0000" }, { name: "urgent", color: "#123abc" }]);
+  expect(await s.project.get()).toEqual(p);
+  expect(p.fields).toEqual([{ id: "a", name: "環境", options: [] }]);
+  expect(p.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
+  expect((await fsp.readdir(layout(shared).historyProject)).length).toBe(before + 1);
+  await expect(s.project.putLabels([{ name: "x", color: "red" }])).rejects.toThrow("#rrggbb");
 });

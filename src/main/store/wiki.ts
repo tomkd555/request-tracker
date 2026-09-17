@@ -1,5 +1,5 @@
 import { isWikiPage, type WikiPage } from "../../shared/types";
-import { collection, type Collection } from "./collection";
+import { collection, readDir, type Collection } from "./collection";
 import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
 
@@ -45,16 +45,16 @@ export function descendantIds(pages: WikiPage[], id: string): Set<string> {
 }
 
 /** Refuses a parent that would make a cycle; a parent that no longer exists is kept (the tree shows the page at the root). */
-export async function putPage(l: Layout, page: WikiPage): Promise<void> {
+export async function putPage(l: Layout, page: WikiPage, expectedUpdatedAt?: string): Promise<void> {
   if (page.parentId !== null) {
-    const pages = (await wikiCollection(l).list()).map(withWikiDefaults);
+    const pages = (await readDir(l.wiki, isWikiPage)).map(withWikiDefaults); // uncached: the guard must see the share as it is
     if (descendantIds(pages, page.id).has(page.parentId)) throw new Error("cycle");
   }
-  await wikiCollection(l).put(page.id, page);
+  await wikiCollection(l).put(page.id, page, expectedUpdatedAt);
 }
 
 export async function removePage(l: Layout, id: string): Promise<void> {
-  const pages = (await wikiCollection(l).list()).map(withWikiDefaults);
+  const pages = (await readDir(l.wiki, isWikiPage)).map(withWikiDefaults); // uncached, as in putPage
   if (pages.some((p) => p.parentId === id)) throw new Error("has-children");
   await wikiCollection(l).remove(id);
 }

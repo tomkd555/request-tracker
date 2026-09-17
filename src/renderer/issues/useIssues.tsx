@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Issue } from "../../shared/types";
 
 export interface IssuesState {
@@ -32,17 +32,7 @@ export function IssuesProvider({ children }: { children: React.ReactNode }): Rea
     });
   }, []);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(
-    () =>
-      window.api.onChanged((e) => {
-        if (e.collection === "issues") void refreshOne(e.id);
-      }),
-    [refreshOne],
-  );
+  // No load here: the shell reads the share when a screen opens and on 更新 (see App.tsx).
 
   const value = useMemo<IssuesState>(
     () => ({ issues: [...byKey.values()], byKey, loaded, reload, refreshOne }),

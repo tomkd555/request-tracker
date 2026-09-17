@@ -1,8 +1,7 @@
 import { userInfo } from "node:os";
-import { isUser, type User } from "../../shared/types";
-import { collection, type Collection } from "./collection";
+import { isIssue, isUser, type User } from "../../shared/types";
+import { collection, readDir, type Collection } from "./collection";
 import { fileStamp } from "./fileStamp";
-import { issuesCollection } from "./issues";
 import type { Layout } from "./paths";
 
 export const currentUsername = (): string => userInfo().username;
@@ -61,6 +60,6 @@ export const USER_IN_USE = "in-use";
 
 /** Moves the member to trash/users/; refused while an issue names the member as assignee or reporter. */
 export async function removeUser(l: Layout, username: string): Promise<void> {
-  if ((await issuesCollection(l).list()).some((i) => i.assignee === username || i.reporter === username)) throw new Error(USER_IN_USE);
+  if ((await readDir(l.issues, isIssue)).some((i) => i.assignee === username || i.reporter === username)) throw new Error(USER_IN_USE); // uncached: the guard must see the share as it is
   await usersCollection(l).remove(username);
 }

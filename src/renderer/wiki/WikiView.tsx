@@ -5,6 +5,7 @@ import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { Attachments } from "../issues/Attachments";
 import { formatDateTime } from "../issues/labels";
+import { staleMessage } from "../issues/saveError";
 import { useWiki } from "./useWiki";
 import { WikiHistory } from "./WikiHistory";
 import { ancestorsOf, childrenMap } from "./wikiTree";
@@ -33,10 +34,10 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
   const restore = async (old: WikiPage): Promise<void> => {
     setError(null);
     try {
-      await window.api.wiki.put({ ...page, title: old.title, body: old.body, note: `${formatDateTime(old.updatedAt)} の版に戻す`, updatedAt: new Date().toISOString(), updatedBy: me.username });
+      await window.api.wiki.put({ ...page, title: old.title, body: old.body, note: `${formatDateTime(old.updatedAt)} の版に戻す`, updatedAt: new Date().toISOString(), updatedBy: me.username }, page.updatedAt);
       await refreshOne(page.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(staleMessage(e));
     }
   };
 

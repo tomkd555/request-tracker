@@ -2,6 +2,7 @@ import { ISSUE_STATUSES, type IssueStatus, type User } from "../../shared/types"
 import { categoryOptions, useSession } from "../app/UserContext";
 import { DEFAULT_FILTER, type DueFilter, type IssueFilter } from "./filterIssues";
 import { STATUS_LABEL } from "./labels";
+import { LabelPicker } from "./LabelPicker";
 
 type Props = { filter: IssueFilter; users: User[]; onChange(f: IssueFilter): void };
 
@@ -68,6 +69,10 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
             </option>
           ))}
         </select>
+      </label>
+      <label className="filter-bar__field">
+        ラベル
+        <LabelPicker project={project} value={filter.labels} onChange={(labels) => onChange({ ...filter, labels })} />
       </label>
       <label className="filter-bar__field">
         期限

@@ -1,0 +1,127 @@
+.kanban {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  overflow-x: auto;
+}
+
+.kanban-column {
+  flex: 1 0 260px;
+  min-width: 260px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+}
+
+.kanban-column__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-row);
+  color: var(--text-table-header);
+  font-weight: 600;
+}
+
+.kanban-column__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.kanban-column__dot--open {
+  background: var(--status-open);
+}
+.kanban-column__dot--in_progress {
+  background: var(--status-in-progress);
+}
+.kanban-column__dot--resolved {
+  background: var(--status-resolved);
+}
+.kanban-column__dot--closed {
+  background: var(--status-closed);
+}
+
+.kanban-column__cards {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  min-height: 60px;
+}
+
+.kanban-column__overflow {
+  margin: 0;
+  padding: var(--space-1) 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.kanban-card {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-row);
+  border-radius: var(--radius);
+  cursor: grab;
+}
+
+.kanban-card:hover {
+  background: var(--bg-row-selected);
+}
+
+.kanban-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.kanban-card__key {
+  color: var(--link);
+  font-weight: 600;
+}
+
+.kanban-card__priority {
+  margin-left: auto;
+  color: var(--text-overdue); /* measured against --bg-row; --priority-high falls short of 4.5:1 there */
+  font-weight: 600;
+}
+
+.kanban-card__parent {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.kanban-card__summary {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kanban-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.kanban-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.kanban-card__due--overdue {
+  color: var(--text-overdue);
+  font-weight: 600;
+}
+
+.kanban-card__due--soon {
+  color: var(--text-due-soon);
+  font-weight: 600;
+}

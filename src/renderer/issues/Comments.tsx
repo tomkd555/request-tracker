@@ -5,6 +5,7 @@ import { displayNameOf, useSession } from "../app/UserContext";
 import { useNavigationGuard } from "../app/useHashRoute";
 import { changeEntries, type ChangeEntry } from "./diffVersions";
 import { formatDateTime, STATUS_LABEL } from "./labels";
+import { staleMessage } from "./saveError";
 
 interface Props {
   issue: Issue;
@@ -22,6 +23,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   const [changes, setChanges] = useState<ChangeEntry[]>([]);
   const [showChanges, setShowChanges] = useState(true);
   const [draft, setDraft] = useState("");
+  const [posting, setPosting] = useState(false);
   const [status, setStatus] = useState<IssueStatus>(issue.status);
   const [error, setError] = useState<string | null>(null);
   const issueKey = issue.key;
@@ -40,34 +42,33 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
     void loadChanges();
   }, [loadChanges, version]);
   useEffect(() => setStatus(issue.status), [issue.status]);
-  useEffect(
-    () =>
-      window.api.onChanged((e) => {
-        if (e.collection === "comments" && e.id === issueKey) void load();
-      }),
-    [issueKey, load],
-  );
 
   const statusChanged = status !== issue.status;
   const body = draft.trim();
   useNavigationGuard(body !== "" || statusChanged);
 
   const post = async (): Promise<void> => {
+    if (posting) return; // a second click while the share is slow would write the comment twice
+    setPosting(true);
     setError(null);
     try {
-      if (statusChanged) await onStatus(status);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      return;
-    }
-    if (body === "") return;
-    const createdAt = new Date().toISOString();
-    try {
-      await window.api.comments.add({ id: "", issueKey, author: me.username, body, createdAt });
-      setDraft("");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      try {
+        if (statusChanged) await onStatus(status);
+      } catch (e) {
+        setError(staleMessage(e));
+        return;
+      }
+      if (body === "") return;
+      const createdAt = new Date().toISOString();
+      try {
+        await window.api.comments.add({ id: "", issueKey, author: me.username, body, createdAt });
+        setDraft("");
+        await load();
+      } catch (e) {
+        setError(staleMessage(e));
+      }
+    } finally {
+      setPosting(false);
     }
   };
 
@@ -131,7 +132,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
             ))}
           </select>
         </label>
-        <button type="button" disabled={body === "" && !statusChanged} onClick={() => void post()}>
+        <button type="button" disabled={posting || (body === "" && !statusChanged)} onClick={() => void post()}>
           投稿
         </button>
       </div>

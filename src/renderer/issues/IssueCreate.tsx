@@ -7,6 +7,7 @@ import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { messageFor, refusalMessages } from "./attachmentMessages";
 import { MarkdownEditor } from "./FieldEditor";
 import { PRIORITY_LABEL } from "./labels";
+import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
 import { useIssues } from "./useIssues";
 
@@ -63,6 +64,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const [summary, setSummary] = useState(initialSummary);
   const [description, setDescription] = useState(initialDescription);
   const [priority, setPriority] = useState<IssuePriority>(source?.priority ?? "normal");
+  const [labels, setLabels] = useState<string[]>(source?.labels ?? []);
   const [assignee, setAssignee] = useState<string>(source?.assignee ?? "");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -109,6 +111,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       category,
       status: "open",
       priority,
+      labels,
       assignee: assignee || null,
       reporter: me.username,
       parentKey: parent,
@@ -118,6 +121,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       updatedAt: now,
       updatedBy: me.username,
       fields,
+      relations: [],
     };
     try {
       const issue = await window.api.issues.create(draft);
@@ -188,6 +192,10 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
             ひな形を読み込む
           </button>
         )}
+      </div>
+      <div className="issue-form__field">
+        <span className="issue-form__label">ラベル</span>
+        <LabelPicker project={project} value={labels} onChange={setLabels} />
       </div>
       <label className="issue-form__field">
         件名

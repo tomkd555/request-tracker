@@ -1,7 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, dialog, ipcMain, shell } from "electron";
 import { API_METHODS, type StoreApi } from "../shared/api";
 import { createStore } from "./store";
-import { startPoller } from "./store/poller";
 import { currentUsername } from "./store/users";
 
 /** Registers one ipcMain.handle per group.method of the store. The only path from renderer to the file system. */
@@ -31,12 +30,5 @@ export function registerIpc(): ReturnType<typeof createStore> {
     }
   }
 
-  startPoller({
-    getLayout: () => store.current(),
-    intervalMs: () => store.settings().pollIntervalMs,
-    onChange(events) {
-      for (const w of BrowserWindow.getAllWindows()) for (const e of events) w.webContents.send("store:changed", e);
-    },
-  });
   return store;
 }

@@ -41,13 +41,16 @@ function AppearanceSection(): React.JSX.Element {
   const [message, run] = useSaveMessage();
   const save = (): Promise<void> =>
     run(async () => {
-      const saved = await window.api.config.put(draft);
+      // The payload starts from the live session config, not the draft snapshot taken at mount, so a view saved
+      // elsewhere in the meantime (savedFilters) is not reverted; only the four fields this form edits come from draft.
+      const next = { ...config, theme: draft.theme, accent: draft.accent, dueSoonDays: draft.dueSoonDays };
+      const saved = await window.api.config.put(next);
       applyAppearance(saved);
       await refreshConfig();
     });
   const patch = (p: Partial<LocalSettings>): void => setDraft((d) => ({ ...d, ...p }));
   useNavigationGuard(
-    draft.theme !== config.theme || draft.accent !== config.accent || draft.dueSoonDays !== config.dueSoonDays || draft.pollIntervalMs !== config.pollIntervalMs,
+    draft.theme !== config.theme || draft.accent !== config.accent || draft.dueSoonDays !== config.dueSoonDays,
   );
 
   return (
@@ -89,19 +92,6 @@ function AppearanceSection(): React.JSX.Element {
               step={1}
               value={draft.dueSoonDays}
               onChange={(e) => patch({ dueSoonDays: Number(e.target.value) })}
-            />
-          </label>
-          <label className="settings__inline">
-            更新間隔（秒）
-            <input
-              type="number"
-              className="settings__number"
-              required
-              min={2}
-              max={60}
-              step={1}
-              value={draft.pollIntervalMs / 1000}
-              onChange={(e) => patch({ pollIntervalMs: Number(e.target.value) * 1000 })}
             />
           </label>
         </div>
@@ -159,7 +149,7 @@ function FolderSection(): React.JSX.Element {
           type="button"
           onClick={() =>
             void run(async () => {
-              // The boot sequence runs again against the new folder; the poller resets on the root change.
+              // The boot sequence runs again against the new folder.
               if ((await window.api.config.chooseRoot()) !== null) window.location.reload();
             })
           }

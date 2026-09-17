@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_LOCAL_SETTINGS, type LocalConfig, type Project, type User } from "../../shared/types";
 import { nextStep, type BootStep } from "./boot";
 import { FirstLaunch } from "./FirstLaunch";
@@ -6,16 +6,18 @@ import { Nav } from "./Nav";
 import { ProjectSettings } from "./ProjectSettings";
 import { Settings } from "./Settings";
 import { applyAppearance } from "./theme";
-import { SessionContext } from "./UserContext";
+import { SessionContext, useSession } from "./UserContext";
 import { useHashRoute, type Route } from "./useHashRoute";
 import { IssueCreate } from "../issues/IssueCreate";
 import { IssueDetail } from "../issues/IssueDetail";
 import { IssueList } from "../issues/IssueList";
-import { IssuesProvider } from "../issues/useIssues";
+import { IssuesProvider, useIssues } from "../issues/useIssues";
 import { Summary } from "../issues/Summary";
 import { Gantt } from "../gantt/Gantt";
+import { Kanban } from "../kanban/Kanban";
 import { WikiScreen } from "../wiki/WikiFrame";
-import { WikiProvider } from "../wiki/useWiki";
+import { useWiki, WikiProvider } from "../wiki/useWiki";
+import { Search } from "../search/Search";
 import "./app.css";
 import "../issues/issues.css";
 
@@ -90,25 +92,45 @@ type ReadyProps = {
 };
 
 function Ready({ me, users, project, config, refreshUsers, refreshProject, refreshConfig, children }: ReadyProps): React.JSX.Element {
-  useEffect(
-    () =>
-      window.api.onChanged((e) => {
-        if (e.collection === "users") void refreshUsers();
-        if (e.collection === "project") void refreshProject();
-      }),
-    [refreshUsers, refreshProject],
-  );
   return (
     <SessionContext.Provider value={{ me, users, project, config, refreshUsers, refreshProject, refreshConfig }}>{children}</SessionContext.Provider>
   );
 }
 
+/** Nothing runs in the background: the share is read when a screen opens, after a save, and on 更新. */
 function Shell(): React.JSX.Element {
   const route = useHashRoute();
+  const { refreshUsers, refreshProject } = useSession();
+  const issues = useIssues();
+  const wiki = useWiki();
+  const [error, setError] = useState<string | null>(null);
+  const refreshAll = useCallback(async (): Promise<void> => {
+    try {
+      await Promise.all([refreshUsers(), refreshProject(), issues.reload(), wiki.reload()]);
+      setError(null);
+    } catch (e) {
+      // The share dropped mid-session: the screens keep what they read, and the message says so until a refresh succeeds.
+      setError(`共有フォルダを読めません。ネットワークドライブやVPNを確認してください。（${e instanceof Error ? e.message : String(e)}）`);
+    }
+  }, [refreshUsers, refreshProject, issues.reload, wiki.reload]);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false; // App.load has just read the same records; the issues and pages still need their first read
+      void Promise.all([issues.reload(), wiki.reload()]).catch(() => void refreshAll());
+      return;
+    }
+    void refreshAll();
+  }, [refreshAll, route.path, issues.reload, wiki.reload]);
   return (
     <div className="shell">
-      <Nav current={route.path} />
+      <Nav current={route.path} onRefresh={refreshAll} />
       <main className="shell__content">
+        {error && (
+          <p className="text--error" role="alert">
+            {error}
+          </p>
+        )}
         <Screen route={route} />
       </main>
     </div>
@@ -118,6 +140,7 @@ function Shell(): React.JSX.Element {
 function Screen({ route }: { route: Route }): React.JSX.Element {
   const { path, query } = route;
   if (path.startsWith("/wiki")) return <WikiScreen route={route} />;
+  if (path.startsWith("/kanban")) return <Kanban />;
   if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
   if (path.startsWith("/project")) return <ProjectSettings />;
@@ -125,6 +148,7 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   if (path === "/issues/new") {
     return <IssueCreate key={query.get("parent") ?? query.get("copy") ?? ""} parentKey={query.get("parent")} copyFrom={query.get("copy")} />;
   }
+  if (path.startsWith("/search")) return <Search />;
   const m = /^\/issues\/([^/]+)$/.exec(path);
   if (m) return <IssueDetail key={m[1]} issueKey={m[1]} />;
   return <IssueList />;

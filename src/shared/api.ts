@@ -1,15 +1,15 @@
-import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
+import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
 /** What an attachment belongs to: an issue by key, or a wiki page by id. */
 export type AttachmentOwner = { kind: "issue"; id: string } | { kind: "wiki"; id: string };
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
-export interface ChangeEvent { collection: string; id: string }
 
 // IPC surface between renderer and main. Each group.method maps to the channel "group:method".
 export type StoreApi = {
   config: {
+    /** Reads the per-machine config and points the store at the shared folder it names; every other method needs it first. */
     get(): Promise<LocalConfig | null>;
     chooseRoot(): Promise<string | null>;
     /** Replaces the per-machine settings; rootDir stays. */
@@ -22,6 +22,8 @@ export type StoreApi = {
     put(categories: string[], categoryColors: Record<string, string>, categoryTemplates: Record<string, CategoryTemplate>): Promise<Project>;
     /** Replaces the 汎用列 definitions; other fields stay as on disk. */
     putFields(fields: CustomField[]): Promise<Project>;
+    /** Replaces the ラベル definitions; other fields stay as on disk. */
+    putLabels(labels: Label[]): Promise<Project>;
   };
   users: {
     /** The record keyed by the OS login, or the member who bound that login with `claim`. */
@@ -41,12 +43,18 @@ export type StoreApi = {
     list(): Promise<Issue[]>;
     get(key: string): Promise<Issue | null>;
     create(draft: IssueDraft): Promise<Issue>;
-    put(issue: Issue): Promise<void>;
+    /** Rejects with "stale" when `expectedUpdatedAt` is given and no longer matches the record on disk (or the record is gone). */
+    put(issue: Issue, expectedUpdatedAt?: string): Promise<void>;
     remove(key: string): Promise<void>;
     history(key: string): Promise<Issue[]>;
   };
   summary: { exportCsv(csv: string, defaultName: string): Promise<boolean> };
-  comments: { list(key: string): Promise<Comment[]>; add(c: Comment): Promise<void> };
+  comments: {
+    list(key: string): Promise<Comment[]>;
+    add(c: Comment): Promise<void>;
+    /** One pass over every issue's comments, for the search screen. */
+    listAll(): Promise<Comment[]>;
+  };
   attachments: {
     list(owner: AttachmentOwner): Promise<Attachment[]>;
     add(owner: AttachmentOwner, paths: string[] | null): Promise<AddAttachmentsResult>;
@@ -61,8 +69,8 @@ export type StoreApi = {
     get(id: string): Promise<WikiPage | null>;
     /** Resolves to the page with its allocated id. */
     create(p: WikiPage): Promise<WikiPage>;
-    /** Rejects with "cycle" when parentId is the page itself or one of its descendants. */
-    put(p: WikiPage): Promise<void>;
+    /** Rejects with "cycle" when parentId is the page itself or one of its descendants, or with "stale" per `expectedUpdatedAt` (see issues.put). */
+    put(p: WikiPage, expectedUpdatedAt?: string): Promise<void>;
     /** Rejects with "has-children" while other pages name this one as their parent. */
     remove(id: string): Promise<void>;
     history(id: string): Promise<WikiPage[]>;
@@ -70,18 +78,17 @@ export type StoreApi = {
 };
 
 export type Api = StoreApi & {
-  onChanged(cb: (e: ChangeEvent) => void): () => void;
   /** Absolute path of a File dropped on the window (Electron webUtils). */
   pathForFile(file: File): string;
 };
 
 export const API_METHODS = {
   config: ["get", "chooseRoot", "put"],
-  project: ["get", "init", "put", "putFields"],
+  project: ["get", "init", "put", "putFields", "putLabels"],
   users: ["me", "register", "list", "add", "rename", "claim", "remove"],
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],
-  comments: ["list", "add"],
+  comments: ["list", "add", "listAll"],
   attachments: ["list", "add", "choose", "open", "openFolder", "remove"],
   wiki: ["list", "get", "create", "put", "remove", "history"],
 } as const satisfies { [G in keyof StoreApi]: readonly (keyof StoreApi[G])[] };

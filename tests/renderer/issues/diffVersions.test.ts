@@ -18,6 +18,8 @@ const issue = (over: Partial<Issue>): Issue => ({
   updatedAt: "2026-09-01T00:00:00.000Z",
   updatedBy: "alice",
   fields: {},
+  labels: [],
+  relations: [],
   ...over,
 });
 const nameOf = (u: string | null): string => (u === "bob" ? "Bob" : u ?? "");
@@ -44,4 +46,9 @@ test("a 汎用列 that changed yields one line named after the column", () => {
   const fields = [{ id: "env", name: "環境", options: [] }];
   expect(diffVersions(issue({}), issue({ fields: { env: "本番" } }), nameOf, fields)).toEqual(["環境: 未設定 → 本番"]);
   expect(diffVersions(issue({ fields: { env: "本番" } }), issue({ fields: { env: "本番" } }), nameOf, fields)).toEqual([]);
+});
+
+test("labels join by a space; the same set on both sides yields no line", () => {
+  expect(diffVersions(issue({}), issue({ labels: ["bug", "urgent"] }), nameOf)).toEqual(["ラベル:  → bug urgent"]);
+  expect(diffVersions(issue({ labels: ["bug"] }), issue({ labels: ["bug"] }), nameOf)).toEqual([]);
 });

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import type { CategoryTemplate, CustomField, Project } from "../../shared/types";
+import type { CategoryTemplate, CustomField, Label, Project } from "../../shared/types";
 import { TextField } from "../issues/FieldEditor";
+import { LABEL_DEFAULT } from "../issues/labels";
 import { useSaveMessage } from "./Settings";
 import { TYPE_PILL_DEFAULT } from "./theme";
 import { useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
 
-/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the members, the 汎用列. */
+/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the ラベル list, the members, the 汎用列. */
 export function ProjectSettings(): React.JSX.Element {
   return (
     <div>
@@ -15,6 +16,7 @@ export function ProjectSettings(): React.JSX.Element {
       </header>
       <div className="settings">
         <CategorySection />
+        <LabelSection />
         <MemberSection />
         <FieldSection />
       </div>
@@ -130,7 +132,12 @@ function MemberSection(): React.JSX.Element {
         {members.map((u) => (
           <li key={u.username} className="settings__row">
             <TextField className="settings__name" value={u.displayName} required onSave={(v) => void act(() => window.api.users.rename(u.username, v))} />
-            <button type="button" onClick={() => void act(() => window.api.users.remove(u.username))}>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`${u.displayName} をメンバーから削除しますか`)) void act(() => window.api.users.remove(u.username));
+              }}
+            >
               削除
             </button>
           </li>
@@ -266,6 +273,88 @@ function CategorySection(): React.JSX.Element {
         {message && <p className="text--muted">{message}</p>}
         <div className="form-actions">
           <button type="button" onClick={() => update([...rows, { name: "", color: null, template: EMPTY_TEMPLATE, open: false }])}>
+            追加
+          </button>
+          <button type="submit" disabled={rows.every((r) => r.name.trim() === "")}>
+            保存
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+interface LabelRow { name: string; color: string }
+
+const labelRowsOf = (p: Project): LabelRow[] => p.labels.map((l) => ({ name: l.name, color: l.color }));
+
+function LabelSection(): React.JSX.Element {
+  const { project, refreshProject } = useSession();
+  const [rows, setRows] = useState<LabelRow[]>(() => labelRowsOf(project));
+  const [dirty, setDirty] = useState(false);
+  const [message, run] = useSaveMessage();
+  useEffect(() => {
+    if (!dirty) setRows(labelRowsOf(project));
+  }, [project, dirty]);
+  useNavigationGuard(dirty);
+
+  const update = (next: LabelRow[]): void => {
+    setRows(next);
+    setDirty(true);
+  };
+  const move = (i: number, d: -1 | 1): void => {
+    const next = [...rows];
+    const [row] = next.splice(i, 1);
+    next.splice(i + d, 0, row);
+    update(next);
+  };
+  const save = (): Promise<void> =>
+    run(async () => {
+      const labels: Label[] = rows.map((r) => ({ name: r.name, color: r.color }));
+      await window.api.project.putLabels(labels);
+      setDirty(false);
+      await refreshProject();
+    });
+
+  return (
+    <section className="issue-form settings__section">
+      <h3 className="settings__heading">ラベル</h3>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <ul className="settings__list">
+          {rows.map((r, i) => (
+            <li key={i} className="settings__row">
+              <input
+                type="color"
+                aria-label="色"
+                value={r.color}
+                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)))}
+              />
+              <input
+                className="settings__name"
+                aria-label="ラベル名"
+                value={r.name}
+                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+              />
+              <button type="button" aria-label="上へ" disabled={i === 0} onClick={() => move(i, -1)}>
+                ↑
+              </button>
+              <button type="button" aria-label="下へ" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
+                ↓
+              </button>
+              <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>
+                削除
+              </button>
+            </li>
+          ))}
+        </ul>
+        {message && <p className="text--muted">{message}</p>}
+        <div className="form-actions">
+          <button type="button" onClick={() => update([...rows, { name: "", color: LABEL_DEFAULT }])}>
             追加
           </button>
           <button type="submit" disabled={rows.every((r) => r.name.trim() === "")}>

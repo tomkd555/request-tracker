@@ -18,6 +18,8 @@ const issue = (over: Partial<Issue>): Issue => ({
   updatedAt: "",
   updatedBy: "",
   fields: {},
+  labels: [],
+  relations: [],
   ...over,
 });
 

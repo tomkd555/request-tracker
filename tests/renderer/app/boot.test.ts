@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { nextStep } from "../../../src/renderer/app/boot";
 
-const project = { fiscalYearStartMonth: 4, createdAt: "2026-09-12T00:00:00.000Z", categories: [], categoryColors: {}, categoryTemplates: {}, fields: [] };
+const project = { fiscalYearStartMonth: 4, createdAt: "2026-09-12T00:00:00.000Z", categories: [], categoryColors: {}, categoryTemplates: {}, fields: [], labels: [] };
 const me = { username: "alice", displayName: "Alice", createdAt: "2026-09-12T00:00:00.000Z" };
 
 test("first launch walks folder -> month -> name -> ready", () => {

@@ -91,6 +91,44 @@
   margin-left: var(--space-1);
 }
 
+.issue-table__header--check,
+.issue-table__cell--check {
+  width: 1%;
+  text-align: center;
+}
+
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.bulk-bar__count {
+  font-weight: 600;
+}
+
+.bulk-bar__field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.bulk-bar__result {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.bulk-bar__failures {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
 .filter-bar__toggle--on {
   background: var(--brand);
   color: var(--text-on-brand);
@@ -138,6 +176,10 @@
   font-size: var(--text-md);
   padding: var(--space-1) var(--space-2);
   min-width: 200px;
+}
+
+.saved-filters {
+  margin-top: calc(-1 * var(--space-2));
 }
 
 .section-head {
@@ -593,6 +635,23 @@
   border-bottom: 1px solid var(--border-row);
 }
 
+.related__type {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-row);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+
+.related__add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
 .comments__item--change {
   color: var(--text-muted);
 }
@@ -627,4 +686,56 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.issue-table__label {
+  margin-left: var(--space-1);
+}
+
+.label-picker {
+  display: inline-block;
+  position: relative;
+}
+
+.label-picker__summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-button);
+  border-radius: var(--radius);
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-muted);
+}
+
+.label-picker__summary::-webkit-details-marker {
+  display: none;
+}
+
+.label-picker__chip {
+  margin: 0;
+}
+
+.label-picker__list {
+  position: absolute;
+  z-index: 1;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-2);
+  list-style: none;
+  min-width: 160px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.label-picker__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  cursor: pointer;
 }

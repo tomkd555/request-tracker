@@ -20,6 +20,8 @@ const issue = (startDate: string | null, dueDate: string | null): Issue => ({
   updatedAt: "",
   updatedBy: "",
   fields: {},
+  labels: [],
+  relations: [],
 });
 
 test("move shifts both dates; a bar drawn from the created day gets that day as its start; a point keeps no due date", () => {
