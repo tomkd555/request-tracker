@@ -6,6 +6,8 @@ export interface AttachmentRefusal { path: string; reason: "size" | "extension" 
 export type AttachmentOwner = { kind: "issue"; id: string } | { kind: "wiki"; id: string };
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
 export interface ChangeEvent { collection: string; id: string }
+/** A record whose comments and attachments folders the poller scans: the issue or wiki page on screen. */
+export interface WatchTarget { collection: "issue" | "wiki"; id: string }
 
 // IPC surface between renderer and main. Each group.method maps to the channel "group:method".
 export type StoreApi = {
@@ -56,6 +58,10 @@ export type StoreApi = {
     openFolder(owner: AttachmentOwner): Promise<void>;
     remove(owner: AttachmentOwner, name: string): Promise<void>;
   };
+  watch: {
+    /** Replaces the watched set; the detail screens call it on mount and clear it on unmount. */
+    set(targets: WatchTarget[]): Promise<void>;
+  };
   wiki: {
     list(): Promise<WikiPage[]>;
     get(id: string): Promise<WikiPage | null>;
@@ -83,5 +89,6 @@ export const API_METHODS = {
   summary: ["exportCsv"],
   comments: ["list", "add"],
   attachments: ["list", "add", "choose", "open", "openFolder", "remove"],
+  watch: ["set"],
   wiki: ["list", "get", "create", "put", "remove", "history"],
 } as const satisfies { [G in keyof StoreApi]: readonly (keyof StoreApi[G])[] };

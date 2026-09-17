@@ -16,7 +16,7 @@ Screenshots: to be added.
 - Wiki pages in Markdown as a tree (parent page, sidebar, breadcrumb, index), `[[タイトル]]` links that create a missing page on click, a table of contents from the headings, attachments, a change note per save, and a line diff between versions
 - Gantt chart of 1, 2, 3 or 6 months: any issue with a start or due date, a late segment past the due date, a parent's span from its children, grouping by assignee, sort by key, subject, assignee, status or due date, folding, and drag to move a bar or one of its edges
 - Monthly counts by reporter, assignee, status and category, with CSV export (UTF-8 with BOM, for spreadsheet apps)
-- Live refresh across clients: every client polls the shared folder every 5 seconds by default
+- Live refresh across clients: a client polls the shared folder every 5 seconds by default while its window is in use, and catches up the moment it is clicked into
 - Colour presets (green, blue, grey, dark) with a free accent colour per machine, and a colour per category shared by the team
 - Members registered by name in project settings, so an issue can be assigned to someone who has yet to open the app; that person picks the name on first launch and it becomes theirs
 - Two settings screens: 設定 (name, appearance, due-soon window, poll interval, shared folder; all per machine) and プロジェクト設定 (categories with colours and templates, members, custom columns; shared by the team)
@@ -47,7 +47,7 @@ There is no server and no database. The shared folder is the database:
 - A record is written to a temp file in the same directory and renamed over the target, so a client that dies mid-write leaves the old file intact.
 - The previous version is copied to `history/` before every overwrite. Deletion moves the file to `trash/`.
 - Issue keys are `YY-NNNN`: the two-digit fiscal year and a sequence within it (`26-0001`). The key is claimed with an exclusive create, so two clients creating at the same moment get distinct keys with no counter file.
-- Change detection polls `stat` of the collection directories every 5 seconds by default (2–60 seconds, set per machine). SMB shares deliver no file-watch events reliably, so there is no watcher.
+- Change detection polls the shared folder every 5 seconds by default (2–60 seconds, set per machine), and only while a window of the app has focus and the machine has seen input in the last 5 minutes; an unattended client makes no calls to the share. A cycle stats `project.json` and the `issues/`, `wiki/` and `users/` directories, lists a directory only when its mtime changed (every write is a temp file plus a rename inside the directory, so the mtime moves), and reads the `comments/` and `attachments/` folders of the record on screen alone. Every twelfth cycle lists everything, for a share that reports directory mtimes late. SMB shares deliver no file-watch events reliably, so there is no watcher.
 - The current user is the OS username; the name shown to other members is asked once on first launch and stored in `users/`. A member added by name in project settings is a record with a stamp id; when that person launches the app and picks the name, the OS username is written into the record as `login`, so the assignee value on existing issues stays as it is.
 - Every record read from the shared folder is validated; a corrupt file is skipped and logged, and never blocks the list.
 
@@ -111,7 +111,7 @@ Releases are cut by hand. `.github/workflows/ci.yml` type-checks, tests and buil
 - Set `version` in `package.json` to `X.Y.Z`
 - `npm run typecheck`, `npx vitest run` and `npm run package` pass locally
 - The exe starts on a machine without Node or this repository
-- Two instances pointed at the real network share see each other's changes within 10 seconds, and simultaneous creation yields distinct keys
+- Two instances pointed at the real network share, both with focus in turn, see each other's changes within 10 seconds, and simultaneous creation yields distinct keys
 
 Two branches carry the code. `master` is the private working branch. `public` is an orphan branch holding one squashed commit per release, and `origin/master` on GitHub is `public`; a pull request merged on GitHub lands on `public` alone and the next squash reverts it, so dependency bumps are applied on `master` by hand. Publishing a release:
 

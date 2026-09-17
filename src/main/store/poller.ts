@@ -1,10 +1,12 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
-import type { ChangeEvent } from "../../shared/api";
+import type { ChangeEvent, WatchTarget } from "../../shared/api";
 import type { Layout } from "./paths";
 
 type Entry = { collection: string; id: string; sig: string };
 export type Snapshot = Map<string, Entry>; // absolute path -> entry
+/** A snapshot plus the signature of each flat collection directory, so an unchanged directory is carried over without a readdir. */
+export interface Scan { snap: Snapshot; dirs: Map<string, string> }
 
 /** A collection directory a share made by an older build lacks (wiki-attachments/ before it existed) counts as empty. */
 async function readdirOrEmpty(dir: string): Promise<string[]> {
@@ -16,13 +18,23 @@ async function readdirOrEmpty(dir: string): Promise<string[]> {
   }
 }
 
-async function statDir(dir: string): Promise<{ name: string; sig: string; isDir: boolean }[]> {
-  const out: { name: string; sig: string; isDir: boolean }[] = [];
+async function sigOf(path: string): Promise<string | null> {
+  try {
+    const s = await fsp.stat(path);
+    return `${s.mtimeMs}:${s.size}`;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
+}
+
+async function statDir(dir: string): Promise<{ name: string; sig: string }[]> {
+  const out: { name: string; sig: string }[] = [];
   for (const name of await readdirOrEmpty(dir)) {
     if (name.startsWith(".")) continue;
     try {
       const s = await fsp.stat(join(dir, name));
-      out.push({ name, sig: `${s.mtimeMs}:${s.size}`, isDir: s.isDirectory() });
+      out.push({ name, sig: `${s.mtimeMs}:${s.size}` });
     } catch {
       // vanished between readdir and stat; the next cycle sees the final state
     }
@@ -32,35 +44,45 @@ async function statDir(dir: string): Promise<{ name: string; sig: string; isDir:
 
 const idOf = (name: string): string => name.replace(/\.json$/, "");
 
-/** One full scan: project.json, issues/, wiki/, users/ by record; comments/<KEY>/, attachments/<KEY>/ and wiki-attachments/<id>/ by owner. */
-export async function scan(l: Layout): Promise<Snapshot> {
+/**
+ * One scan: project.json, then issues/, wiki/ and users/ by record, then the comments/, attachments/ and
+ * wiki-attachments/ folders of the watched records only. Every write is a temp file plus a rename inside the
+ * record's directory, so a flat directory whose mtime matches `prev` keeps its previous entries unread;
+ * `prev` null lists everything.
+ */
+export async function scan(l: Layout, watched: WatchTarget[] = [], prev: Scan | null = null): Promise<Scan> {
   await fsp.stat(l.root); // an unreachable share (drive offline) throws here and is logged; a missing subdirectory below is empty
   const snap: Snapshot = new Map();
-  try {
-    const s = await fsp.stat(l.projectFile);
-    snap.set(l.projectFile, { collection: "project", id: "project", sig: `${s.mtimeMs}:${s.size}` });
-  } catch {
-    // absent until first launch finishes
-  }
+  const dirs = new Map<string, string>();
+  const projectSig = await sigOf(l.projectFile);
+  if (projectSig !== null) snap.set(l.projectFile, { collection: "project", id: "project", sig: projectSig });
   for (const [collection, dir] of [
     ["issues", l.issues],
     ["wiki", l.wiki],
     ["users", l.users],
   ] as const) {
+    const sig = await sigOf(dir);
+    if (sig !== null) dirs.set(dir, sig);
+    if (prev !== null && sig !== null && prev.dirs.get(dir) === sig) {
+      for (const [path, e] of prev.snap) if (e.collection === collection) snap.set(path, e);
+      continue;
+    }
+    // ponytail: a changed directory still stats every file in it; per-file mtimes from readdir would need a native module
     for (const e of await statDir(dir)) snap.set(join(dir, e.name), { collection, id: idOf(e.name), sig: e.sig });
   }
-  for (const [collection, root] of [
-    ["comments", l.commentsRoot],
-    ["attachments", l.attachmentsRoot],
-    ["wiki-attachments", l.wikiAttachmentsRoot],
-  ] as const) {
-    for (const key of await statDir(root)) {
-      if (!key.isDir) continue;
-      const dir = join(root, key.name);
-      for (const e of await statDir(dir)) snap.set(join(dir, e.name), { collection, id: key.name, sig: e.sig });
+  for (const w of watched) {
+    const folders: [string, string][] =
+      w.collection === "issue"
+        ? [
+            ["comments", l.comments(w.id)],
+            ["attachments", l.attachments(w.id)],
+          ]
+        : [["wiki-attachments", l.wikiAttachments(w.id)]];
+    for (const [collection, dir] of folders) {
+      for (const e of await statDir(dir)) snap.set(join(dir, e.name), { collection, id: w.id, sig: e.sig });
     }
   }
-  return snap;
+  return { snap, dirs };
 }
 
 /** Entries added, removed or changed between two snapshots, one event per (collection, id). */
@@ -84,14 +106,33 @@ export interface PollerOptions {
   intervalMs(): number;
   onChange(events: ChangeEvent[]): void;
   log?: (message: string, error: unknown) => void;
+  /** Whether anyone is working in the app; while false no cycle touches the share. Default: always. */
+  active?(): boolean;
+  /** The records whose comments and attachments folders are scanned; the open detail screen sets them. Default: none. */
+  watched?(): WatchTarget[];
 }
 
-// ponytail: full rescan every cycle; switch to per-directory mtimes if the folder grows past a few thousand files
-export function startPoller(opts: PollerOptions): () => void {
+export interface Poller {
+  stop(): void;
+  /** Runs a cycle now: on window focus, on resume from sleep, and when the watched set changes. */
+  wake(): void;
+}
+
+/** While inactive the poller re-checks `active` this often, with no I/O. */
+export const IDLE_RECHECK_MS = 30_000;
+/** Every this many cycles the flat directories are listed regardless of their mtimes, for a share that reports them late. */
+export const FULL_SCAN_EVERY = 12;
+
+export function startPoller(opts: PollerOptions): Poller {
   const log = opts.log ?? ((m, e) => console.error(m, e));
-  let last: Snapshot | null = null;
+  const active = opts.active ?? (() => true);
+  const watched = opts.watched ?? (() => []);
+  let last: Scan | null = null;
   let lastRoot: string | null = null;
+  let cycles = 0;
   let stopped = false;
+  let running = false;
+  let again = false;
   let timer: NodeJS.Timeout | null = null;
 
   const tick = async (): Promise<void> => {
@@ -102,9 +143,10 @@ export function startPoller(opts: PollerOptions): () => void {
         lastRoot = l.root;
         last = null;
       }
-      const next = await scan(l);
+      cycles += 1;
+      const next = await scan(l, watched(), cycles % FULL_SCAN_EVERY === 0 ? null : last);
       if (last !== null) {
-        const events = diff(last, next);
+        const events = diff(last.snap, next.snap);
         if (events.length > 0) opts.onChange(events);
       }
       last = next;
@@ -113,14 +155,37 @@ export function startPoller(opts: PollerOptions): () => void {
     }
   };
 
-  // One cycle at a time: the next timer is set only after the scan has finished.
+  // One cycle at a time: the next timer is set only after the scan has finished; a wake during a scan queues one more.
   const cycle = async (): Promise<void> => {
-    await tick();
-    if (!stopped) timer = setTimeout(() => void cycle(), opts.intervalMs());
+    if (running) {
+      again = true;
+      return;
+    }
+    running = true;
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    try {
+      // The first scan runs even unattended, so the baseline matches what the renderer loaded at start-up.
+      if (last === null || active()) await tick();
+    } finally {
+      running = false;
+    }
+    if (stopped) return;
+    if (again) {
+      again = false;
+      void cycle();
+      return;
+    }
+    timer = setTimeout(() => void cycle(), active() ? opts.intervalMs() : IDLE_RECHECK_MS);
   };
   void cycle();
-  return () => {
-    stopped = true;
-    if (timer !== null) clearTimeout(timer);
+  return {
+    stop() {
+      stopped = true;
+      if (timer !== null) clearTimeout(timer);
+    },
+    wake() {
+      if (!stopped) void cycle();
+    },
   };
 }
