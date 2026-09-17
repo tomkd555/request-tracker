@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_LOCAL_SETTINGS, type LocalConfig, type Project, type User } from "../../shared/types";
 import { nextStep, type BootStep } from "./boot";
 import { FirstLaunch } from "./FirstLaunch";
@@ -103,17 +103,34 @@ function Shell(): React.JSX.Element {
   const { refreshUsers, refreshProject } = useSession();
   const issues = useIssues();
   const wiki = useWiki();
-  const refreshAll = useCallback(
-    () => Promise.all([refreshUsers(), refreshProject(), issues.reload(), wiki.reload()]).then(() => undefined),
-    [refreshUsers, refreshProject, issues.reload, wiki.reload],
-  );
+  const [error, setError] = useState<string | null>(null);
+  const refreshAll = useCallback(async (): Promise<void> => {
+    try {
+      await Promise.all([refreshUsers(), refreshProject(), issues.reload(), wiki.reload()]);
+      setError(null);
+    } catch (e) {
+      // The share dropped mid-session: the screens keep what they read, and the message says so until a refresh succeeds.
+      setError(`共有フォルダを読めません。ネットワークドライブやVPNを確認してください。（${e instanceof Error ? e.message : String(e)}）`);
+    }
+  }, [refreshUsers, refreshProject, issues.reload, wiki.reload]);
+  const first = useRef(true);
   useEffect(() => {
+    if (first.current) {
+      first.current = false; // App.load has just read the same records; the issues and pages still need their first read
+      void Promise.all([issues.reload(), wiki.reload()]).catch(() => void refreshAll());
+      return;
+    }
     void refreshAll();
-  }, [refreshAll, route.path]);
+  }, [refreshAll, route.path, issues.reload, wiki.reload]);
   return (
     <div className="shell">
       <Nav current={route.path} onRefresh={refreshAll} />
       <main className="shell__content">
+        {error && (
+          <p className="text--error" role="alert">
+            {error}
+          </p>
+        )}
         <Screen route={route} />
       </main>
     </div>

@@ -45,7 +45,8 @@ export async function mkdirp(dir: string): Promise<void> {
   }
 }
 
-const ID = /^[A-Za-z0-9._-]{1,64}$/;
+// Any name Windows accepts: no path separators, no drive or wildcard characters, no control characters. A login with a space or Japanese is a user id.
+const ID = /^[^\\/:*?"<>|\x00-\x1f]{1,64}$/;
 
 /** Record ids and attachment names come from files other people wrote; they never carry path separators. */
 export function assertId(id: string): string {
@@ -98,7 +99,12 @@ export async function writeAtomic(target: string, text: string): Promise<void> {
   const tmp = join(dir, `.${target.slice(dir.length + 1)}.tmp-${process.pid}-${tmpSeq++}`);
   await mkdirp(dir);
   await fsp.writeFile(tmp, text, "utf8");
-  await fsp.rename(tmp, target);
+  try {
+    await fsp.rename(tmp, target);
+  } catch (e) {
+    await fsp.unlink(tmp).catch(() => undefined); // a share that dropped between the two calls leaves no temp file behind
+    throw e;
+  }
 }
 
 const defaultStamp = (r: unknown): string => {
@@ -129,11 +135,13 @@ export const forgetListing = (dir: string): void => void listings.delete(dir);
 // ponytail: a file system with coarse mtimes (2 s on exFAT) can hide another client's write for that long; lower LIST_TTL_MS if it bites
 export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is T): Promise<T[]> {
   const sig = await dirSig(dir);
+  const now = Date.now();
   const hit = listings.get(dir);
-  if (hit !== undefined && hit.sig === sig && Date.now() - hit.at < LIST_TTL_MS) return hit.records as T[];
+  if (hit !== undefined && hit.sig === sig && now - hit.at < LIST_TTL_MS) return hit.records.slice() as T[]; // a copy, so a caller's sort never reaches the cache
+  for (const [d, v] of listings) if (now - v.at >= LIST_TTL_MS) listings.delete(d); // expired listings go, so the map holds the directories in use alone
   const records = await readDir(dir, guard);
-  listings.set(dir, { sig, at: Date.now(), records });
-  return records;
+  listings.set(dir, { sig, at: now, records });
+  return records.slice();
 }
 
 export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
@@ -158,6 +166,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
       forgetListing(dir);
     },
     async put(id, record, expectedUpdatedAt) {
+      // ponytail: check-then-write leaves a window between this read and the rename; a lock file per record if two clients start colliding in practice
       if (expectedUpdatedAt !== undefined) {
         const current = await readRecord(file(dir, id), guard);
         if (current === null || stampOf(current) !== expectedUpdatedAt) throw new Error("stale");

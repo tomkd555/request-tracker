@@ -7,7 +7,10 @@ import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
 
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
-export const REFUSED_EXTENSIONS = new Set([".exe", ".bat", ".cmd", ".com", ".ps1", ".vbs", ".js", ".msi", ".scr", ".lnk"]);
+// Everything Windows runs on open, including script hosts and shortcuts; shared by the add path and the open path.
+export const REFUSED_EXTENSIONS = new Set([
+  ".exe", ".bat", ".cmd", ".com", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".msi", ".msp", ".scr", ".pif", ".lnk", ".url", ".scf", ".reg", ".msc", ".cpl", ".jar",
+]);
 
 /** Error messages are stable tokens; the renderer turns them into Japanese. */
 export const SHARE_UNREACHABLE = "share-unreachable";

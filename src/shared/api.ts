@@ -9,6 +9,7 @@ export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefu
 // IPC surface between renderer and main. Each group.method maps to the channel "group:method".
 export type StoreApi = {
   config: {
+    /** Reads the per-machine config and points the store at the shared folder it names; every other method needs it first. */
     get(): Promise<LocalConfig | null>;
     chooseRoot(): Promise<string | null>;
     /** Replaces the per-machine settings; rootDir stays. */

@@ -110,7 +110,7 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
       <button type="button" onClick={onClear}>
         選択解除
       </button>
-      {overCap && <p className="text--error">一度に更新できるのは100件までです</p>}
+      {overCap && <p className="text--error">{`一度に更新できるのは${BULK_MAX}件までです`}</p>}
       {result && (
         <div className="bulk-bar__result">
           <p>{successCount}件を更新しました</p>

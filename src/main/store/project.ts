@@ -27,13 +27,15 @@ export async function readProject(l: Layout): Promise<Project | null> {
     if (exists) throw new Error(PROJECT_INVALID);
     return null;
   }
+  // project.json is read from the share, so a colour edited by hand is dropped here the way putCategories and putLabels would refuse it.
+  const colors = Object.fromEntries(Object.entries(p.categoryColors ?? {}).filter(([, c]) => HEX_COLOR.test(c)));
   return {
     ...p,
+    categoryColors: colors,
+    labels: (p.labels ?? []).filter((l) => HEX_COLOR.test(l.color)),
     categories: p.categories ?? DEFAULT_CATEGORIES,
-    categoryColors: p.categoryColors ?? {},
     categoryTemplates: p.categoryTemplates ?? {},
     fields: p.fields ?? [],
-    labels: p.labels ?? [],
   };
 }
 

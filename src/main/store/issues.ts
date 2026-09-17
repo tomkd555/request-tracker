@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import type { IssueDraft } from "../../shared/api";
 import { isIssue, type Issue, type Project } from "../../shared/types";
 import { allocateKey, keyOfFileName } from "./allocateKey";
-import { collection, mkdirp, type Collection } from "./collection";
+import { collection, mkdirp, readDir, type Collection } from "./collection";
 import { fiscalYearOf, fiscalYy } from "../../shared/fiscalYear";
 import type { Layout } from "./paths";
 
@@ -23,7 +23,7 @@ export const HAS_CHILDREN = "has-children";
 /** Moves the record to trash; refused while any issue still names it as parent. The attachments folder stays. */
 export async function removeIssue(l: Layout, key: string): Promise<void> {
   const c = issuesCollection(l);
-  if ((await c.list()).some((i) => i.parentKey === key)) throw new Error(HAS_CHILDREN);
+  if ((await readDir(l.issues, isIssue)).some((i) => i.parentKey === key)) throw new Error(HAS_CHILDREN); // uncached: the guard must see the share as it is
   await c.remove(key);
 }
 

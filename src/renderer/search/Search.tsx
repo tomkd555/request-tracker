@@ -20,6 +20,7 @@ export function Search(): React.JSX.Element {
   const [keyword, setKeyword] = useState("");
   const [query, setQuery] = useState<string | null>(null);
   const [hits, setHits] = useState<Hit[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const run = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -30,8 +31,13 @@ export function Search(): React.JSX.Element {
       return;
     }
     // ponytail: one full pass over comments/ per search; cache it in the renderer and drop it on 更新 if a search starts to feel slow
-    const comments: Comment[] = await window.api.comments.listAll();
-    setHits(searchAll(kw, issues, comments, pages));
+    try {
+      const comments: Comment[] = await window.api.comments.listAll();
+      setHits(searchAll(kw, issues, comments, pages));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (
@@ -49,6 +55,7 @@ export function Search(): React.JSX.Element {
         />
         <button type="submit">検索</button>
       </form>
+      {error && <p className="text--error">{error}</p>}
       {query === "" && <p className="text--muted">キーワードを入力してください</p>}
       {query !== null && query !== "" && hits.length === 0 && <p className="text--muted">該当はありません</p>}
       {SECTIONS.map(({ kind, label }) => {

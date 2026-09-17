@@ -205,6 +205,7 @@ test("comments.listAll gathers both issues' comments and ignores a stray file an
   await s.comments.add({ id: "", issueKey: "26-0001", author: "alice", body: "first", createdAt: at(1) });
   await s.comments.add({ id: "", issueKey: "26-0002", author: "bob", body: "second", createdAt: at(2) });
   await fsp.writeFile(join(shared, "comments", "stray.json"), "{}", "utf8");
+  await fsp.writeFile(join(shared, "comments", "26-0003"), "{}", "utf8"); // a key-shaped file, as a sync client can leave
   await fsp.mkdir(join(shared, "comments", "trash"));
   expect((await s.comments.listAll()).map((c) => `${c.issueKey}:${c.body}`)).toEqual(["26-0001:first", "26-0002:second"]);
 });
@@ -370,6 +371,11 @@ test("config.put round-trips two saved filters through config.get, and a malform
 
   await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, savedFilters: [savedFilters[0], { name: "bad" }] }), "utf8");
   expect((await store(null).config.get())?.savedFilters).toEqual([savedFilters[0]]);
+
+  // A filter saved before `labels` existed keeps its row; the default is applied where the filter is used.
+  const { labels: _dropped, ...before } = issueFilter({ keyword: "old" });
+  await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, savedFilters: [{ name: "old", filter: before }] }), "utf8");
+  expect((await store(null).config.get())?.savedFilters).toEqual([{ name: "old", filter: before }]);
 });
 
 test("project.put keeps colours of surviving 種別 only and rejects a colour outside #rrggbb", async () => {

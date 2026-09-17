@@ -132,7 +132,12 @@ function MemberSection(): React.JSX.Element {
         {members.map((u) => (
           <li key={u.username} className="settings__row">
             <TextField className="settings__name" value={u.displayName} required onSave={(v) => void act(() => window.api.users.rename(u.username, v))} />
-            <button type="button" onClick={() => void act(() => window.api.users.remove(u.username))}>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`${u.displayName} をメンバーから削除しますか`)) void act(() => window.api.users.remove(u.username));
+              }}
+            >
               削除
             </button>
           </li>

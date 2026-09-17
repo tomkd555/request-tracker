@@ -17,16 +17,16 @@ export async function addComment(l: Layout, c: Comment): Promise<void> {
   await commentsCollection(l, c.issueKey).create(id, { ...c, id, body });
 }
 
-/** Every comment of every issue, for the search screen. A stray file or directory under comments/ is skipped unless its name passes `ISSUE_KEY`, since `commentsCollection` would throw on it. */
+/** Every comment of every issue, for the search screen. Only a directory whose name passes `ISSUE_KEY` is read: `commentsCollection` throws on any other name, and a file would fail the readdir. */
 export async function listAllComments(l: Layout): Promise<Comment[]> {
-  let names: string[];
+  let entries: { name: string; isDirectory(): boolean }[];
   try {
-    names = await fsp.readdir(l.commentsRoot);
+    entries = await fsp.readdir(l.commentsRoot, { withFileTypes: true });
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw e;
   }
-  const keys = names.filter((n) => ISSUE_KEY.test(n)).sort();
+  const keys = entries.filter((e) => e.isDirectory() && ISSUE_KEY.test(e.name)).map((e) => e.name).sort();
   const lists = await Promise.all(keys.map((key) => commentsCollection(l, key).list()));
   return lists.flat();
 }

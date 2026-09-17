@@ -69,16 +69,13 @@ test("put archives the previous version under history", async () => {
   expect((await c.get("26-0001"))?.summary).toBe("third");
 });
 
-test("a write interrupted before rename leaves the target intact and only the temp file behind", async () => {
+test("a write interrupted before rename leaves the target intact and removes its temp file", async () => {
   const c = issues();
   await c.create("26-0001", issue());
   vi.spyOn(fsp, "rename").mockRejectedValueOnce(Object.assign(new Error("boom"), { code: "EIO" }));
   await expect(c.put("26-0001", issue({ summary: "lost" }))).rejects.toThrow("boom");
   expect((await c.get("26-0001"))?.summary).toBe("first");
-  const names = (await fsp.readdir(join(root, "issues"))).sort();
-  expect(names).toHaveLength(2);
-  expect(names[0]).toMatch(new RegExp(`^\\.26-0001\\.json\\.tmp-${process.pid}-\\d+$`));
-  expect(names[1]).toBe("26-0001.json");
+  expect((await fsp.readdir(join(root, "issues"))).sort()).toEqual(["26-0001.json"]);
   expect(await c.list()).toHaveLength(1);
 });
 
@@ -123,6 +120,29 @@ test("list is served from memory while the directory mtime holds, and re-read af
   await fsp.writeFile(join(dir, "26-0003.json"), JSON.stringify(issue({ key: "26-0003" })), "utf8");
   expect(await c.list()).toHaveLength(3);
   expect(readdir).toHaveBeenCalledTimes(2);
+});
+
+test("a removed record leaves the listing; an absent directory lists empty and is read once it appears; a caller's sort never reaches the cache", async () => {
+  const dir = join(root, "issues");
+  const c = collection<Issue>({ dir, guard: isIssue, trashDir: join(root, "trash") });
+  expect(await c.list()).toEqual([]);
+  await c.create("26-0001", issue());
+  await c.create("26-0002", issue({ key: "26-0002" }));
+  expect(await c.list()).toHaveLength(2);
+  const first = await c.list();
+  first.reverse();
+  first.push(issue({ key: "26-0009" }));
+  expect((await c.list()).map((i) => i.key)).toEqual(["26-0001", "26-0002"]);
+  await c.remove("26-0001");
+  expect((await c.list()).map((i) => i.key)).toEqual(["26-0002"]);
+});
+
+test("an id may carry a space or Japanese, as an OS login does, and never a path separator", async () => {
+  const dir = join(root, "users");
+  const c = collection<Issue>({ dir, guard: isIssue });
+  await c.create("山田 太郎", issue());
+  expect(await c.get("山田 太郎")).not.toBeNull();
+  for (const bad of ["..\\x", "a/b", "..", "con:", "ab"]) expect(() => c.get(bad)).toThrow("invalid id");
 });
 
 test("a listing older than LIST_TTL_MS is re-read even when the directory mtime holds", async () => {

@@ -83,7 +83,7 @@
 
 .kanban-card__priority {
   margin-left: auto;
-  color: var(--priority-high);
+  color: var(--text-overdue); /* measured against --bg-row; --priority-high falls short of 4.5:1 there */
   font-weight: 600;
 }
 

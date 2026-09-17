@@ -23,6 +23,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   const [changes, setChanges] = useState<ChangeEntry[]>([]);
   const [showChanges, setShowChanges] = useState(true);
   const [draft, setDraft] = useState("");
+  const [posting, setPosting] = useState(false);
   const [status, setStatus] = useState<IssueStatus>(issue.status);
   const [error, setError] = useState<string | null>(null);
   const issueKey = issue.key;
@@ -47,21 +48,27 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   useNavigationGuard(body !== "" || statusChanged);
 
   const post = async (): Promise<void> => {
+    if (posting) return; // a second click while the share is slow would write the comment twice
+    setPosting(true);
     setError(null);
     try {
-      if (statusChanged) await onStatus(status);
-    } catch (e) {
-      setError(staleMessage(e));
-      return;
-    }
-    if (body === "") return;
-    const createdAt = new Date().toISOString();
-    try {
-      await window.api.comments.add({ id: "", issueKey, author: me.username, body, createdAt });
-      setDraft("");
-      await load();
-    } catch (e) {
-      setError(staleMessage(e));
+      try {
+        if (statusChanged) await onStatus(status);
+      } catch (e) {
+        setError(staleMessage(e));
+        return;
+      }
+      if (body === "") return;
+      const createdAt = new Date().toISOString();
+      try {
+        await window.api.comments.add({ id: "", issueKey, author: me.username, body, createdAt });
+        setDraft("");
+        await load();
+      } catch (e) {
+        setError(staleMessage(e));
+      }
+    } finally {
+      setPosting(false);
     }
   };
 
@@ -125,7 +132,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
             ))}
           </select>
         </label>
-        <button type="button" disabled={body === "" && !statusChanged} onClick={() => void post()}>
+        <button type="button" disabled={posting || (body === "" && !statusChanged)} onClick={() => void post()}>
           投稿
         </button>
       </div>

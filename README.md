@@ -104,7 +104,7 @@ A `// ponytail:` comment marks a deliberate shortcut and names its ceiling and t
 - The renderer runs with `sandbox`, `contextIsolation` on and `nodeIntegration` off, and reaches the file system only through the typed IPC surface.
 - Markdown renders with raw HTML disabled.
 - Issue keys and attachment names coming from the renderer or from other people's files are validated before they reach a path.
-- Attachments with executable extensions (`.exe .bat .cmd .com .ps1 .vbs .js .msi .scr .lnk`) are refused.
+- Attachments with an extension Windows runs on open (`.exe .bat .cmd .com .ps1 .vbs .vbe .js .jse .wsf .wsh .hta .msi .msp .scr .pif .lnk .url .scf .reg .msc .cpl .jar`) are refused, on adding and on opening alike.
 - The app stores no passwords or tokens.
 
 See `SECURITY.md` for how to report a problem.
