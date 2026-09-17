@@ -19,6 +19,7 @@ const issue = (key: string): Issue => ({
   updatedBy: "",
   fields: {},
   labels: [],
+  relations: [],
 });
 
 test("empty text is no parent; a known key, alone or with the summary, resolves; anything else is invalid", () => {

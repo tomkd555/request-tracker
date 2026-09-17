@@ -84,6 +84,7 @@ export interface Issue {
   updatedBy: string;
   fields: Record<string, string>; // CustomField id -> value; {} on records written before this field
   labels: string[]; // Label.name values, the way category names Project.categories; [] on records written before this field
+  relations: Relation[]; // typed links this issue names; [] on records written before this field
 }
 
 export interface Comment {
@@ -191,7 +192,7 @@ export function isUser(v: unknown): v is User {
 export const ISSUE_KEY = /^\d{2}-\d{4,}$/;
 export const STAMP_ID = /^\d{8}T\d{9}Z$/;
 
-/** Accepts a record without `category`, `fields` or `labels` (written before those fields existed); the store fills "", {} and [] on read. */
+/** Accepts a record without `category`, `fields`, `labels` or `relations` (written before those fields existed); the store fills "", {} and [] on read. */
 export function isIssue(v: unknown): v is Issue {
   return (
     isRec(v) &&
@@ -211,7 +212,8 @@ export function isIssue(v: unknown): v is Issue {
     strOrNull(v.dueDate) &&
     str(v.createdAt) &&
     str(v.updatedAt) &&
-    str(v.updatedBy)
+    str(v.updatedBy) &&
+    relationsOrAbsent(v.relations)
   );
 }
 
@@ -235,3 +237,16 @@ export function isWikiPage(v: unknown): v is WikiPage {
     str(v.updatedBy)
   );
 }
+
+export type RelationType = "relates" | "duplicates" | "precedes";
+export const RELATION_TYPES: RelationType[] = ["relates", "duplicates", "precedes"];
+
+/** One side of a link between issues; the store writes only this side and derives the inverse on read. */
+export interface Relation { type: RelationType; key: string }
+
+export function isRelation(v: unknown): v is Relation {
+  return isRec(v) && RELATION_TYPES.includes(v.type as RelationType) && str(v.key) && ISSUE_KEY.test(v.key);
+}
+
+/** Accepts a record without `relations` (written before the field existed); the store fills [] on read. */
+export const relationsOrAbsent = (v: unknown): v is Relation[] | undefined => v === undefined || (Array.isArray(v) && v.every(isRelation));

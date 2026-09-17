@@ -19,6 +19,7 @@ const issue = (over: Partial<Issue>): Issue => ({
   updatedBy: "alice",
   fields: {},
   labels: [],
+  relations: [],
   ...over,
 });
 const nameOf = (u: string | null): string => (u === "bob" ? "Bob" : u ?? "");

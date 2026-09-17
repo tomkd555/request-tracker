@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
+import { ISSUE_PRIORITIES, ISSUE_STATUSES, RELATION_TYPES, type Issue, type RelationType } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { categoryOptions, displayNameOf, useSession, withCurrent } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
@@ -9,10 +9,10 @@ import { today } from "./dates";
 import { dueTone } from "./dueTone";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
 import { HistoryList } from "./HistoryList";
-import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { formatDateTime, INVERSE_LABEL, PRIORITY_LABEL, RELATION_LABEL, STATUS_LABEL, statusClass } from "./labels";
 import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
-import { relatedIssues } from "./relatedIssues";
+import { addRelation, relatedIssues, relationRows } from "./relatedIssues";
 import { staleMessage } from "./saveError";
 import { markSeen } from "./seen";
 import { useIssues } from "./useIssues";
@@ -22,6 +22,9 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const { byKey, loaded, refreshOne } = useIssues();
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [newRelationType, setNewRelationType] = useState<RelationType>("relates");
+  const [newRelationKey, setNewRelationKey] = useState<string | null>(null);
+  const [newRelationInvalid, setNewRelationInvalid] = useState(false);
   const issue = byKey.get(issueKey);
   // The record the next save builds on: the last one written here, until the store hands back a newer one.
   const latest = useRef<Issue | undefined>(issue);
@@ -35,6 +38,11 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const children = [...byKey.values()].filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
   const related = relatedIssues(issue, byKey);
   const parentCandidates = [...byKey.values()].filter((i) => i.parentKey === null && i.key !== issue.key).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const rows = relationRows(issue, byKey);
+  const shownKeys = new Set(rows.map((r) => r.key));
+  const mentionRows = related.filter((r) => !shownKeys.has(r.key));
+  const relationCandidates = [...byKey.values()].filter((i) => i.key !== issue.key).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const relationBlocked = newRelationKey === null || newRelationInvalid;
 
   const put = async (patch: Partial<Issue>): Promise<void> => {
     const base = latest.current ?? issue;
@@ -55,6 +63,14 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const reload = (): void => {
     setError(null);
     void refreshOne(issue.key);
+  };
+  const addNewRelation = (): void => {
+    if (relationBlocked || newRelationKey === null) return;
+    void save({ relations: addRelation(issue.relations, { type: newRelationType, key: newRelationKey }) });
+    setNewRelationKey(null);
+  };
+  const removeRelation = (row: { type: RelationType; key: string }): void => {
+    void save({ relations: issue.relations.filter((r) => !(r.type === row.type && r.key === row.key)) });
   };
 
   const userOptions = [{ value: "", label: "未設定" }, ...users.map((u) => ({ value: u.username, label: u.displayName }))];
@@ -156,19 +172,55 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               )}
             </section>
           )}
-          {related.length > 0 && (
-            <section>
-              <h2>関連課題</h2>
+          <section>
+            <h2>関連課題</h2>
+            {(rows.length > 0 || mentionRows.length > 0) && (
               <ul className="related">
-                {related.map((r) => (
-                  <li key={r.key} className="related__item">
+                {rows.map((r) => (
+                  <li key={`${r.direction}-${r.type}-${r.key}`} className="related__item">
+                    <span className="related__type">{(r.direction === "out" ? RELATION_LABEL : INVERSE_LABEL)[r.type]}</span>{" "}
                     <a href={`#/issues/${r.key}`}>{r.key}</a> {r.summary}{" "}
                     <span className={statusClass(r.status)}>{STATUS_LABEL[r.status]}</span>
+                    {r.direction === "out" && (
+                      <button type="button" className="button--link" aria-label="関連を外す" onClick={() => removeRelation(r)}>
+                        ✕
+                      </button>
+                    )}
+                  </li>
+                ))}
+                {mentionRows.map((m) => (
+                  <li key={m.key} className="related__item">
+                    <span className="related__type">本文で言及</span>{" "}
+                    <a href={`#/issues/${m.key}`}>{m.key}</a> {m.summary}{" "}
+                    <span className={statusClass(m.status)}>{STATUS_LABEL[m.status]}</span>
                   </li>
                 ))}
               </ul>
-            </section>
-          )}
+            )}
+            <div className="related__add">
+              <select className="issue-detail__control" aria-label="関連の種類" value={newRelationType} onChange={(e) => setNewRelationType(e.target.value as RelationType)}>
+                {RELATION_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {RELATION_LABEL[t]}
+                  </option>
+                ))}
+              </select>
+              <ParentField
+                value={newRelationKey}
+                candidates={relationCandidates}
+                commitOn="change"
+                className="issue-detail__control"
+                ariaLabel="関連課題"
+                onChange={(key, invalid) => {
+                  setNewRelationKey(key);
+                  setNewRelationInvalid(invalid);
+                }}
+              />
+              <button type="button" className="button--quiet" disabled={relationBlocked} onClick={addNewRelation}>
+                追加
+              </button>
+            </div>
+          </section>
           <Attachments owner={{ kind: "issue", id: issue.key }} />
           <Comments issue={issue} version={version} onStatus={(status) => put({ status })} />
           <section>

@@ -102,6 +102,7 @@ const draft = (over: Partial<IssueDraft> = {}): IssueDraft => ({
   updatedBy: "alice",
   fields: {},
   labels: [],
+  relations: [],
   ...over,
 });
 
@@ -306,6 +307,24 @@ test("records and project.json written before category existed load with default
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
   expect(await fsp.readdir(l.historyProject)).toHaveLength(1);
   await expect(s.project.put(["", " "], {}, {})).rejects.toThrow();
+});
+
+test("a record written before relations existed loads with []; a record whose relations holds a malformed type is skipped like any other invalid record", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const l = layout(shared);
+  const { relations: _dropped, ...old } = { ...draft(), key: "26-0001" };
+  await fsp.writeFile(join(l.issues, "26-0001.json"), JSON.stringify(old), "utf8");
+  expect(await s.issues.get("26-0001")).toMatchObject({ relations: [] });
+  expect((await s.issues.list())[0]).toMatchObject({ relations: [] });
+
+  const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  await fsp.writeFile(join(l.issues, "26-0002.json"), JSON.stringify({ ...draft(), key: "26-0002", relations: [{ type: "wrong", key: "26-0001" }] }), "utf8");
+  expect(await s.issues.get("26-0002")).toBeNull();
+  expect((await s.issues.list()).map((i) => i.key)).toEqual(["26-0001"]);
+  expect(err).toHaveBeenCalled();
+  err.mockRestore();
 });
 
 test("config.json holding only rootDir loads with default settings; config.put validates and chooseRoot keeps the saved settings", async () => {

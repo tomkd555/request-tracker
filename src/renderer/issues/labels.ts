@@ -1,4 +1,4 @@
-import type { IssuePriority, IssueStatus, Project } from "../../shared/types";
+import type { IssuePriority, IssueStatus, Project, RelationType } from "../../shared/types";
 import { withCurrent } from "../app/UserContext";
 
 export const STATUS_LABEL: Record<IssueStatus, string> = {
@@ -42,3 +42,8 @@ export const formatDateTime = (iso: string): string => {
   const p = (n: number): string => String(n).padStart(2, "0");
   return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
+
+/** The label on the side that writes the link. */
+export const RELATION_LABEL: Record<RelationType, string> = { relates: "関連", duplicates: "重複", precedes: "先行" };
+/** The label on the derived, opposite side. */
+export const INVERSE_LABEL: Record<RelationType, string> = { relates: "関連", duplicates: "重複", precedes: "後続" };

@@ -19,6 +19,7 @@ const issue = (key: string, parentKey: string | null = null): Issue => ({
   updatedBy: "",
   fields: {},
   labels: [],
+  relations: [],
 });
 
 test("parents descend, children ascend under their parent", () => {

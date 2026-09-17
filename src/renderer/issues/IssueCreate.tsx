@@ -121,6 +121,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       updatedAt: now,
       updatedBy: me.username,
       fields,
+      relations: [],
     };
     try {
       const issue = await window.api.issues.create(draft);

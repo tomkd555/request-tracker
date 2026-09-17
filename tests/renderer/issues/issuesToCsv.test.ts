@@ -19,6 +19,7 @@ const issue = (over: Partial<Issue>): Issue => ({
   updatedBy: "alice",
   fields: {},
   labels: [],
+  relations: [],
   ...over,
 });
 const names = { user: (u: string | null): string => (u === null ? "" : u.toUpperCase()), status: defaultStatusName };
