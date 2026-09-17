@@ -106,16 +106,24 @@ See `SECURITY.md` for how to report a problem.
 
 ## Release
 
-A release is a tag. Pushing `vX.Y.Z` runs `.github/workflows/release.yml`, which type-checks, tests, builds the portable exe on a Windows runner and attaches it to the GitHub Release of that tag. Before tagging:
+Releases are cut by hand. `.github/workflows/ci.yml` type-checks, tests and builds on every push; it publishes nothing. Before a release:
 
 - Set `version` in `package.json` to `X.Y.Z`
 - `npm run typecheck`, `npx vitest run` and `npm run package` pass locally
 - The exe starts on a machine without Node or this repository
 - Two instances pointed at the real network share see each other's changes within 10 seconds, and simultaneous creation yields distinct keys
 
+Two branches carry the code. `master` is the private working branch. `public` is an orphan branch holding one squashed commit per release, and `origin/master` on GitHub is `public`; a pull request merged on GitHub lands on `public` alone and the next squash reverts it, so dependency bumps are applied on `master` by hand. Publishing a release:
+
 ```
-git tag v0.2.0
-git push origin v0.2.0
+git checkout public
+git read-tree -u --reset master      # the index and worktree become master's tree; HEAD stays on public
+git diff master --stat               # prints nothing
+git commit -m "X.Y.Z: ..."
+git push origin public:master
+git tag vX.Y.Z public && git push origin vX.Y.Z
+gh release create vX.Y.Z dist/RequestTracker-X.Y.Z.exe --title "X.Y.Z"
+git checkout master
 ```
 
 ## License
