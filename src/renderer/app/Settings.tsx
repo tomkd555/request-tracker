@@ -41,7 +41,10 @@ function AppearanceSection(): React.JSX.Element {
   const [message, run] = useSaveMessage();
   const save = (): Promise<void> =>
     run(async () => {
-      const saved = await window.api.config.put(draft);
+      // The payload starts from the live session config, not the draft snapshot taken at mount, so a view saved
+      // elsewhere in the meantime (savedFilters) is not reverted; only the four fields this form edits come from draft.
+      const next = { ...config, theme: draft.theme, accent: draft.accent, dueSoonDays: draft.dueSoonDays, pollIntervalMs: draft.pollIntervalMs };
+      const saved = await window.api.config.put(next);
       applyAppearance(saved);
       await refreshConfig();
     });

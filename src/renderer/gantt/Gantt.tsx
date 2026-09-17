@@ -5,6 +5,7 @@ import { ymd } from "../issues/dates";
 import { FilterBar } from "../issues/FilterBar";
 import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "../issues/filterIssues";
 import { STATUS_LABEL, statusClass } from "../issues/labels";
+import { SavedFilters } from "../issues/SavedFilters";
 import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
 import { datesAfterDrag, layoutGantt, rangeFor, shiftMonth, type DragMode, type GanttRow, type GroupBy, type Months, type Segment } from "./layoutGantt";
@@ -229,6 +230,7 @@ export function Gantt(): React.JSX.Element {
         </div>
       </header>
       <FilterBar filter={filter} users={users} onChange={setFilter} />
+      <SavedFilters filter={filter} onChange={setFilter} />
       <div className="filter-bar gantt__options">
         <label className="filter-bar__field">
           グループ

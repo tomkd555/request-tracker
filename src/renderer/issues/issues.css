@@ -140,6 +140,10 @@
   min-width: 200px;
 }
 
+.saved-filters {
+  margin-top: calc(-1 * var(--space-2));
+}
+
 .section-head {
   display: flex;
   align-items: center;

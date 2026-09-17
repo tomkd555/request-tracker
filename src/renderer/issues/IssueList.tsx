@@ -10,6 +10,7 @@ import { groupByParent } from "./groupByParent";
 import { defaultStatusName, issuesToCsv } from "./issuesToCsv";
 import { formatDate, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
 import { isUnseen } from "./seen";
+import { SavedFilters } from "./SavedFilters";
 import { DEFAULT_SORT, fieldSortKey, issueComparator, nextSort, type IssueSort, type SortKey } from "./sortIssues";
 import { useIssues } from "./useIssues";
 
@@ -60,6 +61,7 @@ export function IssueList(): React.JSX.Element {
       </header>
       {message && <p className="text--muted">{message}</p>}
       <FilterBar filter={filter} users={users} onChange={setFilter} />
+      <SavedFilters filter={filter} onChange={setFilter} />
       <table className="issue-table">
         <thead>
           <tr>

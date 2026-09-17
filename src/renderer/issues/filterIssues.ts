@@ -1,21 +1,7 @@
-import type { Issue, IssueStatus } from "../../shared/types";
+import type { DueFilter, Issue, IssueFilter } from "../../shared/types";
 import { addDays } from "./dates";
 
-export type DueFilter = "all" | "overdue" | "week" | "none";
-
-export interface IssueFilter {
-  statuses: IssueStatus[];
-  assignee: string | null;
-  reporter: string | null;
-  keyword: string;
-  due: DueFilter;
-  /** 種別; null means every category. */
-  category: string | null;
-  /** Only issues 処理済み that `me` reported and has yet to confirm. */
-  awaitingConfirmation: boolean;
-  /** 汎用列 id -> the one value to keep; an id absent here matches every value. */
-  fields: Record<string, string>;
-}
+export type { DueFilter, IssueFilter } from "../../shared/types";
 
 export const DEFAULT_FILTER: IssueFilter = {
   statuses: ["open", "in_progress", "resolved"],

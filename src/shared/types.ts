@@ -9,10 +9,12 @@ export interface LocalSettings {
   accent: string | null; // "#rrggbb"; null = the preset's own accent
   dueSoonDays: number; // 0–30
   pollIntervalMs: number; // 2000–60000
+  // ponytail: saved views live per machine; move the array to project.json with its own project:putViews if the team asks for shared views
+  savedFilters: SavedFilter[]; // named issue-list/gantt filters; [] on files written before this field
 }
 export interface LocalConfig extends LocalSettings { rootDir: string }
 
-export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "green", accent: null, dueSoonDays: 3, pollIntervalMs: 5000 };
+export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "green", accent: null, dueSoonDays: 3, pollIntervalMs: 5000, savedFilters: [] };
 export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 export interface Project {
@@ -40,6 +42,25 @@ export interface User { username: string; displayName: string; createdAt: string
 
 export type IssueStatus = "open" | "in_progress" | "resolved" | "closed";
 export type IssuePriority = "high" | "normal" | "low";
+
+export type DueFilter = "all" | "overdue" | "week" | "none";
+
+export interface IssueFilter {
+  statuses: IssueStatus[];
+  assignee: string | null;
+  reporter: string | null;
+  keyword: string;
+  due: DueFilter;
+  /** 種別; null means every category. */
+  category: string | null;
+  /** Only issues 処理済み that `me` reported and has yet to confirm. */
+  awaitingConfirmation: boolean;
+  /** 汎用列 id -> the one value to keep; an id absent here matches every value. */
+  fields: Record<string, string>;
+}
+
+/** A named filter bookmarked on the issue list or gantt screen. */
+export interface SavedFilter { name: string; filter: IssueFilter }
 
 export interface Issue {
   key: string; // "26-0012": fiscal year (two digits) - sequence within that year (four digits)
@@ -92,6 +113,9 @@ const strOrNull = (v: unknown): v is string | null => v === null || typeof v ===
 const strOrAbsent = (v: unknown): v is string | undefined => v === undefined || typeof v === "string";
 const strArrayOrAbsent = (v: unknown): v is string[] | undefined => v === undefined || (Array.isArray(v) && v.every(str));
 const strMapOrAbsent = (v: unknown): v is Record<string, string> | undefined => v === undefined || (isRec(v) && Object.values(v).every(str));
+const bool = (v: unknown): v is boolean => typeof v === "boolean";
+const strMap = (v: unknown): v is Record<string, string> => isRec(v) && Object.values(v).every(str);
+const DUE_FILTERS: DueFilter[] = ["all", "overdue", "week", "none"];
 const isTemplate = (v: unknown): v is CategoryTemplate => isRec(v) && str(v.summary) && str(v.body);
 const templateMapOrAbsent = (v: unknown): v is Record<string, CategoryTemplate> | undefined =>
   v === undefined || (isRec(v) && Object.values(v).every(isTemplate));
@@ -109,6 +133,25 @@ export function isProject(v: unknown): v is Project {
     templateMapOrAbsent(v.categoryTemplates) &&
     fieldsOrAbsent(v.fields)
   );
+}
+
+export function isIssueFilter(v: unknown): v is IssueFilter {
+  return (
+    isRec(v) &&
+    Array.isArray(v.statuses) &&
+    v.statuses.every((s) => ISSUE_STATUSES.includes(s as IssueStatus)) &&
+    strOrNull(v.assignee) &&
+    strOrNull(v.reporter) &&
+    str(v.keyword) &&
+    DUE_FILTERS.includes(v.due as DueFilter) &&
+    strOrNull(v.category) &&
+    bool(v.awaitingConfirmation) &&
+    strMap(v.fields)
+  );
+}
+
+export function isSavedFilter(v: unknown): v is SavedFilter {
+  return isRec(v) && str(v.name) && isIssueFilter(v.filter);
 }
 
 const intIn = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
@@ -129,6 +172,7 @@ export function localSettingsFrom(v: Record<string, unknown>): LocalSettings {
     accent: str(v.accent) && HEX_COLOR.test(v.accent) ? v.accent : d.accent,
     dueSoonDays: intIn(v.dueSoonDays, 0, 30) ? v.dueSoonDays : d.dueSoonDays,
     pollIntervalMs: intIn(v.pollIntervalMs, 2000, 60000) ? v.pollIntervalMs : d.pollIntervalMs,
+    savedFilters: Array.isArray(v.savedFilters) ? v.savedFilters.filter(isSavedFilter) : d.savedFilters,
   };
 }
 

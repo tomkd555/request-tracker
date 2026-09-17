@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createStore } from "../../../src/main/store";
 import { collectionDirs, layout } from "../../../src/main/store/paths";
 import type { IssueDraft } from "../../../src/shared/api";
-import { DEFAULT_LOCAL_SETTINGS } from "../../../src/shared/types";
+import { DEFAULT_LOCAL_SETTINGS, type IssueFilter, type SavedFilter } from "../../../src/shared/types";
 
 let userData: string;
 let shared: string;
@@ -250,7 +250,7 @@ test("config.json holding only rootDir loads with default settings; config.put v
   const s = store(shared);
   await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, dueSoonDays: 99 }), "utf8");
   expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
-  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, pollIntervalMs: 2000 };
+  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, pollIntervalMs: 2000, savedFilters: [] };
   expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
   expect(s.settings()).toEqual(next);
   expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
@@ -264,6 +264,30 @@ test("config.json holding only rootDir loads with default settings; config.put v
   } finally {
     await fsp.rm(other, { recursive: true, force: true });
   }
+});
+
+const issueFilter = (over: Partial<IssueFilter> = {}): IssueFilter => ({
+  statuses: ["open"],
+  assignee: null,
+  reporter: null,
+  keyword: "",
+  due: "all",
+  category: null,
+  awaitingConfirmation: false,
+  fields: {},
+  ...over,
+});
+
+test("config.put round-trips two saved filters through config.get, and a malformed row is dropped on read", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  const savedFilters: SavedFilter[] = [{ name: "a", filter: issueFilter({ keyword: "x" }) }, { name: "b", filter: issueFilter({ due: "overdue" }) }];
+  const next = { ...DEFAULT_LOCAL_SETTINGS, savedFilters };
+  expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
+  expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
+
+  await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, savedFilters: [savedFilters[0], { name: "bad" }] }), "utf8");
+  expect((await store(null).config.get())?.savedFilters).toEqual([savedFilters[0]]);
 });
 
 test("project.put keeps colours of surviving 種別 only and rejects a colour outside #rrggbb", async () => {
