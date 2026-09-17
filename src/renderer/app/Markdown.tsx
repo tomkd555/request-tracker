@@ -1,5 +1,6 @@
 import { createElement, isValidElement, useContext } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { WikiContext } from "../wiki/useWiki";
 import { normalizeTitle } from "../wiki/wikiTree";
 import { linkIssueKeys } from "./linkIssueKeys";
@@ -48,7 +49,7 @@ export function Markdown({ source, demote = 2, wikiParentId = null }: Props): Re
   const resolve = (title: string): string | null => wiki?.titles.get(normalizeTitle(title)) ?? null;
   return (
     <div className="markdown">
-      <ReactMarkdown components={COMPONENTS[demote]}>{linkWikiPages(linkIssueKeys(source), resolve, wikiParentId)}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS[demote]}>{linkWikiPages(linkIssueKeys(source), resolve, wikiParentId)}</ReactMarkdown>
     </div>
   );
 }

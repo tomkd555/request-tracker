@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ISSUE_STATUSES, type Comment, type Issue, type IssueStatus } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/UserContext";
+import { useNavigationGuard } from "../app/useHashRoute";
 import { changeEntries, type ChangeEntry } from "./diffVersions";
 import { formatDateTime, STATUS_LABEL } from "./labels";
 
@@ -49,6 +50,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
 
   const statusChanged = status !== issue.status;
   const body = draft.trim();
+  useNavigationGuard(body !== "" || statusChanged);
 
   const post = async (): Promise<void> => {
     setError(null);

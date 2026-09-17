@@ -245,6 +245,18 @@
   font-size: var(--text-md);
 }
 
+.markdown table {
+  border-collapse: collapse;
+  margin-bottom: var(--space-2);
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border-panel);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+}
+
 .markdown-editor__tab--active {
   background: var(--brand);
   color: var(--text-on-brand);

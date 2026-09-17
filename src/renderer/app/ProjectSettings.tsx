@@ -3,6 +3,7 @@ import type { CategoryTemplate, CustomField, Project } from "../../shared/types"
 import { TextField } from "../issues/FieldEditor";
 import { useSaveMessage } from "./Settings";
 import { TYPE_PILL_DEFAULT } from "./theme";
+import { useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
 
 /** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the members, the 汎用列. */
@@ -33,6 +34,7 @@ function FieldSection(): React.JSX.Element {
   useEffect(() => {
     if (!dirty) setRows(fieldRowsOf(project));
   }, [project, dirty]);
+  useNavigationGuard(dirty);
 
   const update = (next: FieldRow[]): void => {
     setRows(next);
@@ -170,6 +172,7 @@ function CategorySection(): React.JSX.Element {
   useEffect(() => {
     if (!dirty) setRows(rowsOf(project));
   }, [project, dirty]);
+  useNavigationGuard(dirty);
 
   const update = (next: CategoryRow[]): void => {
     setRows(next);

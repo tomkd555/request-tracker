@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { THEME_NAMES, type LocalSettings, type ThemeName } from "../../shared/types";
 import { accentOf, applyAppearance, THEMES } from "./theme";
+import { useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
 
 /** Result line under a form: the saved message, or the store's error. Shared with the project settings screen. */
@@ -45,6 +46,9 @@ function AppearanceSection(): React.JSX.Element {
       await refreshConfig();
     });
   const patch = (p: Partial<LocalSettings>): void => setDraft((d) => ({ ...d, ...p }));
+  useNavigationGuard(
+    draft.theme !== config.theme || draft.accent !== config.accent || draft.dueSoonDays !== config.dueSoonDays || draft.pollIntervalMs !== config.pollIntervalMs,
+  );
 
   return (
     <section className="issue-form settings__section">
@@ -114,6 +118,7 @@ function DisplayNameSection(): React.JSX.Element {
   const { me, refreshUsers } = useSession();
   const [name, setName] = useState(me.displayName);
   const [message, run] = useSaveMessage();
+  useNavigationGuard(name !== me.displayName);
   return (
     <section className="issue-form settings__section">
       <h3 className="settings__heading">名前</h3>

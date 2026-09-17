@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { applyCommand, TOOLBAR_LABEL, type ToolbarCommand } from "../app/markdownToolbar";
+import { useNavigationGuard } from "../app/useHashRoute";
 
 type TextProps = { value: string; onSave(v: string): void; className?: string; required?: boolean };
 
@@ -152,6 +153,7 @@ export function MarkdownField({ title, value, onSave, preview }: FieldProps): Re
   useEffect(() => {
     if (!editing) setDraft(value);
   }, [value, editing]);
+  useNavigationGuard(editing && draft !== value);
 
   const save = (): void => {
     if (draft !== value) onSave(draft);
