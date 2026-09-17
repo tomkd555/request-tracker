@@ -10,6 +10,7 @@ import { dueTone } from "./dueTone";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
 import { HistoryList } from "./HistoryList";
 import { formatDateTime, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
 import { relatedIssues } from "./relatedIssues";
 import { staleMessage } from "./saveError";
@@ -176,7 +177,18 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               issueKey={issue.key}
               version={version}
               onRestore={(old) =>
-                save({ summary: old.summary, description: old.description, category: old.category, status: old.status, priority: old.priority, assignee: old.assignee, startDate: old.startDate, dueDate: old.dueDate, fields: old.fields })
+                save({
+                  summary: old.summary,
+                  description: old.description,
+                  category: old.category,
+                  labels: old.labels,
+                  status: old.status,
+                  priority: old.priority,
+                  assignee: old.assignee,
+                  startDate: old.startDate,
+                  dueDate: old.dueDate,
+                  fields: old.fields,
+                })
               }
             />
           </section>
@@ -201,6 +213,10 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               options={[...(issue.category === "" ? [{ value: "", label: "未設定" }] : []), ...categoryOptions(project, issue.category).map((c) => ({ value: c, label: c }))]}
               onSave={(category) => save({ category })}
             />
+          </div>
+          <div className="issue-detail__prop">
+            <span className="issue-detail__term">ラベル</span>
+            <LabelPicker project={project} value={issue.labels} onChange={(labels) => void save({ labels })} />
           </div>
           <div className="issue-detail__prop">
             <span className="issue-detail__term">優先度</span>

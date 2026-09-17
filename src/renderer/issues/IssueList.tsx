@@ -8,7 +8,7 @@ import { FilterBar } from "./FilterBar";
 import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "./filterIssues";
 import { groupByParent } from "./groupByParent";
 import { defaultStatusName, issuesToCsv } from "./issuesToCsv";
-import { formatDate, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { formatDate, labelColor, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
 import { isUnseen } from "./seen";
 import { SavedFilters } from "./SavedFilters";
 import { DEFAULT_SORT, fieldSortKey, issueComparator, nextSort, type IssueSort, type SortKey } from "./sortIssues";
@@ -89,7 +89,17 @@ export function IssueList(): React.JSX.Element {
                   {isUnseen(i, me.username) && <span className="issue-table__unseen" role="img" aria-label="更新あり" />}
                   {i.key}
                 </td>
-                <td className="issue-table__cell">{i.summary}</td>
+                <td className="issue-table__cell">
+                  {i.summary}
+                  {i.labels.map((name) => {
+                    const color = labelColor(project, name);
+                    return (
+                      <span key={name} className="pill issue-table__label" style={{ background: color, color: textOn(color) }}>
+                        {name}
+                      </span>
+                    );
+                  })}
+                </td>
                 <td className="issue-table__cell">
                   {i.category !== "" && (
                     <span className="pill" style={{ background: categoryColor, color: textOn(categoryColor) }}>

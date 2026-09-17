@@ -101,6 +101,7 @@ const draft = (over: Partial<IssueDraft> = {}): IssueDraft => ({
   updatedAt: "2027-03-15T03:00:00.000Z",
   updatedBy: "alice",
   fields: {},
+  labels: [],
   ...over,
 });
 
@@ -280,11 +281,12 @@ test("records and project.json written before category existed load with default
   await fsp.writeFile(l.projectFile, JSON.stringify({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z" }), "utf8");
   expect((await s.project.get())?.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
   expect((await s.project.get())?.fields).toEqual([]);
-  const { category: _dropped, fields: _dropped2, ...old } = { ...draft(), key: "26-0001" };
+  expect((await s.project.get())?.labels).toEqual([]);
+  const { category: _dropped, fields: _dropped2, labels: _dropped3, ...old } = { ...draft(), key: "26-0001" };
   await fsp.writeFile(join(l.issues, "26-0001.json"), JSON.stringify(old), "utf8");
-  expect(await s.issues.get("26-0001")).toMatchObject({ category: "", fields: {} });
-  expect((await s.issues.list())[0]).toMatchObject({ category: "", fields: {} });
-  await s.issues.put({ ...old, category: "依頼", fields: {} });
+  expect(await s.issues.get("26-0001")).toMatchObject({ category: "", fields: {}, labels: [] });
+  expect((await s.issues.list())[0]).toMatchObject({ category: "", fields: {}, labels: [] });
+  await s.issues.put({ ...old, category: "依頼", fields: {}, labels: [] });
   expect((await s.issues.history("26-0001"))[0].category).toBe("");
   const p = await s.project.put([" 相談 ", "", "不具合", "相談"], {}, {});
   expect(p).toMatchObject({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", categories: ["相談", "不具合"] });
@@ -320,6 +322,7 @@ const issueFilter = (over: Partial<IssueFilter> = {}): IssueFilter => ({
   due: "all",
   category: null,
   awaitingConfirmation: false,
+  labels: [],
   fields: {},
   ...over,
 });
@@ -430,4 +433,24 @@ test("project.putFields drops unnamed rows and repeated ids, cleans the options,
   expect(await fsp.readdir(layout(shared).historyProject)).toHaveLength(1);
   await s.issues.create(draft({ fields: { a: "本番" } }));
   expect((await s.issues.get("26-0001"))?.fields).toEqual({ a: "本番" });
+});
+
+test("project.putLabels drops a blank name and a repeated name, rejects a bad colour, and leaves categories and fields untouched", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.project.putFields([{ id: "a", name: "環境", options: [] }]);
+  const before = (await fsp.readdir(layout(shared).historyProject)).length;
+  const p = await s.project.putLabels([
+    { name: " bug ", color: "#FF0000" },
+    { name: "  ", color: "#000000" },
+    { name: "bug", color: "#00ff00" },
+    { name: "urgent", color: "#123ABC" },
+  ]);
+  expect(p.labels).toEqual([{ name: "bug", color: "#ff0000" }, { name: "urgent", color: "#123abc" }]);
+  expect(await s.project.get()).toEqual(p);
+  expect(p.fields).toEqual([{ id: "a", name: "環境", options: [] }]);
+  expect(p.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
+  expect((await fsp.readdir(layout(shared).historyProject)).length).toBe(before + 1);
+  await expect(s.project.putLabels([{ name: "x", color: "red" }])).rejects.toThrow("#rrggbb");
 });

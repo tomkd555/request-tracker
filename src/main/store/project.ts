@@ -1,6 +1,6 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
-import { DEFAULT_CATEGORIES, HEX_COLOR, isProject, type CategoryTemplate, type CustomField, type Project } from "../../shared/types";
+import { DEFAULT_CATEGORIES, HEX_COLOR, isProject, type CategoryTemplate, type CustomField, type Label, type Project } from "../../shared/types";
 import { SHARE_UNREACHABLE } from "./attachments";
 import { mkdirp, readRecord, writeAtomic } from "./collection";
 import { fileStamp } from "./fileStamp";
@@ -27,14 +27,29 @@ export async function readProject(l: Layout): Promise<Project | null> {
     if (exists) throw new Error(PROJECT_INVALID);
     return null;
   }
-  return { ...p, categories: p.categories ?? DEFAULT_CATEGORIES, categoryColors: p.categoryColors ?? {}, categoryTemplates: p.categoryTemplates ?? {}, fields: p.fields ?? [] };
+  return {
+    ...p,
+    categories: p.categories ?? DEFAULT_CATEGORIES,
+    categoryColors: p.categoryColors ?? {},
+    categoryTemplates: p.categoryTemplates ?? {},
+    fields: p.fields ?? [],
+    labels: p.labels ?? [],
+  };
 }
 
 export async function initProject(l: Layout, fiscalYearStartMonth: number): Promise<Project> {
   if (!Number.isInteger(fiscalYearStartMonth) || fiscalYearStartMonth < 1 || fiscalYearStartMonth > 12) {
     throw new Error(`fiscal year start month out of range: ${fiscalYearStartMonth}`);
   }
-  const project: Project = { fiscalYearStartMonth, createdAt: new Date().toISOString(), categories: DEFAULT_CATEGORIES, categoryColors: {}, categoryTemplates: {}, fields: [] };
+  const project: Project = {
+    fiscalYearStartMonth,
+    createdAt: new Date().toISOString(),
+    categories: DEFAULT_CATEGORIES,
+    categoryColors: {},
+    categoryTemplates: {},
+    fields: [],
+    labels: [],
+  };
   for (const dir of collectionDirs(l)) await mkdirp(dir);
   await fsp.writeFile(l.projectFile, serialize(project), { encoding: "utf8", flag: "wx" }); // exclusive: a file that appeared meanwhile stays
   return project;
@@ -81,6 +96,23 @@ export async function putFields(l: Layout, fields: CustomField[]): Promise<Proje
     cleaned.push({ id: f.id, name, options: [...new Set(f.options.map((o) => o.trim()).filter((o) => o !== ""))] });
   }
   return writeProject(l, { ...current, fields: cleaned });
+}
+
+// ponytail: removing a label leaves the name on existing issues, shown grey; a sweep over issues/ if orphans become a nuisance.
+/** Replaces the ラベル definitions only: a row with a blank name is dropped, a repeated name keeps its first row, colours must be #rrggbb. */
+export async function putLabels(l: Layout, labels: Label[]): Promise<Project> {
+  const current = await readProject(l);
+  if (current === null) throw new Error("project.json is missing");
+  const seen = new Set<string>();
+  const cleaned: Label[] = [];
+  for (const label of labels) {
+    const name = label.name.trim();
+    if (name === "" || seen.has(name)) continue;
+    if (!HEX_COLOR.test(label.color)) throw new Error(`colour must be #rrggbb: ${label.color}`);
+    seen.add(name);
+    cleaned.push({ name, color: label.color.toLowerCase() });
+  }
+  return writeProject(l, { ...current, labels: cleaned });
 }
 
 /** The previous file goes to history/project/ before the atomic overwrite. */

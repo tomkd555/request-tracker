@@ -23,7 +23,11 @@ export interface Project {
   categoryColors: Record<string, string>; // 種別 name -> "#rrggbb"; {} on files written before this field
   categoryTemplates: Record<string, CategoryTemplate>; // 種別 name -> text preset on the new-issue form; {} on files written before this field
   fields: CustomField[]; // 汎用列 definitions, in display order; [] on files written before this field
+  labels: Label[]; // ラベル definitions, in display order; [] on files written before this field
 }
+
+/** A named ラベル with its pill colour; Issue.labels matches one by name, the way 種別 matches Project.categories by name. */
+export interface Label { name: string; color: string }
 
 /** Text the new-issue form loads when its 種別 is chosen. */
 export interface CategoryTemplate { summary: string; body: string }
@@ -54,6 +58,8 @@ export interface IssueFilter {
   category: string | null;
   /** Only issues 処理済み that `me` reported and has yet to confirm. */
   awaitingConfirmation: boolean;
+  /** ラベル names to keep, OR'd like `statuses`; an empty list matches every issue. */
+  labels: string[];
   /** 汎用列 id -> the one value to keep; an id absent here matches every value. */
   fields: Record<string, string>;
 }
@@ -77,6 +83,7 @@ export interface Issue {
   updatedAt: string;
   updatedBy: string;
   fields: Record<string, string>; // CustomField id -> value; {} on records written before this field
+  labels: string[]; // Label.name values, the way category names Project.categories; [] on records written before this field
 }
 
 export interface Comment {
@@ -120,8 +127,10 @@ const templateMapOrAbsent = (v: unknown): v is Record<string, CategoryTemplate> 
   v === undefined || (isRec(v) && Object.values(v).every(isTemplate));
 const isField = (v: unknown): v is CustomField => isRec(v) && str(v.id) && str(v.name) && Array.isArray(v.options) && v.options.every(str);
 const fieldsOrAbsent = (v: unknown): v is CustomField[] | undefined => v === undefined || (Array.isArray(v) && v.every(isField));
+const isLabel = (v: unknown): v is Label => isRec(v) && str(v.name) && str(v.color);
+const labelsOrAbsent = (v: unknown): v is Label[] | undefined => v === undefined || (Array.isArray(v) && v.every(isLabel));
 
-/** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates` or `fields`; `readProject` fills the defaults. */
+/** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates`, `fields` or `labels`; `readProject` fills the defaults. */
 export function isProject(v: unknown): v is Project {
   return (
     isRec(v) &&
@@ -130,7 +139,8 @@ export function isProject(v: unknown): v is Project {
     strArrayOrAbsent(v.categories) &&
     strMapOrAbsent(v.categoryColors) &&
     templateMapOrAbsent(v.categoryTemplates) &&
-    fieldsOrAbsent(v.fields)
+    fieldsOrAbsent(v.fields) &&
+    labelsOrAbsent(v.labels)
   );
 }
 
@@ -145,6 +155,7 @@ export function isIssueFilter(v: unknown): v is IssueFilter {
     DUE_FILTERS.includes(v.due as DueFilter) &&
     strOrNull(v.category) &&
     bool(v.awaitingConfirmation) &&
+    strArrayOrAbsent(v.labels) &&
     strMap(v.fields)
   );
 }
@@ -180,7 +191,7 @@ export function isUser(v: unknown): v is User {
 export const ISSUE_KEY = /^\d{2}-\d{4,}$/;
 export const STAMP_ID = /^\d{8}T\d{9}Z$/;
 
-/** Accepts a record without `category` or `fields` (written before the fields existed); the store fills "" and {} on read. */
+/** Accepts a record without `category`, `fields` or `labels` (written before those fields existed); the store fills "", {} and [] on read. */
 export function isIssue(v: unknown): v is Issue {
   return (
     isRec(v) &&
@@ -190,6 +201,7 @@ export function isIssue(v: unknown): v is Issue {
     str(v.description) &&
     strOrAbsent(v.category) &&
     strMapOrAbsent(v.fields) &&
+    strArrayOrAbsent(v.labels) &&
     ISSUE_STATUSES.includes(v.status as IssueStatus) &&
     ISSUE_PRIORITIES.includes(v.priority as IssuePriority) &&
     strOrNull(v.assignee) &&

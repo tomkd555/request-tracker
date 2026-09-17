@@ -18,6 +18,7 @@ const issue = (key: string, parentKey: string | null = null): Issue => ({
   updatedAt: "",
   updatedBy: "",
   fields: {},
+  labels: [],
 });
 
 test("parents descend, children ascend under their parent", () => {

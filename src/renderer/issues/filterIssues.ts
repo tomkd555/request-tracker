@@ -11,6 +11,7 @@ export const DEFAULT_FILTER: IssueFilter = {
   due: "all",
   category: null,
   awaitingConfirmation: false,
+  labels: [],
   fields: {},
 };
 
@@ -41,6 +42,7 @@ export function filterIssues(issues: Issue[], filter: IssueFilter, today: string
       (filter.reporter === null || i.reporter === filter.reporter) &&
       (filter.category === null || i.category === filter.category) &&
       (!filter.awaitingConfirmation || (i.status === "resolved" && i.reporter === me)) &&
+      (filter.labels.length === 0 || filter.labels.some((l) => i.labels.includes(l))) &&
       Object.entries(filter.fields).every(([id, v]) => (i.fields[id] ?? "") === v) &&
       matchesDue(i, filter.due, today) &&
       (kw === "" ||

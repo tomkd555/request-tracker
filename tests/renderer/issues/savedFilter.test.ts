@@ -5,9 +5,11 @@ import type { IssueFilter, SavedFilter } from "../../../src/shared/types";
 
 const filter = (over: Partial<IssueFilter> = {}): IssueFilter => ({ ...DEFAULT_FILTER, ...over });
 
-test("sameFilter compares statuses as a set and fields entry-wise", () => {
+test("sameFilter compares statuses and labels as a set, and fields entry-wise", () => {
   expect(sameFilter(filter({ statuses: ["open", "closed"] }), filter({ statuses: ["closed", "open"] }))).toBe(true);
   expect(sameFilter(filter({ statuses: ["open"] }), filter({ statuses: ["open", "closed"] }))).toBe(false);
+  expect(sameFilter(filter({ labels: ["a", "b"] }), filter({ labels: ["b", "a"] }))).toBe(true);
+  expect(sameFilter(filter({ labels: ["a"] }), filter({ labels: ["a", "b"] }))).toBe(false);
   expect(sameFilter(filter({ fields: { a: "1" } }), filter({ fields: { a: "1" } }))).toBe(true);
   expect(sameFilter(filter({ fields: { a: "1" } }), filter({ fields: { a: "2" } }))).toBe(false);
   expect(sameFilter(filter({ fields: { a: "1" } }), filter({ fields: {} }))).toBe(false);
