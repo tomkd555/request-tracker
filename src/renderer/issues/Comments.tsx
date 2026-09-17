@@ -41,13 +41,6 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
     void loadChanges();
   }, [loadChanges, version]);
   useEffect(() => setStatus(issue.status), [issue.status]);
-  useEffect(
-    () =>
-      window.api.onChanged((e) => {
-        if (e.collection === "comments" && e.id === issueKey) void load();
-      }),
-    [issueKey, load],
-  );
 
   const statusChanged = status !== issue.status;
   const body = draft.trim();

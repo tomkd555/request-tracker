@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { WikiPage } from "../../shared/types";
 import { titleIndex } from "./wikiTree";
 
@@ -34,16 +34,7 @@ export function WikiProvider({ children }: { children: React.ReactNode }): React
     });
   }, []);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-  useEffect(
-    () =>
-      window.api.onChanged((e) => {
-        if (e.collection === "wiki") void refreshOne(e.id);
-      }),
-    [refreshOne],
-  );
+  // No load here: the shell reads the share when a screen opens and on 更新 (see App.tsx).
 
   const value = useMemo<WikiState>(() => {
     const pages = [...byId.values()];

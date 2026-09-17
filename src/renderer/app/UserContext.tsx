@@ -6,9 +6,9 @@ export interface Session {
   users: User[];
   project: Project;
   config: LocalConfig;
-  /** Re-reads users/ and the current user, after a rename here or a change seen by the poller. */
+  /** Re-reads users/ and the current user, after a rename here or on a screen change. */
   refreshUsers(): Promise<void>;
-  /** Re-reads project.json (種別 list) after a save here or a change seen by the poller. */
+  /** Re-reads project.json (種別 list) after a save here or on a screen change. */
   refreshProject(): Promise<void>;
   /** Re-reads config.json after a save on the settings screen. */
   refreshConfig(): Promise<void>;

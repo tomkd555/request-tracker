@@ -28,10 +28,6 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     latest.current = issue;
     if (issue) markSeen(issue);
   }, [issue]);
-  useEffect(() => {
-    void window.api.watch.set([{ collection: "issue", id: issueKey }]);
-    return () => void window.api.watch.set([]);
-  }, [issueKey]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
   if (!issue) return <p>課題 {issueKey} が見つかりません。</p>;
   const parent = issue.parentKey ? byKey.get(issue.parentKey) : undefined;

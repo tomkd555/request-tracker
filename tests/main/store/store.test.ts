@@ -296,12 +296,12 @@ test("config.json holding only rootDir loads with default settings; config.put v
   const s = store(shared);
   await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, dueSoonDays: 99 }), "utf8");
   expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
-  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, pollIntervalMs: 2000, savedFilters: [] };
+  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, savedFilters: [] };
   expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
   expect(s.settings()).toEqual(next);
   expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
   await expect(s.config.put({ ...next, accent: "red" })).rejects.toThrow("accent");
-  await expect(s.config.put({ ...next, pollIntervalMs: 1000 })).rejects.toThrow("pollIntervalMs");
+  await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
   await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
   const other = await fsp.mkdtemp(join(tmpdir(), "rt-shared2-"));
   try {
@@ -430,23 +430,4 @@ test("project.putFields drops unnamed rows and repeated ids, cleans the options,
   expect(await fsp.readdir(layout(shared).historyProject)).toHaveLength(1);
   await s.issues.create(draft({ fields: { a: "本番" } }));
   expect((await s.issues.get("26-0001"))?.fields).toEqual({ a: "本番" });
-});
-
-test("watch.set replaces the watched set, notifies, and refuses an id that is not a key or a stamp", async () => {
-  let notified = 0;
-  const s = createStore({
-    userDataDir: userData,
-    username: "alice",
-    chooseDirectory: async () => shared,
-    chooseFiles: async () => null,
-    openPath: async () => "",
-    chooseSavePath: async () => null,
-    watchChanged: () => notified++,
-  });
-  await s.watch.set([{ collection: "issue", id: "26-0001" }]);
-  await s.watch.set([{ collection: "wiki", id: "20260912T000000000Z" }]);
-  expect(s.watched()).toEqual([{ collection: "wiki", id: "20260912T000000000Z" }]);
-  expect(notified).toBe(2);
-  await expect(s.watch.set([{ collection: "issue", id: "../x" }])).rejects.toThrow("invalid issue key");
-  expect(s.watched()).toEqual([{ collection: "wiki", id: "20260912T000000000Z" }]);
 });

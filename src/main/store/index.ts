@@ -1,13 +1,13 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
-import type { StoreApi, WatchTarget } from "../../shared/api";
+import type { StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalSettings } from "../../shared/types";
 import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
 import { addComment, commentsCollection } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
-import { assertKey, assertStamp, layout, type Layout } from "./paths";
+import { layout, type Layout } from "./paths";
 import { initProject, putCategories, putFields, readProject } from "./project";
 import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
@@ -23,19 +23,15 @@ export interface StoreDeps {
   openPath(path: string): Promise<string>;
   /** Save dialog; the chosen path, or null when cancelled. */
   chooseSavePath(defaultName: string): Promise<string | null>;
-  /** Called after `watch.set`, so the poller can scan the new record's folders at once. */
-  watchChanged?(): void;
 }
 
 /** Records written before `category` or `fields` existed come back with "" and {} so the renderer always sees them. */
 const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "", fields: i.fields ?? {} });
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
-export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings; watched(): WatchTarget[] } {
+export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings } {
   let l: Layout | null = null;
-  // The poller reads these from the first tick, before the renderer's config.get; defaults until then.
   let settings: LocalSettings = DEFAULT_LOCAL_SETTINGS;
-  let watched: WatchTarget[] = [];
 
   const need = (): Layout => {
     if (l === null) throw new Error("shared folder is not configured");
@@ -45,7 +41,6 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
   return {
     current: () => l,
     settings: () => settings,
-    watched: () => watched,
     config: {
       async get() {
         const c = await loadConfig(deps.userDataDir);
@@ -138,13 +133,6 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         if (err !== "") throw new Error(`open-failed: ${err}`);
       },
       remove: async (owner, name) => removeAttachment(need(), owner, name),
-    },
-    watch: {
-      async set(targets) {
-        for (const t of targets) if (t.collection === "issue") assertKey(t.id); else assertStamp(t.id);
-        watched = targets;
-        deps.watchChanged?.();
-      },
     },
     wiki: {
       list: async () => (await wikiCollection(need()).list()).map(withWikiDefaults),

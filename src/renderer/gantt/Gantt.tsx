@@ -95,8 +95,7 @@ export function Gantt(): React.JSX.Element {
     if (!issue) return;
     setMessage(null);
     try {
-      // Uses the bar position from when the drag started; a poller refresh mid-drag is ignored until pointer-up,
-      // when the stale-write guard below catches a conflicting edit made meanwhile.
+      // Uses the bar position from when the drag started; the stale-write guard catches an edit made meanwhile.
       await window.api.issues.put({ ...issue, ...datesAfterDrag(issue, d.mode, d.delta, range), updatedAt: new Date().toISOString(), updatedBy: me.username }, issue.updatedAt);
       await refreshOne(issue.key);
     } catch (e) {

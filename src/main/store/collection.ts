@@ -107,6 +107,35 @@ const defaultStamp = (r: unknown): string => {
   return typeof iso === "string" ? iso : new Date().toISOString();
 };
 
+/** A listing is served from memory while the directory's mtime is unchanged and the listing is younger than this. */
+export const LIST_TTL_MS = 60_000;
+const listings = new Map<string, { sig: string | null; at: number; records: unknown[] }>();
+
+/** mtime and size of the directory; null when it does not exist yet. Every write here is a temp file plus a rename inside the directory, so the mtime moves. */
+async function dirSig(dir: string): Promise<string | null> {
+  try {
+    const s = await fsp.stat(dir);
+    return `${s.mtimeMs}:${s.size}`;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
+}
+
+/** Forgets the listing of `dir`; called after every write of this process, so its own change is visible at once. */
+export const forgetListing = (dir: string): void => void listings.delete(dir);
+
+/** One stat per call while nothing changed; a full read otherwise. The age bound covers a share that reports directory mtimes late. */
+// ponytail: a file system with coarse mtimes (2 s on exFAT) can hide another client's write for that long; lower LIST_TTL_MS if it bites
+export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is T): Promise<T[]> {
+  const sig = await dirSig(dir);
+  const hit = listings.get(dir);
+  if (hit !== undefined && hit.sig === sig && Date.now() - hit.at < LIST_TTL_MS) return hit.records as T[];
+  const records = await readDir(dir, guard);
+  listings.set(dir, { sig, at: Date.now(), records });
+  return records;
+}
+
 export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
   const { dir, guard, historyDir, trashDir } = opts;
   const stampOf = opts.stampOf ?? defaultStamp;
@@ -121,11 +150,12 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
   }
 
   return {
-    list: () => readDir(dir, guard),
+    list: () => readDirCached(dir, guard),
     get: (id) => readRecord(file(dir, id), guard),
     async create(id, record) {
       await mkdirp(dir);
       await fsp.writeFile(file(dir, id), serialize(record), { encoding: "utf8", flag: "wx" });
+      forgetListing(dir);
     },
     async put(id, record, expectedUpdatedAt) {
       if (expectedUpdatedAt !== undefined) {
@@ -134,6 +164,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
       }
       await archive(id);
       await writeAtomic(file(dir, id), serialize(record));
+      forgetListing(dir);
     },
     async remove(id) {
       if (!trashDir) throw new Error(`collection ${dir} keeps no trash`);
@@ -146,6 +177,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
         // free name
       }
       await fsp.rename(file(dir, id), dest);
+      forgetListing(dir);
     },
     async history(id) {
       if (!historyDir) return [];

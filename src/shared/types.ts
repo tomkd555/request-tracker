@@ -8,13 +8,12 @@ export interface LocalSettings {
   theme: ThemeName;
   accent: string | null; // "#rrggbb"; null = the preset's own accent
   dueSoonDays: number; // 0–30
-  pollIntervalMs: number; // 2000–60000
   // ponytail: saved views live per machine; move the array to project.json with its own project:putViews if the team asks for shared views
   savedFilters: SavedFilter[]; // named issue-list/gantt filters; [] on files written before this field
 }
 export interface LocalConfig extends LocalSettings { rootDir: string }
 
-export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "green", accent: null, dueSoonDays: 3, pollIntervalMs: 5000, savedFilters: [] };
+export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "green", accent: null, dueSoonDays: 3, savedFilters: [] };
 export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 export interface Project {
@@ -161,7 +160,6 @@ export function assertLocalSettings(s: LocalSettings): void {
   if (!THEME_NAMES.includes(s.theme)) throw new Error(`unknown theme: ${String(s.theme)}`);
   if (s.accent !== null && !(str(s.accent) && HEX_COLOR.test(s.accent))) throw new Error(`accent must be #rrggbb: ${String(s.accent)}`);
   if (!intIn(s.dueSoonDays, 0, 30)) throw new Error(`dueSoonDays out of range: ${String(s.dueSoonDays)}`);
-  if (!intIn(s.pollIntervalMs, 2000, 60000)) throw new Error(`pollIntervalMs out of range: ${String(s.pollIntervalMs)}`);
 }
 
 /** Each optional field of config.json is taken when valid and otherwise falls back to its default, so an old or hand-edited file still loads. */
@@ -171,7 +169,6 @@ export function localSettingsFrom(v: Record<string, unknown>): LocalSettings {
     theme: THEME_NAMES.includes(v.theme as ThemeName) ? (v.theme as ThemeName) : d.theme,
     accent: str(v.accent) && HEX_COLOR.test(v.accent) ? v.accent : d.accent,
     dueSoonDays: intIn(v.dueSoonDays, 0, 30) ? v.dueSoonDays : d.dueSoonDays,
-    pollIntervalMs: intIn(v.pollIntervalMs, 2000, 60000) ? v.pollIntervalMs : d.pollIntervalMs,
     savedFilters: Array.isArray(v.savedFilters) ? v.savedFilters.filter(isSavedFilter) : d.savedFilters,
   };
 }

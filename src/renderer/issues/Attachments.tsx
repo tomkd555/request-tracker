@@ -13,19 +13,11 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
   const [messages, setMessages] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const { kind, id } = owner;
-  const collection = kind === "issue" ? "attachments" : "wiki-attachments";
 
   const load = useCallback(async () => setItems(await window.api.attachments.list({ kind, id })), [kind, id]);
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(
-    () =>
-      window.api.onChanged((e) => {
-        if (e.collection === collection && e.id === id) void load();
-      }),
-    [collection, id, load],
-  );
 
   const add = async (paths: string[] | null): Promise<void> => {
     setMessages([]);

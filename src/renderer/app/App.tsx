@@ -6,16 +6,16 @@ import { Nav } from "./Nav";
 import { ProjectSettings } from "./ProjectSettings";
 import { Settings } from "./Settings";
 import { applyAppearance } from "./theme";
-import { SessionContext } from "./UserContext";
+import { SessionContext, useSession } from "./UserContext";
 import { useHashRoute, type Route } from "./useHashRoute";
 import { IssueCreate } from "../issues/IssueCreate";
 import { IssueDetail } from "../issues/IssueDetail";
 import { IssueList } from "../issues/IssueList";
-import { IssuesProvider } from "../issues/useIssues";
+import { IssuesProvider, useIssues } from "../issues/useIssues";
 import { Summary } from "../issues/Summary";
 import { Gantt } from "../gantt/Gantt";
 import { WikiScreen } from "../wiki/WikiFrame";
-import { WikiProvider } from "../wiki/useWiki";
+import { useWiki, WikiProvider } from "../wiki/useWiki";
 import "./app.css";
 import "../issues/issues.css";
 
@@ -90,24 +90,27 @@ type ReadyProps = {
 };
 
 function Ready({ me, users, project, config, refreshUsers, refreshProject, refreshConfig, children }: ReadyProps): React.JSX.Element {
-  useEffect(
-    () =>
-      window.api.onChanged((e) => {
-        if (e.collection === "users") void refreshUsers();
-        if (e.collection === "project") void refreshProject();
-      }),
-    [refreshUsers, refreshProject],
-  );
   return (
     <SessionContext.Provider value={{ me, users, project, config, refreshUsers, refreshProject, refreshConfig }}>{children}</SessionContext.Provider>
   );
 }
 
+/** Nothing runs in the background: the share is read when a screen opens, after a save, and on 更新. */
 function Shell(): React.JSX.Element {
   const route = useHashRoute();
+  const { refreshUsers, refreshProject } = useSession();
+  const issues = useIssues();
+  const wiki = useWiki();
+  const refreshAll = useCallback(
+    () => Promise.all([refreshUsers(), refreshProject(), issues.reload(), wiki.reload()]).then(() => undefined),
+    [refreshUsers, refreshProject, issues.reload, wiki.reload],
+  );
+  useEffect(() => {
+    void refreshAll();
+  }, [refreshAll, route.path]);
   return (
     <div className="shell">
-      <Nav current={route.path} />
+      <Nav current={route.path} onRefresh={refreshAll} />
       <main className="shell__content">
         <Screen route={route} />
       </main>

@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { collection, mkdirp } from "../../../src/main/store/collection";
+import { collection, LIST_TTL_MS, mkdirp } from "../../../src/main/store/collection";
 import { isIssue, type Issue } from "../../../src/shared/types";
 
 let root: string;
@@ -104,4 +104,33 @@ test("mkdirp creates nested folders, accepts existing ones, and rejects a parent
   expect((await fsp.stat(join(root, "a", "b", "c"))).isDirectory()).toBe(true);
   await fsp.writeFile(join(root, "file"), "", "utf8");
   await expect(mkdirp(join(root, "file", "under"))).rejects.toMatchObject({ code: expect.stringMatching(/^E/) });
+});
+
+test("list is served from memory while the directory mtime holds, and re-read after an own write or an outside write", async () => {
+  const dir = join(root, "issues");
+  const c = collection<Issue>({ dir, guard: isIssue });
+  await c.create("26-0001", issue());
+  expect(await c.list()).toHaveLength(1);
+  const readdir = vi.spyOn(fsp, "readdir");
+  expect(await c.list()).toHaveLength(1);
+  expect(readdir).not.toHaveBeenCalled();
+  await c.create("26-0002", issue({ key: "26-0002" }));
+  expect(await c.list()).toHaveLength(2);
+  expect(readdir).toHaveBeenCalledTimes(1);
+  await new Promise((r) => setTimeout(r, 20)); // mtime resolution
+  await fsp.writeFile(join(dir, "26-0003.json"), JSON.stringify(issue({ key: "26-0003" })), "utf8");
+  expect(await c.list()).toHaveLength(3);
+  expect(readdir).toHaveBeenCalledTimes(2);
+});
+
+test("a listing older than LIST_TTL_MS is re-read even when the directory mtime holds", async () => {
+  const dir = join(root, "issues");
+  const c = collection<Issue>({ dir, guard: isIssue });
+  await c.create("26-0001", issue());
+  expect(await c.list()).toHaveLength(1);
+  const readdir = vi.spyOn(fsp, "readdir");
+  const now = Date.now();
+  vi.spyOn(Date, "now").mockReturnValue(now + LIST_TTL_MS + 1);
+  expect(await c.list()).toHaveLength(1);
+  expect(readdir).toHaveBeenCalledTimes(1);
 });

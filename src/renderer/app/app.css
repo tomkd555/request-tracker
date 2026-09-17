@@ -37,6 +37,21 @@
   background: var(--bg-nav-active);
 }
 
+.nav__link--button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  margin-bottom: var(--space-2);
+}
+
+.nav__link--button:focus-visible {
+  outline: 2px solid var(--text-on-brand);
+  outline-offset: -2px;
+}
+
 .nav__user {
   font-size: var(--text-sm);
 }
