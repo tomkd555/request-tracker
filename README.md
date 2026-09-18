@@ -20,8 +20,9 @@ Screenshots: to be added.
 - Monthly counts by reporter, assignee, status and category, with CSV export (UTF-8 with BOM, for spreadsheet apps)
 - Nothing runs in the background: the app reads the shared folder when a screen opens, after a save, and on 更新 in the nav
 - Colour presets (green, blue, grey, dark) with a free accent colour per machine, and a colour per category and per label shared by the team
-- Members registered by name in project settings, so an issue can be assigned to someone who has yet to open the app; that person picks the name on first launch and it becomes theirs
-- Two settings screens: 設定 (name, appearance, due-soon window, shared folder; all per machine) and プロジェクト設定 (categories with colours and templates, labels, members, custom columns; shared by the team)
+- Members registered by name in project settings or right from the assignee field (メンバーを追加…), so an issue can be assigned to someone who has yet to open the app; that person picks the name on first launch and it becomes theirs
+- Status stages defined per project: name, colour, order, and a kind (活動中, 確認待ち, 完了) that drives the due-date tones, the 確認待ち filter, 確認して完了 and the monthly closed count; a stage can be removed while issues still use it, and those issues read as the first stage
+- Two settings screens: 設定 (name, appearance, due-soon window, shared folder; all per machine) and プロジェクト設定 (categories with colours and templates, status stages, labels, members, custom columns; shared by the team)
 
 ## How it works
 
@@ -29,7 +30,7 @@ There is no server and no database. The shared folder is the database:
 
 ```
 <root>/
-  project.json                         fiscal year start month, categories with their colours and templates, labels with their colours, custom column definitions
+  project.json                         fiscal year start month, categories with their colours and templates, status stages, labels with their colours, custom column definitions
   users/<username|stamp>.json          a stamp names a member added in project settings; the file gains `login` once that person picks the name
   issues/<KEY>.json                    one issue: fields, label names, typed links written on this side only
   comments/<KEY>/<stamp>-<username>.json
@@ -51,6 +52,7 @@ There is no server and no database. The shared folder is the database:
 - A save carries the `updatedAt` the client last read; when the file on disk holds a newer one, the store refuses the write before anything is copied or written, so the later editor sees the message and reloads. Restoring a version goes through the same check.
 - A typed link is stored on the issue it was added to; the other issue shows the inverse when read. A label is stored by name, like a category, so a label removed from the project stays on its issues as a grey chip.
 - A client running 0.2.0 keeps the 0.3.0 fields it cannot show (`labels`, `relations`) when it saves, because every save writes the whole record it read.
+- An issue's `status` is the id of a stage in `project.json`; the four stages of 0.3.0 keep their ids, so a 0.4.0 client reads older records unchanged. A client older than 0.4.0 skips an issue on a stage added later, so update every client before adding a stage.
 - Issue keys are `YY-NNNN`: the two-digit fiscal year and a sequence within it (`26-0001`). The key is claimed with an exclusive create, so two clients creating at the same moment get distinct keys with no counter file.
 - Nothing runs in the background. The app reads the shared folder when a screen opens, after its own save, and when 更新 is pressed; a change another person made shows on the next of those. A listing is served from memory while the directory's mtime is unchanged and the listing is under a minute old (every write is a temp file plus a rename inside the directory, so the mtime moves), and a client's own write drops its cache at once. SMB shares deliver no file-watch events reliably, so there is no watcher.
 - The current user is the OS username; the name shown to other members is asked once on first launch and stored in `users/`. A member added by name in project settings is a record with a stamp id; when that person launches the app and picks the name, the OS username is written into the record as `login`, so the assignee value on existing issues stays as it is.

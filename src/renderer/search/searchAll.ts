@@ -1,7 +1,6 @@
-import type { Comment, Issue, WikiPage } from "../../shared/types";
-import { ISSUE_STATUSES } from "../../shared/types";
+import type { Comment, Issue, StatusDef, WikiPage } from "../../shared/types";
 import { today } from "../issues/dates";
-import { DEFAULT_FILTER, filterIssues } from "../issues/filterIssues";
+import { EMPTY_FILTER, filterIssues } from "../issues/filterIssues";
 import { searchPages } from "../wiki/wikiTree";
 
 /** One row of the search screen, grouped by where the keyword was found; `at` carries a comment's `createdAt`. */
@@ -22,13 +21,13 @@ export function snippet(text: string, keyword: string, radius = RADIUS): string 
   return `${start > 0 ? "…" : ""}${flat.slice(start, end)}${end < flat.length ? "…" : ""}`;
 }
 
-/** Issues, then their comments, then wiki pages holding `keyword`. Blank keyword finds nothing. */
-export function searchAll(keyword: string, issues: Issue[], comments: Comment[], pages: WikiPage[]): Hit[] {
+/** Issues of every stage, then their comments, then wiki pages holding `keyword`. Blank keyword finds nothing. */
+export function searchAll(keyword: string, issues: Issue[], comments: Comment[], pages: WikiPage[], statuses: StatusDef[]): Hit[] {
   const kw = keyword.trim();
   if (kw === "") return [];
   const kwFold = kw.toLocaleLowerCase();
 
-  const issueHits: Hit[] = filterIssues(issues, { ...DEFAULT_FILTER, statuses: ISSUE_STATUSES, keyword: kw }, today(), "").map((i) => ({
+  const issueHits: Hit[] = filterIssues(issues, { ...EMPTY_FILTER, statuses: statuses.map((s) => s.id), keyword: kw }, today(), "", statuses).map((i) => ({
     kind: "issue",
     id: i.key,
     title: `${i.key} ${i.summary}`,

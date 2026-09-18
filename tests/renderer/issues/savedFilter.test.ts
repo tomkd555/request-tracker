@@ -1,7 +1,9 @@
 import { expect, test } from "vitest";
-import { DEFAULT_FILTER } from "../../../src/renderer/issues/filterIssues";
+import { defaultFilter } from "../../../src/renderer/issues/filterIssues";
 import { removeFilter, sameFilter, upsertFilter } from "../../../src/renderer/issues/savedFilter";
-import type { IssueFilter, SavedFilter } from "../../../src/shared/types";
+import { DEFAULT_STATUSES, type IssueFilter, type SavedFilter } from "../../../src/shared/types";
+
+const DEFAULT_FILTER = defaultFilter(DEFAULT_STATUSES);
 
 const filter = (over: Partial<IssueFilter> = {}): IssueFilter => ({ ...DEFAULT_FILTER, ...over });
 

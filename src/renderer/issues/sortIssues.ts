@@ -1,4 +1,4 @@
-import { ISSUE_PRIORITIES, ISSUE_STATUSES, type Issue } from "../../shared/types";
+import { ISSUE_PRIORITIES, type Issue, type StatusDef } from "../../shared/types";
 
 type FixedKey = "key" | "summary" | "category" | "assignee" | "status" | "priority" | "dueDate" | "updatedAt";
 /** A fixed column, or a 汎用列 as "field:<CustomField id>". */
@@ -11,9 +11,10 @@ export const fieldSortKey = (id: string): SortKey => `field:${id}`;
 
 const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Comparator for top-level rows. An empty assignee, 汎用列 or due date sorts last in either direction; ties fall back to key descending. */
-export function issueComparator(sort: IssueSort, nameOf: (username: string | null) => string): (a: Issue, b: Issue) => number {
+/** Comparator for top-level rows. An empty assignee, 汎用列 or due date sorts last in either direction; ties fall back to key descending. Status follows the project's order. */
+export function issueComparator(sort: IssueSort, nameOf: (username: string | null) => string, statuses: StatusDef[]): (a: Issue, b: Issue) => number {
   const sign = sort.dir === "asc" ? 1 : -1;
+  const statusIndex = (id: string): number => statuses.findIndex((s) => s.id === id);
   const emptyLast = (va: string, vb: string): number => (va === "" && vb !== "" ? 1 : vb === "" && va !== "" ? -1 : cmpStr(va, vb) * sign);
   return (a, b) => primary(a, b) || cmpStr(b.key, a.key);
 
@@ -30,7 +31,7 @@ export function issueComparator(sort: IssueSort, nameOf: (username: string | nul
       case "dueDate":
         return emptyLast(a.dueDate ?? "", b.dueDate ?? "");
       case "status":
-        return (ISSUE_STATUSES.indexOf(a.status) - ISSUE_STATUSES.indexOf(b.status)) * sign;
+        return (statusIndex(a.status) - statusIndex(b.status)) * sign;
       case "priority":
         return (ISSUE_PRIORITIES.indexOf(a.priority) - ISSUE_PRIORITIES.indexOf(b.priority)) * sign;
       default: {

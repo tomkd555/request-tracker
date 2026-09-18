@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { textOn, TYPE_PILL_DEFAULT } from "../app/theme";
+import { textOn } from "../app/theme";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { BULK_MAX, bulkApply, type BulkPatch, type BulkResult } from "./bulkEdit";
@@ -7,10 +7,10 @@ import { BulkBar } from "./BulkBar";
 import { today } from "./dates";
 import { dueTone } from "./dueTone";
 import { FilterBar } from "./FilterBar";
-import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "./filterIssues";
+import { defaultFilter, filterIssues, type IssueFilter } from "./filterIssues";
 import { groupByParent } from "./groupByParent";
-import { defaultStatusName, issuesToCsv } from "./issuesToCsv";
-import { formatDate, labelColor, PRIORITY_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { issuesToCsv } from "./issuesToCsv";
+import { categoryColor as categoryColorOf, formatDate, labelColor, PRIORITY_LABEL, statusName, statusStyle } from "./labels";
 import { staleMessage } from "./saveError";
 import { isUnseen } from "./seen";
 import { SavedFilters } from "./SavedFilters";
@@ -31,13 +31,13 @@ const FIXED_COLUMNS: { key: SortKey; label: string }[] = [
 export function IssueList(): React.JSX.Element {
   const { me, users, project, config } = useSession();
   const { issues, byKey, loaded, reload } = useIssues();
-  const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
+  const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
   const [message, setMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const day = today();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const rows = groupByParent(filterIssues(issues, filter, day, me.username), issueComparator(sort, nameOf));
+  const rows = groupByParent(filterIssues(issues, filter, day, me.username, project.statuses), issueComparator(sort, nameOf, project.statuses));
   const columns = [...FIXED_COLUMNS, ...project.fields.map((f) => ({ key: fieldSortKey(f.id), label: f.name }))];
   const visibleKeys = rows.map((r) => r.issue.key);
   const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.every((k) => selected.has(k));
@@ -73,7 +73,7 @@ export function IssueList(): React.JSX.Element {
   const exportCsv = async (): Promise<void> => {
     setMessage(null);
     try {
-      const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: defaultStatusName }, project.fields), `issues-${day}.csv`);
+      const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: (s) => statusName(project.statuses, s) }, project.fields), `issues-${day}.csv`);
       setMessage(saved ? "CSVを保存しました" : null);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
@@ -117,8 +117,8 @@ export function IssueList(): React.JSX.Element {
         </thead>
         <tbody>
           {rows.map(({ issue: i, depth }) => {
-            const tone = dueTone(i, day, config.dueSoonDays);
-            const categoryColor = project.categoryColors[i.category] ?? TYPE_PILL_DEFAULT;
+            const tone = dueTone(i, day, config.dueSoonDays, project.statuses);
+            const categoryColor = categoryColorOf(project, i.category);
             return (
               <tr
                 key={i.key}
@@ -152,7 +152,7 @@ export function IssueList(): React.JSX.Element {
                 </td>
                 <td className="issue-table__cell">{nameOf(i.assignee)}</td>
                 <td className="issue-table__cell">
-                  <span className={statusClass(i.status)}>{STATUS_LABEL[i.status]}</span>
+                  <span className="pill" style={statusStyle(project.statuses, i.status)}>{statusName(project.statuses, i.status)}</span>
                 </td>
                 <td className={`issue-table__cell priority--${i.priority}`}>{PRIORITY_LABEL[i.priority]}</td>
                 <td className={`issue-table__cell${tone === "none" ? "" : ` issue-table__cell--${tone}`}`}>{formatDate(i.dueDate)}</td>

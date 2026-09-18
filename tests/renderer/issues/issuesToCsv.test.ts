@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
-import { defaultStatusName, issuesToCsv } from "../../../src/renderer/issues/issuesToCsv";
-import type { Issue } from "../../../src/shared/types";
+import { issuesToCsv } from "../../../src/renderer/issues/issuesToCsv";
+import { statusName } from "../../../src/renderer/issues/labels";
+import { DEFAULT_STATUSES, type Issue } from "../../../src/shared/types";
 
 const issue = (over: Partial<Issue>): Issue => ({
   key: "26-0001",
@@ -22,7 +23,7 @@ const issue = (over: Partial<Issue>): Issue => ({
   relations: [],
   ...over,
 });
-const names = { user: (u: string | null): string => (u === null ? "" : u.toUpperCase()), status: defaultStatusName };
+const names = { user: (u: string | null): string => (u === null ? "" : u.toUpperCase()), status: (s: string): string => statusName(DEFAULT_STATUSES, s) };
 
 test("header row, one line per row, quoting and formula guard applied", () => {
   const rows = [

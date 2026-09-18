@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { ISSUE_STATUSES, type Comment, type Issue, type IssueStatus } from "../../shared/types";
+import type { Comment, Issue, IssueStatus } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { useNavigationGuard } from "../app/useHashRoute";
 import { changeEntries, type ChangeEntry } from "./diffVersions";
-import { formatDateTime, STATUS_LABEL } from "./labels";
+import { formatDateTime } from "./labels";
 import { staleMessage } from "./saveError";
 
 interface Props {
@@ -32,8 +32,8 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   const load = useCallback(async () => setItems(await window.api.comments.list(issueKey)), [issueKey]);
   const loadChanges = useCallback(async () => {
     const history = await window.api.issues.history(issueKey);
-    setChanges(changeEntries(history, issue, nameOf, project.fields));
-  }, [issueKey, issue, nameOf, project.fields]);
+    setChanges(changeEntries(history, issue, nameOf, project.fields, project.statuses));
+  }, [issueKey, issue, nameOf, project.fields, project.statuses]);
 
   useEffect(() => {
     void load();
@@ -125,9 +125,9 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
         <label className="filter-bar__field">
           状態
           <select aria-label="状態" value={status} onChange={(e) => setStatus(e.target.value as IssueStatus)}>
-            {ISSUE_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
+            {project.statuses.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
               </option>
             ))}
           </select>

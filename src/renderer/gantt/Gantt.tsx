@@ -3,8 +3,8 @@ import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { ymd } from "../issues/dates";
 import { FilterBar } from "../issues/FilterBar";
-import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "../issues/filterIssues";
-import { STATUS_LABEL, statusClass } from "../issues/labels";
+import { defaultFilter, filterIssues, type IssueFilter } from "../issues/filterIssues";
+import { statusName, statusStyle } from "../issues/labels";
 import { SavedFilters } from "../issues/SavedFilters";
 import { staleMessage } from "../issues/saveError";
 import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "../issues/sortIssues";
@@ -41,11 +41,11 @@ function dragged(seg: Segment, mode: DragMode, delta: number): Segment {
 }
 
 export function Gantt(): React.JSX.Element {
-  const { me, users } = useSession();
+  const { me, users, project } = useSession();
   const { issues, byKey, refreshOne } = useIssues();
   const [month, setMonth] = useState(thisMonth());
   const [months, setMonths] = useState<Months>(1);
-  const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
+  const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [includeUndated, setIncludeUndated] = useState(false);
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
@@ -56,12 +56,13 @@ export function Gantt(): React.JSX.Element {
   const range = rangeFor(month, months);
   const dayPx = DAY_PX[months];
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const layout = layoutGantt(filterIssues(issues, filter, today, me.username), range, {
+  const layout = layoutGantt(filterIssues(issues, filter, today, me.username, project.statuses), range, {
     today,
     groupBy,
     collapsed,
     includeUndated,
-    compare: issueComparator(sort, nameOf),
+    statuses: project.statuses,
+    compare: issueComparator(sort, nameOf, project.statuses),
     groupLabel: nameOf,
   });
   const dayCount = layout.days.length;
@@ -108,7 +109,7 @@ export function Gantt(): React.JSX.Element {
     if (r.bar === null) return null;
     const draggable = r.tone !== "muted" && r.kind !== "bracket";
     const seg = drag && drag.key === r.key ? dragged(r.bar, drag.mode, drag.delta) : r.bar;
-    const tip = `${r.key} ${r.summary}\n開始 ${r.startDate ?? ""} 期限 ${r.dueDate ?? ""}\n${displayNameOf(users, r.assignee)} ${STATUS_LABEL[r.status]}`;
+    const tip = `${r.key} ${r.summary}\n開始 ${r.startDate ?? ""} 期限 ${r.dueDate ?? ""}\n${displayNameOf(users, r.assignee)} ${statusName(project.statuses, r.status)}`;
     const onDown = (e: React.PointerEvent<HTMLDivElement>): void => {
       if (!draggable || e.button !== 0) return;
       const rect = e.currentTarget.getBoundingClientRect();
@@ -193,7 +194,7 @@ export function Gantt(): React.JSX.Element {
           </>,
         )}
         {cell(1, "", displayNameOf(users, r.assignee))}
-        {cell(2, "", <span className={statusClass(r.status)}>{STATUS_LABEL[r.status]}</span>)}
+        {cell(2, "", <span className="pill" style={statusStyle(project.statuses, r.status)}>{statusName(project.statuses, r.status)}</span>)}
         {cell(3, r.tone === "overdue" ? "gantt__cell--overdue" : "", r.dueDate ?? "")}
         <div className="gantt__track" style={{ gridRow: row, gridColumn: `5 / -1`, backgroundSize: `${dayPx}px 100%` }}>
           {barFor(r)}

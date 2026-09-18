@@ -1,5 +1,6 @@
-import type { Issue, IssueStatus } from "../../shared/types";
+import type { Issue, IssueStatus, StatusDef } from "../../shared/types";
 import { addDays, dayDiff, fromYmd, ymd } from "../issues/dates";
+import { isActiveStatus } from "../issues/labels";
 
 export type Tone = "normal" | "overdue" | "muted";
 /** bar: start to due; point: a start date alone; bracket: a parent's span taken from its children; none: listed without dates. */
@@ -38,6 +39,8 @@ export interface LayoutOptions {
   collapsed: Set<string>;
   /** Also list issues with no dates, without a bar. */
   includeUndated: boolean;
+  /** The project's stages; an issue past the active ones draws muted. */
+  statuses: StatusDef[];
   /** Order of the top-level rows; default key descending. Children always follow their parent in key order. */
   compare?: (a: Issue, b: Issue) => number;
   /** Display name of an assignee, which orders the 担当者 groups; default: the username itself. */
@@ -76,8 +79,6 @@ export function monthsOf(days: DayCell[]): MonthCell[] {
   return out;
 }
 
-const isOpen = (i: Issue): boolean => i.status === "open" || i.status === "in_progress";
-
 /** Days the bar covers before clipping: start (or the created day when only a due date is set) to due (or start alone). */
 function spanOf(i: Issue): { from: string; to: string; kind: "bar" | "point" } | null {
   if (i.startDate === null && i.dueDate === null) return null;
@@ -94,7 +95,8 @@ function clip(from: string, to: string, range: DateRange): Segment | null {
   return { startCol: dayDiff(range.start, a), span: dayDiff(a, b) + 1 };
 }
 
-const toneOf = (i: Issue, today: string): Tone => (!isOpen(i) ? "muted" : i.dueDate !== null && i.dueDate < today ? "overdue" : "normal");
+const toneOf = (i: Issue, today: string, statuses: StatusDef[]): Tone =>
+  !isActiveStatus(statuses, i.status) ? "muted" : i.dueDate !== null && i.dueDate < today ? "overdue" : "normal";
 
 /** Rows for the range: dated issues, the parents holding them, and (when asked) undated ones; parents first, children indented. */
 export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptions): GanttLayout {
@@ -144,7 +146,7 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
         bar = clip(b.from, b.to, range);
       }
     }
-    const late = s && isOpen(i) && i.dueDate !== null && i.dueDate < opts.today ? clip(addDays(i.dueDate, 1), opts.today, range) : null;
+    const late = s && isActiveStatus(opts.statuses, i.status) && i.dueDate !== null && i.dueDate < opts.today ? clip(addDays(i.dueDate, 1), opts.today, range) : null;
     return {
       key: i.key,
       summary: i.summary,
@@ -156,7 +158,7 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
       kind,
       bar,
       late,
-      tone: toneOf(i, opts.today),
+      tone: toneOf(i, opts.today, opts.statuses),
       hasChildren: kids.length > 0,
       collapsed: opts.collapsed.has(i.key),
     };

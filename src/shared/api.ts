@@ -1,4 +1,4 @@
-import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Project, User, WikiPage } from "./types";
+import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Project, StatusDef, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
@@ -24,6 +24,8 @@ export type StoreApi = {
     putFields(fields: CustomField[]): Promise<Project>;
     /** Replaces the ラベル definitions; other fields stay as on disk. */
     putLabels(labels: Label[]): Promise<Project>;
+    /** Replaces the 状態 stages; other fields stay as on disk. An issue on a removed stage reads as the first stage. */
+    putStatuses(statuses: StatusDef[]): Promise<Project>;
   };
   users: {
     /** The record keyed by the OS login, or the member who bound that login with `claim`. */
@@ -31,7 +33,7 @@ export type StoreApi = {
     /** Creates or renames the current user's own record under the OS login (first launch). */
     register(displayName: string): Promise<User>;
     list(): Promise<User[]>;
-    /** A member added by name in project settings; the username is a file stamp. */
+    /** A member added by name; the username is a file stamp. A name already registered resolves to that member. */
     add(displayName: string): Promise<User>;
     rename(username: string, displayName: string): Promise<User>;
     /** Binds the OS login to a member added by name; rejects with "already-claimed" once bound. */
@@ -84,7 +86,7 @@ export type Api = StoreApi & {
 
 export const API_METHODS = {
   config: ["get", "chooseRoot", "put"],
-  project: ["get", "init", "put", "putFields", "putLabels"],
+  project: ["get", "init", "put", "putFields", "putLabels", "putStatuses"],
   users: ["me", "register", "list", "add", "rename", "claim", "remove"],
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],

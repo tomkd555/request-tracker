@@ -1,14 +1,14 @@
 import { useState } from "react";
 import type { IssueFilter, SavedFilter } from "../../shared/types";
 import { useSession } from "../app/UserContext";
-import { DEFAULT_FILTER } from "./filterIssues";
+import { defaultFilter, EMPTY_FILTER } from "./filterIssues";
 import { removeFilter, sameFilter, upsertFilter } from "./savedFilter";
 
 type Props = { filter: IssueFilter; onChange(f: IssueFilter): void };
 
 /** Bookmarks a filter per machine, in config.json. Shown beside FilterBar on the list and gantt screens. */
 export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
-  const { config, refreshConfig } = useSession();
+  const { config, project, refreshConfig } = useSession();
   const [selected, setSelected] = useState("");
   const current = config.savedFilters.find((s) => s.name === selected) ?? null;
   const dirty = current !== null && !sameFilter(current.filter, filter);
@@ -47,7 +47,11 @@ export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
           onChange={(e) => {
             setSelected(e.target.value);
             const s = config.savedFilters.find((f) => f.name === e.target.value);
-            if (s) onChange({ ...DEFAULT_FILTER, ...s.filter });
+            // A stage deleted since the bookmark was saved is dropped; a bookmark left with no stage opens on the default set.
+            if (s) {
+              const statuses = s.filter.statuses.filter((id) => project.statuses.some((x) => x.id === id));
+              onChange({ ...EMPTY_FILTER, ...s.filter, statuses: statuses.length === 0 ? defaultFilter(project.statuses).statuses : statuses });
+            }
           }}
         >
           <option value="">選択してください</option>

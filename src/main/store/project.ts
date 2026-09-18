@@ -1,6 +1,17 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
-import { DEFAULT_CATEGORIES, HEX_COLOR, isProject, type CategoryTemplate, type CustomField, type Label, type Project } from "../../shared/types";
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_STATUSES,
+  HEX_COLOR,
+  isProject,
+  STATUS_KINDS,
+  type CategoryTemplate,
+  type CustomField,
+  type Label,
+  type Project,
+  type StatusDef,
+} from "../../shared/types";
 import { SHARE_UNREACHABLE } from "./attachments";
 import { mkdirp, readRecord, writeAtomic } from "./collection";
 import { fileStamp } from "./fileStamp";
@@ -10,6 +21,9 @@ const serialize = (p: Project): string => JSON.stringify(p, null, 2) + "\n";
 
 /** project.json exists but fails to parse or validate. */
 export const PROJECT_INVALID = "project-invalid";
+
+/** Grey, for a stage whose stored colour is unreadable. */
+const FALLBACK_COLOR = "#6c7a87";
 
 /**
  * A project.json written before `categories` or `categoryColors` existed comes back with the defaults.
@@ -29,10 +43,14 @@ export async function readProject(l: Layout): Promise<Project | null> {
   }
   // project.json is read from the share, so a colour edited by hand is dropped here the way putCategories and putLabels would refuse it.
   const colors = Object.fromEntries(Object.entries(p.categoryColors ?? {}).filter(([, c]) => HEX_COLOR.test(c)));
+  // A stage is the key issues are stored under, so a hand-edited colour is replaced, never dropped; an empty list falls back to the defaults
+  // because the screens index statuses[0] and derive the default filter from the list.
+  const statuses = (p.statuses ?? []).map((s) => (HEX_COLOR.test(s.color) ? s : { ...s, color: FALLBACK_COLOR }));
   return {
     ...p,
     categoryColors: colors,
     labels: (p.labels ?? []).filter((l) => HEX_COLOR.test(l.color)),
+    statuses: statuses.length === 0 ? DEFAULT_STATUSES : statuses,
     categories: p.categories ?? DEFAULT_CATEGORIES,
     categoryTemplates: p.categoryTemplates ?? {},
     fields: p.fields ?? [],
@@ -51,6 +69,7 @@ export async function initProject(l: Layout, fiscalYearStartMonth: number): Prom
     categoryTemplates: {},
     fields: [],
     labels: [],
+    statuses: DEFAULT_STATUSES,
   };
   for (const dir of collectionDirs(l)) await mkdirp(dir);
   await fsp.writeFile(l.projectFile, serialize(project), { encoding: "utf8", flag: "wx" }); // exclusive: a file that appeared meanwhile stays
@@ -115,6 +134,25 @@ export async function putLabels(l: Layout, labels: Label[]): Promise<Project> {
     cleaned.push({ name, color: label.color.toLowerCase() });
   }
   return writeProject(l, { ...current, labels: cleaned });
+}
+
+// ponytail: removing a stage leaves its id on existing issues; the renderer reads those as the first stage and writes it back on their next save.
+/** Replaces the 状態 stages only: a row with a blank name is dropped, a repeated id keeps its first row, colours must be #rrggbb, kinds must be known, at least one row stays. */
+export async function putStatuses(l: Layout, statuses: StatusDef[]): Promise<Project> {
+  const current = await readProject(l);
+  if (current === null) throw new Error("project.json is missing");
+  const seen = new Set<string>();
+  const cleaned: StatusDef[] = [];
+  for (const s of statuses) {
+    const name = s.name.trim();
+    if (name === "" || s.id === "" || seen.has(s.id)) continue;
+    if (!HEX_COLOR.test(s.color)) throw new Error(`colour must be #rrggbb: ${s.color}`);
+    if (!STATUS_KINDS.includes(s.kind)) throw new Error(`unknown status kind: ${String(s.kind)}`);
+    seen.add(s.id);
+    cleaned.push({ id: s.id, name, color: s.color.toLowerCase(), kind: s.kind });
+  }
+  if (cleaned.length === 0) throw new Error("statuses must not be empty");
+  return writeProject(l, { ...current, statuses: cleaned });
 }
 
 /** The previous file goes to history/project/ before the atomic overwrite. */

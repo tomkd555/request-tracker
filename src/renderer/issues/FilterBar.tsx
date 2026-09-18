@@ -1,7 +1,6 @@
-import { ISSUE_STATUSES, type IssueStatus, type User } from "../../shared/types";
+import type { IssueStatus, User } from "../../shared/types";
 import { categoryOptions, useSession } from "../app/UserContext";
-import { DEFAULT_FILTER, type DueFilter, type IssueFilter } from "./filterIssues";
-import { STATUS_LABEL } from "./labels";
+import { defaultFilter, type DueFilter, type IssueFilter } from "./filterIssues";
 import { LabelPicker } from "./LabelPicker";
 
 type Props = { filter: IssueFilter; users: User[]; onChange(f: IssueFilter): void };
@@ -45,10 +44,10 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
   return (
     <div className="filter-bar">
       <span className="filter-bar__label">状態</span>
-      {ISSUE_STATUSES.map((s) => (
-        <label key={s} className="filter-bar__check">
-          <input type="checkbox" checked={filter.statuses.includes(s)} onChange={() => toggleStatus(s)} />
-          {STATUS_LABEL[s]}
+      {project.statuses.map((s) => (
+        <label key={s.id} className="filter-bar__check">
+          <input type="checkbox" checked={filter.statuses.includes(s.id)} onChange={() => toggleStatus(s.id)} />
+          {s.name}
         </label>
       ))}
       <label className="filter-bar__field">
@@ -123,7 +122,7 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
         value={filter.keyword}
         onChange={(e) => onChange({ ...filter, keyword: e.target.value })}
       />
-      <button type="button" onClick={() => onChange(DEFAULT_FILTER)}>
+      <button type="button" onClick={() => onChange(defaultFilter(project.statuses))}>
         クリア
       </button>
     </div>

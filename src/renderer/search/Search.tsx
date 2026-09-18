@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Comment } from "../../shared/types";
+import { useSession } from "../app/UserContext";
 import { useIssues } from "../issues/useIssues";
 import { useWiki } from "../wiki/useWiki";
 import { searchAll, type Hit } from "./searchAll";
@@ -15,6 +16,7 @@ const hrefFor = (h: Hit): string => (h.kind === "wiki" ? `#/wiki/${h.id}` : `#/i
 
 /** Submit-driven: a keyword search reads issues and wiki pages already held by the shell, and pulls every comment fresh from the share. */
 export function Search(): React.JSX.Element {
+  const { project } = useSession();
   const { issues } = useIssues();
   const { pages } = useWiki();
   const [keyword, setKeyword] = useState("");
@@ -33,7 +35,7 @@ export function Search(): React.JSX.Element {
     // ponytail: one full pass over comments/ per search; cache it in the renderer and drop it on 更新 if a search starts to feel slow
     try {
       const comments: Comment[] = await window.api.comments.listAll();
-      setHits(searchAll(kw, issues, comments, pages));
+      setHits(searchAll(kw, issues, comments, pages, project.statuses));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

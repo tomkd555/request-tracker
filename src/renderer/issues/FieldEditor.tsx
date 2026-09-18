@@ -39,12 +39,13 @@ type SelectProps<T extends string> = {
   options: { value: T; label: string }[];
   onSave(v: T): void;
   className?: string;
+  style?: React.CSSProperties;
   ariaLabel?: string;
 };
 
-export function SelectField<T extends string>({ value, options, onSave, className, ariaLabel }: SelectProps<T>): React.JSX.Element {
+export function SelectField<T extends string>({ value, options, onSave, className, style, ariaLabel }: SelectProps<T>): React.JSX.Element {
   return (
-    <select className={className} aria-label={ariaLabel} value={value} onChange={(e) => onSave(e.target.value as T)}>
+    <select className={className} style={style} aria-label={ariaLabel} value={value} onChange={(e) => onSave(e.target.value as T)}>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}

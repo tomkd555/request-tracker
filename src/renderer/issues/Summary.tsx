@@ -2,17 +2,17 @@ import { useState } from "react";
 import type { IssueStatus } from "../../shared/types";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { countByMonth, monthOf, toCsv, type Count } from "./countByMonth";
-import { STATUS_LABEL } from "./labels";
+import { statusName } from "./labels";
 import { useIssues } from "./useIssues";
 
 export function Summary(): React.JSX.Element {
-  const { users } = useSession();
+  const { users, project } = useSession();
   const { issues } = useIssues();
   const [month, setMonth] = useState(monthOf(new Date().toISOString()));
   const [message, setMessage] = useState<string | null>(null);
-  const counts = countByMonth(issues, month);
+  const counts = countByMonth(issues, month, project.statuses);
   const user = (u: string): string => displayNameOf(users, u);
-  const status = (s: IssueStatus): string => STATUS_LABEL[s];
+  const status = (s: IssueStatus): string => statusName(project.statuses, s);
 
   const exportCsv = async (): Promise<void> => {
     setMessage(null);

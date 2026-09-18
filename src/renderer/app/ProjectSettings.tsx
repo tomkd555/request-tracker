@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import type { CategoryTemplate, CustomField, Label, Project } from "../../shared/types";
+import { STATUS_KINDS, type CategoryTemplate, type CustomField, type Label, type Project, type StatusDef, type StatusKind } from "../../shared/types";
 import { TextField } from "../issues/FieldEditor";
-import { LABEL_DEFAULT } from "../issues/labels";
+import { KIND_LABEL } from "../issues/labels";
 import { useSaveMessage } from "./Settings";
-import { TYPE_PILL_DEFAULT } from "./theme";
+import { nextColor, PALETTE } from "./theme";
 import { useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
 
-/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the ラベル list, the members, the 汎用列. */
+/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the 状態 stages, the ラベル list, the members, the 汎用列. */
 export function ProjectSettings(): React.JSX.Element {
   return (
     <div>
@@ -16,6 +16,7 @@ export function ProjectSettings(): React.JSX.Element {
       </header>
       <div className="settings">
         <CategorySection />
+        <StatusSection />
         <LabelSection />
         <MemberSection />
         <FieldSection />
@@ -195,12 +196,12 @@ function CategorySection(): React.JSX.Element {
     run(async () => {
       const colors: Record<string, string> = {};
       const templates: Record<string, CategoryTemplate> = {};
-      for (const r of rows) {
+      rows.forEach((r, i) => {
         const name = r.name.trim();
-        if (name === "") continue;
-        if (r.color !== null) colors[name] = r.color;
+        if (name === "") return;
+        colors[name] = r.color ?? PALETTE[i % PALETTE.length].hex; // the preset shown for the row is saved with it, so a later reorder keeps every 種別's colour
         templates[name] = r.template;
-      }
+      });
       await window.api.project.put(
         rows.map((r) => r.name),
         colors,
@@ -222,11 +223,9 @@ function CategorySection(): React.JSX.Element {
         <ul className="settings__list">
           {rows.map((r, i) => (
             <li key={i} className="settings__row">
-              <input
-                type="color"
-                aria-label="色"
-                value={r.color ?? TYPE_PILL_DEFAULT}
-                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)))}
+              <ColorField
+                value={r.color ?? PALETTE[i % PALETTE.length].hex}
+                onChange={(color) => update(rows.map((x, j) => (j === i ? { ...x, color } : x)))}
               />
               <input
                 className="settings__name"
@@ -284,6 +283,107 @@ function CategorySection(): React.JSX.Element {
   );
 }
 
+/** The eight presets as swatches, then the native picker for any other colour. */
+function ColorField({ value, onChange }: { value: string; onChange: (hex: string) => void }): React.JSX.Element {
+  const current = value.toLowerCase();
+  return (
+    <span className="swatches" role="radiogroup" aria-label="色">
+      {PALETTE.map((p) => (
+        <button
+          key={p.hex}
+          type="button"
+          role="radio"
+          aria-checked={current === p.hex}
+          aria-label={p.label}
+          className={`swatches__item${current === p.hex ? " swatches__item--selected" : ""}`}
+          style={{ background: p.hex }}
+          onClick={() => onChange(p.hex)}
+        />
+      ))}
+      <input type="color" aria-label="その他の色" value={value} onChange={(e) => onChange(e.target.value)} />
+    </span>
+  );
+}
+
+function StatusSection(): React.JSX.Element {
+  const { project, refreshProject } = useSession();
+  const [rows, setRows] = useState<StatusDef[]>(() => project.statuses);
+  const [dirty, setDirty] = useState(false);
+  const [message, run] = useSaveMessage();
+  useEffect(() => {
+    if (!dirty) setRows(project.statuses);
+  }, [project, dirty]);
+  useNavigationGuard(dirty);
+
+  const update = (next: StatusDef[]): void => {
+    setRows(next);
+    setDirty(true);
+  };
+  const move = (i: number, d: -1 | 1): void => {
+    const next = [...rows];
+    const [row] = next.splice(i, 1);
+    next.splice(i + d, 0, row);
+    update(next);
+  };
+  const save = (): Promise<void> =>
+    run(async () => {
+      await window.api.project.putStatuses(rows);
+      setDirty(false);
+      await refreshProject();
+    });
+
+  return (
+    <section className="issue-form settings__section">
+      <h3 className="settings__heading">状態</h3>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <ul className="settings__list">
+          {rows.map((r, i) => (
+            <li key={r.id} className="settings__row">
+              <ColorField value={r.color} onChange={(color) => update(rows.map((x, j) => (j === i ? { ...x, color } : x)))} />
+              <input
+                className="settings__name"
+                aria-label="状態名"
+                value={r.name}
+                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+              />
+              <select aria-label="区分" value={r.kind} onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, kind: e.target.value as StatusKind } : x)))}>
+                {STATUS_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {KIND_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+              <button type="button" aria-label="上へ" disabled={i === 0} onClick={() => move(i, -1)}>
+                ↑
+              </button>
+              <button type="button" aria-label="下へ" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
+                ↓
+              </button>
+              <button type="button" disabled={rows.length === 1} onClick={() => update(rows.filter((_, j) => j !== i))}>
+                削除
+              </button>
+            </li>
+          ))}
+        </ul>
+        {message && <p className="text--muted">{message}</p>}
+        <div className="form-actions">
+          <button type="button" onClick={() => update([...rows, { id: crypto.randomUUID(), name: "", color: nextColor(rows.map((r) => r.color)), kind: "active" }])}>
+            追加
+          </button>
+          <button type="submit" disabled={rows.every((r) => r.name.trim() === "")}>
+            保存
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 interface LabelRow { name: string; color: string }
 
 const labelRowsOf = (p: Project): LabelRow[] => p.labels.map((l) => ({ name: l.name, color: l.color }));
@@ -328,12 +428,7 @@ function LabelSection(): React.JSX.Element {
         <ul className="settings__list">
           {rows.map((r, i) => (
             <li key={i} className="settings__row">
-              <input
-                type="color"
-                aria-label="色"
-                value={r.color}
-                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)))}
-              />
+              <ColorField value={r.color} onChange={(color) => update(rows.map((x, j) => (j === i ? { ...x, color } : x)))} />
               <input
                 className="settings__name"
                 aria-label="ラベル名"
@@ -354,7 +449,7 @@ function LabelSection(): React.JSX.Element {
         </ul>
         {message && <p className="text--muted">{message}</p>}
         <div className="form-actions">
-          <button type="button" onClick={() => update([...rows, { name: "", color: LABEL_DEFAULT }])}>
+          <button type="button" onClick={() => update([...rows, { name: "", color: nextColor(rows.map((r) => r.color)) }])}>
             追加
           </button>
           <button type="submit" disabled={rows.every((r) => r.name.trim() === "")}>

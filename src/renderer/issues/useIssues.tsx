@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Issue } from "../../shared/types";
+import { useSession } from "../app/UserContext";
+import { withKnownStatus } from "./labels";
 
 export interface IssuesState {
   issues: Issue[];
@@ -13,6 +15,7 @@ export interface IssuesState {
 const IssuesContext = createContext<IssuesState | null>(null);
 
 export function IssuesProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const { statuses } = useSession().project;
   const [byKey, setByKey] = useState<Map<string, Issue>>(new Map());
   const [loaded, setLoaded] = useState(false);
 
@@ -34,10 +37,11 @@ export function IssuesProvider({ children }: { children: React.ReactNode }): Rea
 
   // No load here: the shell reads the share when a screen opens and on 更新 (see App.tsx).
 
-  const value = useMemo<IssuesState>(
-    () => ({ issues: [...byKey.values()], byKey, loaded, reload, refreshOne }),
-    [byKey, loaded, reload, refreshOne],
-  );
+  // An issue on a stage the project no longer lists reads as the first stage everywhere; its file changes on its next save.
+  const value = useMemo<IssuesState>(() => {
+    const issues = withKnownStatus([...byKey.values()], statuses);
+    return { issues, byKey: new Map(issues.map((i) => [i.key, i])), loaded, reload, refreshOne };
+  }, [byKey, statuses, loaded, reload, refreshOne]);
   return <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>;
 }
 

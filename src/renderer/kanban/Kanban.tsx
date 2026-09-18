@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { textOn, TYPE_PILL_DEFAULT } from "../app/theme";
+import { textOn } from "../app/theme";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { columnsOf } from "./columns";
 import { today } from "../issues/dates";
 import { dueTone } from "../issues/dueTone";
 import { FilterBar } from "../issues/FilterBar";
-import { DEFAULT_FILTER, filterIssues, type IssueFilter } from "../issues/filterIssues";
-import { formatDate, labelColor, STATUS_LABEL } from "../issues/labels";
+import { defaultFilter, filterIssues, type IssueFilter } from "../issues/filterIssues";
+import { categoryColor as categoryColorOf, formatDate, labelColor, statusOf } from "../issues/labels";
 import { staleMessage } from "../issues/saveError";
 import { isUnseen } from "../issues/seen";
 import { SavedFilters } from "../issues/SavedFilters";
@@ -21,11 +21,11 @@ const KEY_MIME = "text/plain";
 export function Kanban(): React.JSX.Element {
   const { me, users, project, config } = useSession();
   const { issues, byKey, refreshOne } = useIssues();
-  const [filter, setFilter] = useState<IssueFilter>(DEFAULT_FILTER);
+  const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
   const [message, setMessage] = useState<string | null>(null);
   const day = today();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const columns = columnsOf(filterIssues(issues, filter, day, me.username), filter.statuses, issueComparator(DEFAULT_SORT, nameOf));
+  const columns = columnsOf(filterIssues(issues, filter, day, me.username, project.statuses), project.statuses, filter.statuses, issueComparator(DEFAULT_SORT, nameOf, project.statuses));
 
   const drop = async (status: IssueStatus, e: React.DragEvent<HTMLDivElement>): Promise<void> => {
     e.preventDefault();
@@ -43,8 +43,8 @@ export function Kanban(): React.JSX.Element {
   };
 
   const card = (i: Issue): React.JSX.Element => {
-    const tone = dueTone(i, day, config.dueSoonDays);
-    const categoryColor = project.categoryColors[i.category] ?? TYPE_PILL_DEFAULT;
+    const tone = dueTone(i, day, config.dueSoonDays, project.statuses);
+    const categoryColor = categoryColorOf(project, i.category);
     return (
       <article
         key={i.key}
@@ -99,8 +99,8 @@ export function Kanban(): React.JSX.Element {
         {columns.map((col) => (
           <div key={col.status} className="kanban-column" onDragOver={(e) => e.preventDefault()} onDrop={(e) => void drop(col.status, e)}>
             <div className="kanban-column__head">
-              <span className={`kanban-column__dot kanban-column__dot--${col.status}`} aria-hidden="true" />
-              {STATUS_LABEL[col.status]}
+              <span className="kanban-column__dot" style={{ background: statusOf(project.statuses, col.status).color }} aria-hidden="true" />
+              {statusOf(project.statuses, col.status).name}
             </div>
             <div className="kanban-column__cards">
               {col.cards.map(card)}

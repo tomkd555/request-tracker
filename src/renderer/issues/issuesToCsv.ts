@@ -1,7 +1,7 @@
 import type { CustomField, Issue, IssueStatus } from "../../shared/types";
 import { cell } from "./countByMonth";
 import type { IssueRow } from "./groupByParent";
-import { formatDate, PRIORITY_LABEL, STATUS_LABEL } from "./labels";
+import { formatDate, PRIORITY_LABEL } from "./labels";
 
 export interface CsvNames { user(username: string | null): string; status(status: IssueStatus): string }
 
@@ -28,5 +28,3 @@ export function issuesToCsv(rows: IssueRow[], names: CsvNames, fields: CustomFie
       .join(",");
   return [[...HEADER, ...fields.map((f) => f.name)].map(cell).join(","), ...rows.map((r) => line(r.issue))].join("\r\n");
 }
-
-export const defaultStatusName = (s: IssueStatus): string => STATUS_LABEL[s];

@@ -24,11 +24,13 @@ export async function putDisplayName(l: Layout, username: string, displayName: s
   return user;
 }
 
-/** A member added by name in project settings; the id is the creation stamp, as for wiki pages. */
+/** A member added by name in project settings or from the 担当者 chooser; the id is the creation stamp, as for wiki pages. A name already registered returns that member, since 自分の担当 and the reporter checks match on the id. */
 export async function addUser(l: Layout, displayName: string): Promise<User> {
   const name = displayName.trim();
   if (name === "") throw new Error("display name is empty");
   const c = usersCollection(l);
+  const existing = (await c.list()).find((u) => u.displayName === name);
+  if (existing) return existing;
   let at = Date.now();
   for (let attempt = 0; attempt < 50; attempt++) {
     const createdAt = new Date(at).toISOString();

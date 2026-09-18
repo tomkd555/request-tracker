@@ -4,9 +4,10 @@ import { ISSUE_PRIORITIES, type CustomField, type IssuePriority } from "../../sh
 import { Markdown } from "../app/Markdown";
 import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
+import { AssigneeSelect } from "./AssigneeSelect";
 import { messageFor, refusalMessages } from "./attachmentMessages";
 import { MarkdownEditor } from "./FieldEditor";
-import { PRIORITY_LABEL } from "./labels";
+import { firstOfKind, PRIORITY_LABEL } from "./labels";
 import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
 import { useIssues } from "./useIssues";
@@ -109,7 +110,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       summary: summary.trim(),
       description,
       category,
-      status: "open",
+      status: (firstOfKind(project.statuses, "active") ?? project.statuses[0]).id,
       priority,
       labels,
       assignee: assignee || null,
@@ -235,14 +236,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           担当者
         </label>
         <div className="issue-form__cell issue-form__cell--with-link">
-          <select id="new-assignee" className="issue-form__control" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-            <option value="">未設定</option>
-            {users.map((u) => (
-              <option key={u.username} value={u.username}>
-                {u.displayName}
-              </option>
-            ))}
-          </select>
+          <AssigneeSelect id="new-assignee" className="issue-form__control" value={assignee} users={users} leading={[{ value: "", label: "未設定" }]} onChange={setAssignee} />
           {assignee !== me.username && (
             <button type="button" className="button--link" onClick={() => setAssignee(me.username)}>
               自分にする

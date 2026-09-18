@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createStore } from "../../../src/main/store";
 import { collectionDirs, layout } from "../../../src/main/store/paths";
 import type { IssueDraft } from "../../../src/shared/api";
-import { DEFAULT_LOCAL_SETTINGS, type IssueFilter, type SavedFilter } from "../../../src/shared/types";
+import { DEFAULT_LOCAL_SETTINGS, DEFAULT_STATUSES, type IssueFilter, type SavedFilter } from "../../../src/shared/types";
 
 let userData: string;
 let shared: string;
@@ -35,6 +35,20 @@ test("config.get is null on fresh userData and returns the root after chooseRoot
   expect(await s.config.chooseRoot()).toBe(shared);
   expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
   expect(await store(null).config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
+});
+
+test("warm reads the share once at launch: the first list afterwards is served from memory; an unconfigured or unreachable share warms nothing", async () => {
+  await expect(store(null).warm()).resolves.toBeUndefined();
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.users.add("山田 太郎");
+  const fresh = store(null);
+  await fresh.warm();
+  const readdir = vi.spyOn(fsp, "readdir");
+  expect(await fresh.users.list()).toHaveLength(1);
+  expect(readdir).not.toHaveBeenCalled();
+  await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: join(shared, "gone") }), "utf8");
+  await expect(store(null).warm()).resolves.toBeUndefined();
 });
 
 test("chooseRoot cancelled leaves config untouched", async () => {
@@ -492,4 +506,39 @@ test("project.putLabels drops a blank name and a repeated name, rejects a bad co
   expect(p.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
   expect((await fsp.readdir(layout(shared).historyProject)).length).toBe(before + 1);
   await expect(s.project.putLabels([{ name: "x", color: "red" }])).rejects.toThrow("#rrggbb");
+});
+
+test("project.putStatuses trims and drops blank names and repeated ids, rejects a bad colour, kind or empty list, and removes a stage issues still use", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  await s.issues.create(draft({ status: "resolved" }));
+  const p = await s.project.putStatuses([
+    { id: "open", name: " 受付 ", color: "#FF0000", kind: "active" },
+    { id: "x", name: "  ", color: "#000000", kind: "active" },
+    { id: "open", name: "重複", color: "#00ff00", kind: "done" },
+    { id: "closed", name: "完了", color: "#123ABC", kind: "done" },
+  ]);
+  expect(p.statuses).toEqual([
+    { id: "open", name: "受付", color: "#ff0000", kind: "active" },
+    { id: "closed", name: "完了", color: "#123abc", kind: "done" },
+  ]);
+  expect(await s.project.get()).toEqual(p);
+  expect(p.categories).toEqual(["問い合わせ", "不具合", "依頼", "その他"]);
+  expect(await fsp.readdir(layout(shared).historyProject)).toHaveLength(1);
+  expect((await s.issues.get("26-0001"))?.status).toBe("resolved"); // the file keeps the old id; the renderer reads it as the first stage
+  await expect(s.project.putStatuses([{ id: "a", name: "x", color: "red", kind: "active" }])).rejects.toThrow("#rrggbb");
+  await expect(s.project.putStatuses([{ id: "a", name: "x", color: "#000000", kind: "later" as "active" }])).rejects.toThrow("kind");
+  await expect(s.project.putStatuses([{ id: "a", name: " ", color: "#000000", kind: "active" }])).rejects.toThrow("empty");
+});
+
+test("project.get fills DEFAULT_STATUSES on a project.json without statuses or with an empty list", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  const l = layout(shared);
+  await fsp.writeFile(l.projectFile, JSON.stringify({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z" }), "utf8");
+  expect((await s.project.get())?.statuses).toEqual(DEFAULT_STATUSES);
+  await fsp.writeFile(l.projectFile, JSON.stringify({ fiscalYearStartMonth: 4, createdAt: "2026-04-01T00:00:00.000Z", statuses: [] }), "utf8");
+  expect((await s.project.get())?.statuses).toEqual(DEFAULT_STATUSES);
 });

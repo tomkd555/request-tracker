@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { searchAll, snippet } from "../../../src/renderer/search/searchAll";
-import type { Comment, Issue, WikiPage } from "../../../src/shared/types";
+import { DEFAULT_STATUSES, type Comment, type Issue, type WikiPage } from "../../../src/shared/types";
 
 const issue = (over: Partial<Issue> = {}): Issue => ({
   key: "26-0001",
@@ -49,7 +49,7 @@ test("searchAll groups hits 課題 → コメント → Wiki, in that order", ()
   const issues = [issue({ key: "26-0001", summary: "配線図の確認" })];
   const comments = [comment({ issueKey: "26-0002", body: "配線図を添付しました" })];
   const pages = [page({ id: "p1", title: "配線図まとめ" })];
-  const hits = searchAll("配線図", issues, comments, pages);
+  const hits = searchAll("配線図", issues, comments, pages, DEFAULT_STATUSES);
   expect(hits.map((h) => h.kind)).toEqual(["issue", "comment", "wiki"]);
   expect(hits[0]).toMatchObject({ id: "26-0001", title: "26-0001 配線図の確認" });
   expect(hits[2]).toMatchObject({ id: "p1", title: "配線図まとめ" });
@@ -57,17 +57,17 @@ test("searchAll groups hits 課題 → コメント → Wiki, in that order", ()
 
 test("a comment hit carries the issue key as id and the comment's createdAt as at", () => {
   const comments = [comment({ issueKey: "26-0009", body: "配線図の写真です", createdAt: "2026-09-16T01:02:03.000Z" })];
-  const [hit] = searchAll("配線図", [], comments, []);
+  const [hit] = searchAll("配線図", [], comments, [], DEFAULT_STATUSES);
   expect(hit).toMatchObject({ kind: "comment", id: "26-0009", at: "2026-09-16T01:02:03.000Z" });
 });
 
 test("matching case-folds the comment body", () => {
   const comments = [comment({ body: "The Wiring Diagram is attached" })];
-  expect(searchAll("wiring diagram", [], comments, [])).toHaveLength(1);
+  expect(searchAll("wiring diagram", [], comments, [], DEFAULT_STATUSES)).toHaveLength(1);
 });
 
 test("a blank keyword finds nothing", () => {
-  expect(searchAll("  ", [issue({ summary: "x" })], [], [])).toEqual([]);
+  expect(searchAll("  ", [issue({ summary: "x" })], [], [], DEFAULT_STATUSES)).toEqual([]);
 });
 
 test("snippet centers the match with an ellipsis on each cut edge", () => {

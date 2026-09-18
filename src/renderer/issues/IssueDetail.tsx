@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { ISSUE_PRIORITIES, ISSUE_STATUSES, RELATION_TYPES, type Issue, type RelationType } from "../../shared/types";
+import { ISSUE_PRIORITIES, RELATION_TYPES, type Issue, type RelationType } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { categoryOptions, displayNameOf, useSession, withCurrent } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
+import { AssigneeSelect } from "./AssigneeSelect";
 import { Attachments } from "./Attachments";
 import { Comments } from "./Comments";
 import { today } from "./dates";
 import { dueTone } from "./dueTone";
 import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
 import { HistoryList } from "./HistoryList";
-import { formatDateTime, INVERSE_LABEL, PRIORITY_LABEL, RELATION_LABEL, STATUS_LABEL, statusClass } from "./labels";
+import { firstOfKind, formatDateTime, INVERSE_LABEL, PRIORITY_LABEL, RELATION_LABEL, statusKind, statusName, statusStyle } from "./labels";
 import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
 import { addRelation, relatedIssues, relationRows } from "./relatedIssues";
@@ -73,8 +74,14 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     void save({ relations: issue.relations.filter((r) => !(r.type === row.type && r.key === row.key)) });
   };
 
-  const userOptions = [{ value: "", label: "未設定" }, ...users.map((u) => ({ value: u.username, label: u.displayName }))];
-  const tone = dueTone(issue, today(), config.dueSoonDays);
+  const { statuses } = project;
+  const pill = (status: string): React.JSX.Element => (
+    <span className="pill" style={statusStyle(statuses, status)}>
+      {statusName(statuses, status)}
+    </span>
+  );
+  const doneStage = firstOfKind(statuses, "done");
+  const tone = dueTone(issue, today(), config.dueSoonDays, statuses);
 
   const remove = async (): Promise<void> => {
     if (children.length > 0) {
@@ -109,8 +116,8 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           <span className="issue-detail__key">{issue.key}</span>
         </nav>
         <div className="issue-detail__actions">
-          {issue.status === "resolved" && issue.reporter === me.username && (
-            <button type="button" className="button--primary" onClick={() => void save({ status: "closed" })}>
+          {statusKind(statuses, issue.status) === "review" && issue.reporter === me.username && doneStage !== undefined && (
+            <button type="button" className="button--primary" onClick={() => void save({ status: doneStage.id })}>
               確認して完了にする
             </button>
           )}
@@ -161,7 +168,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
                         <td className="issue-table__cell issue-table__cell--key">{c.key}</td>
                         <td className="issue-table__cell">{c.summary}</td>
                         <td className="issue-table__cell">
-                          <span className={statusClass(c.status)}>{STATUS_LABEL[c.status]}</span>
+                          {pill(c.status)}
                         </td>
                         <td className="issue-table__cell">{displayNameOf(users, c.assignee)}</td>
                         <td className="issue-table__cell">{c.dueDate ?? ""}</td>
@@ -180,7 +187,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
                   <li key={`${r.direction}-${r.type}-${r.key}`} className="related__item">
                     <span className="related__type">{(r.direction === "out" ? RELATION_LABEL : INVERSE_LABEL)[r.type]}</span>{" "}
                     <a href={`#/issues/${r.key}`}>{r.key}</a> {r.summary}{" "}
-                    <span className={statusClass(r.status)}>{STATUS_LABEL[r.status]}</span>
+                    {pill(r.status)}
                     {r.direction === "out" && (
                       <button type="button" className="button--link" aria-label="関連を外す" onClick={() => removeRelation(r)}>
                         ✕
@@ -192,7 +199,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
                   <li key={m.key} className="related__item">
                     <span className="related__type">本文で言及</span>{" "}
                     <a href={`#/issues/${m.key}`}>{m.key}</a> {m.summary}{" "}
-                    <span className={statusClass(m.status)}>{STATUS_LABEL[m.status]}</span>
+                    {pill(m.status)}
                   </li>
                 ))}
               </ul>
@@ -249,10 +256,11 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           <div className="issue-detail__prop">
             <span className="issue-detail__term">状態</span>
             <SelectField
-              className={`${statusClass(issue.status)} pill--select`}
+              className="pill pill--select"
+              style={statusStyle(statuses, issue.status)}
               ariaLabel="状態"
               value={issue.status}
-              options={ISSUE_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
+              options={statuses.map((s) => ({ value: s.id, label: s.name }))}
               onSave={(status) => save({ status })}
             />
           </div>
@@ -282,12 +290,13 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           </div>
           <div className="issue-detail__prop">
             <span className="issue-detail__term">担当者</span>
-            <SelectField
+            <AssigneeSelect
               className="issue-detail__control"
               ariaLabel="担当者"
               value={issue.assignee ?? ""}
-              options={userOptions}
-              onSave={(v) => save({ assignee: v || null })}
+              users={users}
+              leading={[{ value: "", label: "未設定" }]}
+              onChange={(v) => void save({ assignee: v || null })}
             />
             {issue.assignee !== me.username && (
               <button type="button" className="button--link" onClick={() => void save({ assignee: me.username })}>

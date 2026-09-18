@@ -1,11 +1,12 @@
-import type { Issue } from "../../shared/types";
+import type { Issue, StatusDef } from "../../shared/types";
 import { addDays } from "./dates";
+import { isActiveStatus } from "./labels";
 
 export type DueTone = "overdue" | "soon" | "none";
 
-/** "overdue" when an open or in-progress issue is past its due date; "soon" when due within `soonDays` from today inclusive. */
-export function dueTone(issue: Issue, today: string, soonDays = 3): DueTone {
-  if (issue.dueDate === null || (issue.status !== "open" && issue.status !== "in_progress")) return "none";
+/** "overdue" when an active issue is past its due date; "soon" when due within `soonDays` from today inclusive. */
+export function dueTone(issue: Issue, today: string, soonDays: number, statuses: StatusDef[]): DueTone {
+  if (issue.dueDate === null || !isActiveStatus(statuses, issue.status)) return "none";
   if (issue.dueDate < today) return "overdue";
   if (issue.dueDate <= addDays(today, soonDays)) return "soon";
   return "none";
