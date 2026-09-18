@@ -1,4 +1,5 @@
-import type { Issue, IssueStatus } from "../../shared/types";
+import type { Issue, IssueStatus, StatusDef } from "../../shared/types";
+import { isDoneStatus } from "./labels";
 
 export interface Count { key: string; count: number }
 export interface MonthlyCounts {
@@ -8,7 +9,7 @@ export interface MonthlyCounts {
   byAssignee: Count[];
   byStatus: Count[];
   byCategory: Count[]; // "" = 未設定
-  /** Issues closed in the month: status closed and updatedAt in the month. */
+  /** Issues closed in the month: a 完了 stage and updatedAt in the month. */
   closedTotal: number;
   closedByAssignee: Count[];
 }
@@ -29,9 +30,9 @@ function tally(keys: string[]): Count[] {
  * Counts of issues created in `month` (YYYY-MM) by reporter, assignee ("" = unassigned) and status, plus issues closed in the month.
  * ponytail: updatedAt approximates the closing date; an edit after closing moves the issue to that month.
  */
-export function countByMonth(issues: Issue[], month: string): MonthlyCounts {
+export function countByMonth(issues: Issue[], month: string, statuses: StatusDef[]): MonthlyCounts {
   const inMonth = issues.filter((i) => monthOf(i.createdAt) === month);
-  const closed = issues.filter((i) => i.status === "closed" && monthOf(i.updatedAt) === month);
+  const closed = issues.filter((i) => isDoneStatus(statuses, i.status) && monthOf(i.updatedAt) === month);
   return {
     month,
     total: inMonth.length,

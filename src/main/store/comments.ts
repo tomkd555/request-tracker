@@ -1,6 +1,6 @@
 import { promises as fsp } from "node:fs";
 import { ISSUE_KEY, isComment, type Comment } from "../../shared/types";
-import { collection, type Collection } from "./collection";
+import { collection, mapLimit, type Collection } from "./collection";
 import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
 
@@ -27,6 +27,6 @@ export async function listAllComments(l: Layout): Promise<Comment[]> {
     throw e;
   }
   const keys = entries.filter((e) => e.isDirectory() && ISSUE_KEY.test(e.name)).map((e) => e.name).sort();
-  const lists = await Promise.all(keys.map((key) => commentsCollection(l, key).list()));
+  const lists = await mapLimit(keys, (key) => commentsCollection(l, key).list()); // each list is itself bounded, so at most limit² files are open
   return lists.flat();
 }

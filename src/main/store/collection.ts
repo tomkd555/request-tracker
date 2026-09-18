@@ -83,12 +83,25 @@ export async function readDir<T>(dir: string, guard: (v: unknown) => v is T): Pr
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw e;
   }
-  const records: T[] = [];
-  for (const name of names.filter((n) => n.endsWith(".json") && !n.startsWith(".")).sort()) {
-    const r = await readRecord(join(dir, name), guard);
-    if (r !== null) records.push(r);
-  }
-  return records;
+  const files = names.filter((n) => n.endsWith(".json") && !n.startsWith(".")).sort();
+  const records = await mapLimit(files, (name) => readRecord(join(dir, name), guard));
+  return records.filter((r): r is T => r !== null);
+}
+
+export const READ_CONCURRENCY = 16;
+
+/** `fn` over `items` in order, at most `limit` in flight: readFile opens and reads as separate pool jobs, so an unbounded fan-out holds every descriptor open at once. */
+export async function mapLimit<A, B>(items: A[], fn: (item: A) => Promise<B>, limit = READ_CONCURRENCY): Promise<B[]> {
+  const out: B[] = new Array<B>(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }
 
 /** Write to a temp file in the same directory, then rename over the target. */
@@ -128,8 +141,14 @@ async function dirSig(dir: string): Promise<string | null> {
   }
 }
 
-/** Forgets the listing of `dir`; called after every write of this process, so its own change is visible at once. */
-export const forgetListing = (dir: string): void => void listings.delete(dir);
+/** Reads under way, so the launch warm-up and the renderer's first list share one pass over the directory. */
+const pending = new Map<string, Promise<unknown[]>>();
+
+/** Forgets the listing of `dir`; called after every write of this process, so its own change is visible at once. A read in flight still resolves for its callers, but its result is never cached. */
+export const forgetListing = (dir: string): void => {
+  listings.delete(dir);
+  pending.delete(dir);
+};
 
 /** One stat per call while nothing changed; a full read otherwise. The age bound covers a share that reports directory mtimes late. */
 // ponytail: a file system with coarse mtimes (2 s on exFAT) can hide another client's write for that long; lower LIST_TTL_MS if it bites
@@ -139,9 +158,25 @@ export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is 
   const hit = listings.get(dir);
   if (hit !== undefined && hit.sig === sig && now - hit.at < LIST_TTL_MS) return hit.records.slice() as T[]; // a copy, so a caller's sort never reaches the cache
   for (const [d, v] of listings) if (now - v.at >= LIST_TTL_MS) listings.delete(d); // expired listings go, so the map holds the directories in use alone
-  const records = await readDir(dir, guard);
-  listings.set(dir, { sig, at: now, records });
-  return records.slice();
+  let p = pending.get(dir);
+  if (p === undefined) {
+    const read: Promise<unknown[]> = readDir(dir, guard).then(
+      (records) => {
+        if (pending.get(dir) === read) {
+          listings.set(dir, { sig, at: now, records });
+          pending.delete(dir);
+        }
+        return records;
+      },
+      (e: unknown) => {
+        if (pending.get(dir) === read) pending.delete(dir); // the next call reads again
+        throw e;
+      },
+    );
+    pending.set(dir, read);
+    p = read;
+  }
+  return (await p).slice() as T[];
 }
 
 export function collection<T>(opts: CollectionOptions<T>): Collection<T> {

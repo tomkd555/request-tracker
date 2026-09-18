@@ -1,14 +1,14 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import type { StoreApi } from "../../shared/api";
-import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalSettings } from "../../shared/types";
+import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalConfig, type LocalSettings } from "../../shared/types";
 import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
 import { addComment, commentsCollection, listAllComments } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
-import { initProject, putCategories, putFields, putLabels, readProject } from "./project";
+import { initProject, putCategories, putFields, putLabels, putStatuses, readProject } from "./project";
 import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
 
@@ -29,7 +29,7 @@ export interface StoreDeps {
 const withDefaults = (i: Issue): Issue => ({ ...i, category: i.category ?? "", fields: i.fields ?? {}, labels: i.labels ?? [], relations: i.relations ?? [] });
 
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
-export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings } {
+export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings; warm(): Promise<void> } {
   let l: Layout | null = null;
   let settings: LocalSettings = DEFAULT_LOCAL_SETTINGS;
 
@@ -38,19 +38,28 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
     return l;
   };
 
+  /** The one place that turns config.json into the layout. */
+  const loadLayout = async (): Promise<LocalConfig | null> => {
+    const c = await loadConfig(deps.userDataDir);
+    if (c !== null) {
+      const { rootDir, ...rest } = c;
+      l = layout(rootDir);
+      settings = rest;
+    }
+    return c;
+  };
+
   return {
     current: () => l,
     settings: () => settings,
+    /** One read of the share at launch, so the first screen finds the listings in memory or joins the read under way. No timer, no repeat; errors are the renderer's to report. */
+    async warm() {
+      const swallow = (): undefined => undefined;
+      if ((await loadLayout().catch(swallow)) == null) return;
+      await Promise.all([usersCollection(need()).list().catch(swallow), issuesCollection(need()).list().catch(swallow), wikiCollection(need()).list().catch(swallow)]);
+    },
     config: {
-      async get() {
-        const c = await loadConfig(deps.userDataDir);
-        if (c !== null) {
-          const { rootDir, ...rest } = c;
-          l = layout(rootDir);
-          settings = rest;
-        }
-        return c;
-      },
+      get: loadLayout,
       async chooseRoot() {
         const dir = await deps.chooseDirectory();
         if (dir === null) return null;
@@ -76,6 +85,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       put: async (categories, categoryColors, categoryTemplates) => putCategories(need(), categories, categoryColors, categoryTemplates),
       putFields: async (fields) => putFields(need(), fields),
       putLabels: async (labels) => putLabels(need(), labels),
+      putStatuses: async (statuses) => putStatuses(need(), statuses),
     },
     users: {
       me: async () => findUser(need(), deps.username),

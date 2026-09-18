@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { countByMonth, monthOf, toCsv } from "../../../src/renderer/issues/countByMonth";
-import type { Issue } from "../../../src/shared/types";
+import { DEFAULT_STATUSES, type Issue } from "../../../src/shared/types";
 
 const issue = (over: Partial<Issue>): Issue => ({
   key: "26-0001",
@@ -37,7 +37,7 @@ test("month of a timestamp in local time", () => {
 });
 
 test("three issues from two reporters in one month; other months excluded", () => {
-  const c = countByMonth(all, "2026-09");
+  const c = countByMonth(all, "2026-09", DEFAULT_STATUSES);
   expect(c.total).toBe(3);
   expect(c.byReporter).toEqual([
     { key: "alice", count: 2 },
@@ -51,26 +51,26 @@ test("three issues from two reporters in one month; other months excluded", () =
     { key: "open", count: 2 },
     { key: "closed", count: 1 },
   ]);
-  expect(countByMonth(all, "2026-07").total).toBe(0);
+  expect(countByMonth(all, "2026-07", DEFAULT_STATUSES).total).toBe(0);
 });
 
 test("closed in the month counts by updatedAt regardless of creation month", () => {
-  const c = countByMonth(all, "2026-09");
+  const c = countByMonth(all, "2026-09", DEFAULT_STATUSES);
   expect(c.closedTotal).toBe(2);
   expect(c.closedByAssignee).toEqual([
     { key: "", count: 1 },
     { key: "bob", count: 1 },
   ]);
-  expect(countByMonth(all, "2026-08").closedTotal).toBe(1);
+  expect(countByMonth(all, "2026-08", DEFAULT_STATUSES).closedTotal).toBe(1);
 });
 
 test("a name that would be a spreadsheet formula is prefixed", () => {
-  const csv = toCsv(countByMonth(all, "2026-09"), { user: (u) => (u === "alice" ? "=1+1" : u), status: (s) => s });
+  const csv = toCsv(countByMonth(all, "2026-09", DEFAULT_STATUSES), { user: (u) => (u === "alice" ? "=1+1" : u), status: (s) => s });
   expect(csv).toContain("'=1+1,2");
 });
 
 test("csv has CRLF rows, quoted names when needed, and labels", () => {
-  const csv = toCsv(countByMonth(all, "2026-09"), {
+  const csv = toCsv(countByMonth(all, "2026-09", DEFAULT_STATUSES), {
     user: (u) => (u === "alice" ? "山田, 花子" : u),
     status: (s) => (s === "open" ? "未対応" : "完了"),
   });

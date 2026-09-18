@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { collection, LIST_TTL_MS, mkdirp } from "../../../src/main/store/collection";
+import { collection, LIST_TTL_MS, mapLimit, mkdirp } from "../../../src/main/store/collection";
 import { isIssue, type Issue } from "../../../src/shared/types";
 
 let root: string;
@@ -87,14 +87,48 @@ test("remove moves the file to trash", async () => {
   expect(await fsp.readdir(join(root, "trash", "issues"))).toEqual(["26-0001.json"]);
 });
 
-test("a corrupt file is skipped and the rest of the collection lists", async () => {
+test("a corrupt file is skipped and the rest of the collection lists in file-name order", async () => {
   const c = issues();
+  await c.create("26-0004", issue({ key: "26-0004" }));
   await c.create("26-0001", issue());
   await fsp.writeFile(join(root, "issues", "26-0002.json"), "{ not json", "utf8");
   await fsp.writeFile(join(root, "issues", "26-0003.json"), JSON.stringify({ key: "26-0003" }), "utf8");
   const err = vi.spyOn(console, "error").mockImplementation(() => {});
-  expect((await c.list()).map((i) => i.key)).toEqual(["26-0001"]);
+  expect((await c.list()).map((i) => i.key)).toEqual(["26-0001", "26-0004"]);
   expect(err).toHaveBeenCalledTimes(2);
+});
+
+test("two list calls in flight share one read and each gets its own array", async () => {
+  const c = collection<Issue>({ dir: join(root, "issues"), guard: isIssue });
+  await c.create("26-0001", issue());
+  const readdir = vi.spyOn(fsp, "readdir");
+  const [a, b] = await Promise.all([c.list(), c.list()]);
+  expect(readdir).toHaveBeenCalledTimes(1);
+  expect(a).toEqual(b);
+  expect(a).not.toBe(b);
+});
+
+test("a write during an in-flight read is never cached: the next list reads again", async () => {
+  const dir = join(root, "issues");
+  const c = collection<Issue>({ dir, guard: isIssue });
+  await c.create("26-0001", issue());
+  const real = fsp.readdir.bind(fsp) as (p: string) => Promise<string[]>;
+  let open = (): void => {};
+  const gate = new Promise<void>((r) => {
+    open = r;
+  });
+  const gated = async (p: string): Promise<string[]> => {
+    const names = await real(p); // the names as they were before the write below
+    await gate;
+    return names;
+  };
+  const readdir = vi.spyOn(fsp, "readdir").mockImplementationOnce(gated as unknown as typeof fsp.readdir);
+  const early = c.list();
+  await c.create("26-0002", issue({ key: "26-0002" }));
+  open();
+  expect(await early).toHaveLength(1);
+  expect((await c.list()).map((i) => i.key)).toEqual(["26-0001", "26-0002"]);
+  expect(readdir).toHaveBeenCalledTimes(2);
 });
 
 test("mkdirp creates nested folders, accepts existing ones, and rejects a parent that refuses entries", async () => {
@@ -155,4 +189,22 @@ test("a listing older than LIST_TTL_MS is re-read even when the directory mtime 
   vi.spyOn(Date, "now").mockReturnValue(now + LIST_TTL_MS + 1);
   expect(await c.list()).toHaveLength(1);
   expect(readdir).toHaveBeenCalledTimes(1);
+});
+
+test("mapLimit keeps the order of the results and never runs more than the limit at once", async () => {
+  let inFlight = 0;
+  let peak = 0;
+  const out = await mapLimit(
+    [5, 1, 4, 2, 3],
+    async (n) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, n));
+      inFlight--;
+      return n * 10;
+    },
+    2,
+  );
+  expect(out).toEqual([50, 10, 40, 20, 30]);
+  expect(peak).toBe(2);
 });

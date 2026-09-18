@@ -24,10 +24,25 @@ export interface Project {
   categoryTemplates: Record<string, CategoryTemplate>; // 種別 name -> text preset on the new-issue form; {} on files written before this field
   fields: CustomField[]; // 汎用列 definitions, in display order; [] on files written before this field
   labels: Label[]; // ラベル definitions, in display order; [] on files written before this field
+  statuses: StatusDef[]; // 状態 stages, in display order; DEFAULT_STATUSES on files written before this field
 }
 
 /** A named ラベル with its pill colour; Issue.labels matches one by name, the way 種別 matches Project.categories by name. */
 export interface Label { name: string; color: string }
+
+/** What a stage means to the screens: active issues carry due-date tones, a review stage awaits the reporter's 確認, a done stage counts as 完了. */
+export type StatusKind = "active" | "review" | "done";
+export const STATUS_KINDS: StatusKind[] = ["active", "review", "done"];
+
+/** One stage of the per-project 状態 list; Issue.status holds the id, so a rename never orphans an issue. */
+export interface StatusDef { id: string; name: string; color: string; kind: StatusKind }
+
+export const DEFAULT_STATUSES: StatusDef[] = [
+  { id: "open", name: "未対応", color: "#ed8276", kind: "active" },
+  { id: "in_progress", name: "処理中", color: "#4488c5", kind: "active" },
+  { id: "resolved", name: "処理済み", color: "#5fb5a6", kind: "review" },
+  { id: "closed", name: "完了", color: "#a1af2f", kind: "done" },
+];
 
 /** Text the new-issue form loads when its 種別 is chosen. */
 export interface CategoryTemplate { summary: string; body: string }
@@ -43,7 +58,7 @@ export const DEFAULT_CATEGORIES: string[] = ["問い合わせ", "不具合", "�
  */
 export interface User { username: string; displayName: string; createdAt: string; login?: string }
 
-export type IssueStatus = "open" | "in_progress" | "resolved" | "closed";
+export type IssueStatus = string; // a StatusDef.id of the project
 export type IssuePriority = "high" | "normal" | "low";
 
 export type DueFilter = "all" | "overdue" | "week" | "none";
@@ -72,7 +87,7 @@ export interface Issue {
   summary: string;
   description: string; // Markdown
   category: string; // one of Project.categories; "" on records written before this field
-  status: IssueStatus;
+  status: IssueStatus; // an id absent from Project.statuses reads as the first stage (see withKnownStatus)
   priority: IssuePriority;
   assignee: string | null; // username
   reporter: string; // username
@@ -110,7 +125,6 @@ export interface WikiPage {
 // Derived from stat, never stored; size is null for a folder.
 export interface Attachment { name: string; kind: "file" | "folder"; size: number | null; addedAt: string }
 
-export const ISSUE_STATUSES: IssueStatus[] = ["open", "in_progress", "resolved", "closed"];
 export const ISSUE_PRIORITIES: IssuePriority[] = ["high", "normal", "low"];
 
 type Rec = Record<string, unknown>;
@@ -130,8 +144,10 @@ const isField = (v: unknown): v is CustomField => isRec(v) && str(v.id) && str(v
 const fieldsOrAbsent = (v: unknown): v is CustomField[] | undefined => v === undefined || (Array.isArray(v) && v.every(isField));
 const isLabel = (v: unknown): v is Label => isRec(v) && str(v.name) && str(v.color);
 const labelsOrAbsent = (v: unknown): v is Label[] | undefined => v === undefined || (Array.isArray(v) && v.every(isLabel));
+const isStatusDef = (v: unknown): v is StatusDef => isRec(v) && str(v.id) && str(v.name) && str(v.color) && STATUS_KINDS.includes(v.kind as StatusKind);
+const statusesOrAbsent = (v: unknown): v is StatusDef[] | undefined => v === undefined || (Array.isArray(v) && v.every(isStatusDef));
 
-/** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates`, `fields` or `labels`; `readProject` fills the defaults. */
+/** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates`, `fields`, `labels` or `statuses`; `readProject` fills the defaults. */
 export function isProject(v: unknown): v is Project {
   return (
     isRec(v) &&
@@ -141,7 +157,8 @@ export function isProject(v: unknown): v is Project {
     strMapOrAbsent(v.categoryColors) &&
     templateMapOrAbsent(v.categoryTemplates) &&
     fieldsOrAbsent(v.fields) &&
-    labelsOrAbsent(v.labels)
+    labelsOrAbsent(v.labels) &&
+    statusesOrAbsent(v.statuses)
   );
 }
 
@@ -149,7 +166,7 @@ export function isIssueFilter(v: unknown): v is IssueFilter {
   return (
     isRec(v) &&
     Array.isArray(v.statuses) &&
-    v.statuses.every((s) => ISSUE_STATUSES.includes(s as IssueStatus)) &&
+    v.statuses.every(str) &&
     strOrNull(v.assignee) &&
     strOrNull(v.reporter) &&
     str(v.keyword) &&
@@ -203,7 +220,7 @@ export function isIssue(v: unknown): v is Issue {
     strOrAbsent(v.category) &&
     strMapOrAbsent(v.fields) &&
     strArrayOrAbsent(v.labels) &&
-    ISSUE_STATUSES.includes(v.status as IssueStatus) &&
+    str(v.status) &&
     ISSUE_PRIORITIES.includes(v.priority as IssuePriority) &&
     strOrNull(v.assignee) &&
     str(v.reporter) &&

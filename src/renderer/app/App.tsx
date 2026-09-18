@@ -31,10 +31,9 @@ export function App(): React.JSX.Element {
     try {
       config = await window.api.config.get();
       applyAppearance(config ?? DEFAULT_LOCAL_SETTINGS);
-      const project = config ? await window.api.project.get() : null;
-      const me = project ? await window.api.users.me() : null;
-      const users = project ? await window.api.users.list() : [];
-      setBoot({ step: nextStep(config, project, me), config, project, me, users, error: null });
+      // config.get has set the layout in main, so the three reads can go out together
+      const [project, me, users] = config ? await Promise.all([window.api.project.get(), window.api.users.me(), window.api.users.list()]) : [null, null, []];
+      setBoot({ step: nextStep(config, project, project ? me : null), config, project, me: project ? me : null, users: project ? users : [], error: null });
     } catch (e) {
       // the share is unreachable (VPN down, drive offline), or its project.json is unreadable: let the user pick the folder again
       const where = config ? `共有フォルダ（${config.rootDir}）` : "共有フォルダ";

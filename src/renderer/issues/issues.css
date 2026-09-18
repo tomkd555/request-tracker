@@ -553,17 +553,11 @@
   line-height: 24px;
 }
 
-.pill--open {
-  background: var(--status-open);
-}
-.pill--in-progress {
-  background: var(--status-in-progress);
-}
-.pill--resolved {
-  background: var(--status-resolved);
-}
-.pill--closed {
-  background: var(--status-closed);
+.assignee-add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .issue-detail__body {

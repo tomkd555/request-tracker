@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { ISSUE_STATUSES, type IssueStatus, type Project, type User } from "../../shared/types";
+import type { IssueStatus, Project, User } from "../../shared/types";
+import { AssigneeSelect } from "./AssigneeSelect";
 import { BULK_MAX, type BulkPatch, type BulkResult } from "./bulkEdit";
-import { STATUS_LABEL } from "./labels";
 
 const KEEP = "__keep__";
 type DueMode = "keep" | "set" | "clear";
@@ -54,24 +54,24 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
         状態
         <select value={status} onChange={(e) => setStatus(e.target.value as IssueStatus | typeof KEEP)}>
           <option value={KEEP}>変更しない</option>
-          {ISSUE_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABEL[s]}
+          {project.statuses.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
             </option>
           ))}
         </select>
       </label>
       <label className="bulk-bar__field">
         担当者
-        <select value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-          <option value={KEEP}>変更しない</option>
-          <option value="">未設定</option>
-          {users.map((u) => (
-            <option key={u.username} value={u.username}>
-              {u.displayName}
-            </option>
-          ))}
-        </select>
+        <AssigneeSelect
+          value={assignee}
+          users={users}
+          leading={[
+            { value: KEEP, label: "変更しない" },
+            { value: "", label: "未設定" },
+          ]}
+          onChange={setAssignee}
+        />
       </label>
       <label className="bulk-bar__field">
         期限日

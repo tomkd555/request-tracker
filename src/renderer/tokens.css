@@ -29,11 +29,8 @@
   --text-on-brand: #ffffff; /* text on the brand colour */
   --bg-nav-active: rgba(255, 255, 255, 0.2); /* nav: the current item, a light wash over the brand colour */
 
-  /* status pills (board: column dots; issue list: pills) */
-  --status-open: #ed8276; /* 未対応 */
-  --status-in-progress: #4488c5; /* 処理中 */
-  --status-resolved: #5fb5a6; /* 処理済み */
-  --status-closed: #a1af2f; /* 完了 */
+  /* stage colours live in project.json (DEFAULT_STATUSES for the presets); these two remain for the unseen dot and the pill fallback */
+  --status-open: #ed8276;
   --status-text: #ffffff;
 
   /* priority markers (issue list: arrows) */

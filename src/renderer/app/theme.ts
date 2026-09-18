@@ -7,8 +7,23 @@ export const THEMES: Record<ThemeName, { label: string; dark: boolean; accent: s
   dark: { label: "ダーク", dark: true, accent: "#52987c" },
 };
 
-/** Pill colour for a 種別 without a saved colour. */
-export const TYPE_PILL_DEFAULT = "#a4ae49";
+/** Preset chip colours for 種別 and ラベル; each keeps 3:1 with the text `textOn` picks. */
+export const PALETTE: ReadonlyArray<{ hex: string; label: string }> = [
+  { hex: "#c9515e", label: "赤" },
+  { hex: "#d97b3a", label: "橙" },
+  { hex: "#b08a22", label: "黄" },
+  { hex: "#5a9a4f", label: "緑" },
+  { hex: "#3a8f89", label: "青緑" },
+  { hex: "#3f78c2", label: "青" },
+  { hex: "#7b62b5", label: "紫" },
+  { hex: "#6c7a87", label: "灰" },
+];
+
+/** The first preset none of `used` has; cycles through the palette once every preset is taken. */
+export function nextColor(used: ReadonlyArray<string | null>): string {
+  const taken = new Set(used.map((c) => c?.toLowerCase()));
+  return (PALETTE.find((p) => !taken.has(p.hex)) ?? PALETTE[used.length % PALETTE.length]).hex;
+}
 
 /** WCAG relative luminance of "#rrggbb". */
 export function luminance(hex: string): number {

@@ -14,9 +14,9 @@ const ITEMS: { path: string; label: string }[] = [
 ];
 
 export function Nav({ current, onRefresh }: { current: string; onRefresh(): Promise<void> }): React.JSX.Element {
-  const { me } = useSession();
+  const { me, project } = useSession();
   const { issues } = useIssues();
-  const unseen = unseenMine(issues, me.username);
+  const unseen = unseenMine(issues, me.username, project.statuses);
   return (
     <nav className="nav" aria-label="主メニュー">
       <div className="nav__title">Request Tracker</div>

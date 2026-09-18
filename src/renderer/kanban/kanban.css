@@ -29,19 +29,6 @@
   border-radius: 50%;
 }
 
-.kanban-column__dot--open {
-  background: var(--status-open);
-}
-.kanban-column__dot--in_progress {
-  background: var(--status-in-progress);
-}
-.kanban-column__dot--resolved {
-  background: var(--status-resolved);
-}
-.kanban-column__dot--closed {
-  background: var(--status-closed);
-}
-
 .kanban-column__cards {
   display: grid;
   gap: var(--space-2);

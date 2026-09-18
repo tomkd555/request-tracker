@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { daysOf, layoutGantt, monthsOf, rangeFor, shiftMonth, type LayoutOptions } from "../../../src/renderer/gantt/layoutGantt";
-import type { Issue } from "../../../src/shared/types";
+import { DEFAULT_STATUSES, type Issue } from "../../../src/shared/types";
 
 const issue = (over: Partial<Issue>): Issue => ({
   key: "26-0001",
@@ -24,7 +24,7 @@ const issue = (over: Partial<Issue>): Issue => ({
 });
 
 const range = rangeFor("2026-09", 1);
-const opts: LayoutOptions = { today: "2026-09-12", groupBy: "none", collapsed: new Set(), includeUndated: false };
+const opts: LayoutOptions = { today: "2026-09-12", groupBy: "none", collapsed: new Set(), includeUndated: false, statuses: DEFAULT_STATUSES };
 const rows = (issues: Issue[], o: Partial<LayoutOptions> = {}, r = range) => layoutGantt(issues, r, { ...opts, ...o }).groups.flatMap((g) => g.rows);
 
 test("a range covers whole months; the header has one cell per month and marks weekends and Mondays", () => {
@@ -96,11 +96,11 @@ test("grouping by assignee keeps children under their parent and puts 未設定 
 
 test("groups are ordered by the display name, so a member with a stamp id sorts by name", () => {
   const l = layoutGantt(
-    [issue({ key: "26-0001", assignee: "20260914T000000000Z", dueDate: "2026-09-30" }), issue({ key: "26-0002", assignee: "karid", dueDate: "2026-09-15" })],
+    [issue({ key: "26-0001", assignee: "20260914T000000000Z", dueDate: "2026-09-30" }), issue({ key: "26-0002", assignee: "alice", dueDate: "2026-09-15" })],
     range,
-    { ...opts, groupBy: "assignee", groupLabel: (u) => (u === "karid" ? "奥平" : "田中") },
+    { ...opts, groupBy: "assignee", groupLabel: (u) => (u === "alice" ? "佐藤" : "田中") },
   );
-  expect(l.groups.map((g) => g.label)).toEqual(["karid", "20260914T000000000Z"]);
+  expect(l.groups.map((g) => g.label)).toEqual(["alice", "20260914T000000000Z"]);
 });
 
 test("compare orders the top-level rows; children still follow their parent in key order", () => {
