@@ -29,7 +29,13 @@ function visit(name, from) {
 for (const r of roots) visit(r, root);
 
 const rows = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-const out = ["Third-party notices", "", "RequestTracker bundles or ships the packages below. Each is used under its own licence, reproduced here.", ""];
+const out = [
+  "Third-party notices",
+  "",
+  "RequestTracker bundles the npm packages below into its renderer and main process. Each is used under its own licence, reproduced here.",
+  "Electron, Chromium and Node.js ship with their own notices, which electron-builder places next to the exe as LICENSE.electron.txt and LICENSES.chromium.html.",
+  "",
+];
 for (const r of rows) {
   out.push("=".repeat(72), `${r.name} ${r.version} (${r.license})`, "=".repeat(72), "", r.text ?? `(no licence file in the package; licence field: ${r.license})`, "");
 }

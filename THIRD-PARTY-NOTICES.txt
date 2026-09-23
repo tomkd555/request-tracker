@@ -1,6 +1,7 @@
 Third-party notices
 
-RequestTracker bundles or ships the packages below. Each is used under its own licence, reproduced here.
+RequestTracker bundles the npm packages below into its renderer and main process. Each is used under its own licence, reproduced here.
+Electron, Chromium and Node.js ship with their own notices, which electron-builder places next to the exe as LICENSE.electron.txt and LICENSES.chromium.html.
 
 ========================================================================
 @electron-toolkit/utils 4.0.0 (MIT)

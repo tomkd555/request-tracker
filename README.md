@@ -12,7 +12,7 @@ A desktop app for a small team to file and track requests without a server. Ever
 - Search across issues, comments and wiki pages, grouped by kind with a snippet per hit
 - Comments, merged with the field-change feed; a status change can be saved together with a comment
 - Attachments as files or whole folders (50 MB per file; executable extensions are refused), opened with the default application or in Explorer
-- Edit history with restore, for issues, wiki pages and the project settings; a save over a record someone else changed meanwhile is refused with 「他の人が先に保存しました」 and the screen offers a reload
+- Edit history with restore for issues and wiki pages, and a copy of each earlier project.json under `history/project/`; an issue or wiki save over a record someone else changed meanwhile is refused with 「他の人が先に保存しました」 and the screen offers a reload
 - Wiki pages in Markdown as a tree (parent page, sidebar, breadcrumb, index), `[[タイトル]]` links that create a missing page on click, a table of contents from the headings, attachments, a change note per save, and a line diff between versions
 - Gantt chart of 1, 2, 3 or 6 months: any issue with a start or due date, a late segment past the due date, a parent's span from its children, grouping by assignee, sort by key, subject, assignee, status or due date, folding, and drag to move a bar or one of its edges
 - Monthly counts by reporter, assignee, status and category, with CSV export (UTF-8 with BOM, for spreadsheet apps)
@@ -47,7 +47,7 @@ There is no server and no database. The shared folder is the database:
 
 - A record is written to a temp file in the same directory and renamed over the target, so a client that dies mid-write leaves the old file intact.
 - The previous version is copied to `history/` before every overwrite. Deletion moves the file to `trash/`.
-- A save carries the `updatedAt` the client last read; when the file on disk holds a newer one, the store refuses the write before anything is copied or written, so the later editor sees the message and reloads. Restoring a version goes through the same check.
+- An issue or wiki save carries the `updatedAt` the client last read; when the file on disk holds a newer one, the store refuses the write before anything is copied or written, so the later editor sees the message and reloads. Restoring a version goes through the same check.
 - A typed link is stored on the issue it was added to; the other issue shows the inverse when read. A label is stored by name, like a category, so a label removed from the project stays on its issues as a grey chip.
 - Every save writes the whole record the client read, so a field the client has no screen for survives its saves.
 - An issue's `status` is the id of a stage in `project.json`; an issue whose stage the project no longer lists reads as the first stage.
@@ -104,7 +104,7 @@ A `// ponytail:` comment marks a deliberate shortcut and names its ceiling and t
 - The renderer runs with `sandbox`, `contextIsolation` on and `nodeIntegration` off, and reaches the file system only through the typed IPC surface.
 - Markdown renders with raw HTML disabled.
 - Issue keys and attachment names coming from the renderer or from other people's files are validated before they reach a path.
-- Attachments with an extension Windows runs on open (`.exe .bat .cmd .com .ps1 .vbs .vbe .js .jse .wsf .wsh .hta .msi .msp .scr .pif .lnk .url .scf .reg .msc .cpl .jar`) are refused, on adding and on opening alike.
+- Attachments with one of the extensions listed in `REFUSED_EXTENSIONS` (`src/main/store/attachments.ts`: executables, installers, script hosts, shortcuts, help files and ClickOnce launchers) are refused, on adding and on opening alike. Any other file opens with its registered program.
 - The app stores no passwords or tokens.
 
 See `SECURITY.md` for how to report a problem.
