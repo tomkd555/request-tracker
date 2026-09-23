@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: var(--nav-width) 1fr;
   min-height: 100vh;
 }
 
@@ -156,6 +156,78 @@ button:disabled {
   text-decoration: underline;
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* Status message after a save that moved to another screen; one at a time, 5 s, paused while the pointer is on it. */
+.toast-region {
+  position: fixed;
+  top: var(--space-4);
+  left: var(--nav-width);
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10; /* above the gantt's sticky header cells (2 and 3) */
+}
+
+.toast {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border-panel);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  animation: toast 5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.toast:hover {
+  animation-play-state: paused;
+}
+
+/* 設定 > 保存後の通知 > 動きなし: the same 5 s with no entrance or exit */
+:root[data-notice="still"] .toast {
+  animation-name: toast-still;
+}
+
+@keyframes toast-still {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+/* 0-4% is the 200 ms entrance, 96-100% the 200 ms exit */
+@keyframes toast {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  4%,
+  96% {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes toast {
+    from {
+      opacity: 0;
+    }
+    4%,
+    96% {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
 }
 
 .text--error {

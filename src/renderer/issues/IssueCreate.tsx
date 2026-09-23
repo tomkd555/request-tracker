@@ -3,6 +3,7 @@ import type { IssueDraft } from "../../shared/api";
 import { depthOf, MAX_DEPTH } from "../../shared/issueTree";
 import { ISSUE_PRIORITIES, type CustomField, type IssuePriority } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
+import { showToast } from "../app/toast";
 import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { AssigneeSelect } from "./AssigneeSelect";
@@ -147,6 +148,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
         setBusy(false);
         return;
       }
+      showToast(`${issue.key} を追加しました`);
       navigate(`/issues/${issue.key}`);
     } catch (err) {
       setMessages([staleMessage(err)]);

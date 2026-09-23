@@ -6,6 +6,7 @@ import { Nav } from "./Nav";
 import { ProjectSettings } from "./ProjectSettings";
 import { Settings } from "./Settings";
 import { applyAppearance } from "./theme";
+import { ToastRegion } from "./ToastRegion";
 import { SessionContext, useSession } from "./UserContext";
 import { useHashRoute, type Route } from "./useHashRoute";
 import { IssueCreate } from "../issues/IssueCreate";
@@ -132,6 +133,7 @@ function Shell(): React.JSX.Element {
         )}
         <Screen route={route} />
       </main>
+      <ToastRegion />
     </div>
   );
 }

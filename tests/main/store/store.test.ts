@@ -366,13 +366,13 @@ test("config.json holding only rootDir loads with default settings; config.put v
   const s = store(shared);
   await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, dueSoonDays: 99 }), "utf8");
   expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
-  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, savedFilters: [] };
+  const next = { theme: "dark" as const, accent: "#123abc", notice: "still" as const, dueSoonDays: 7, savedFilters: [] };
   expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
   expect(s.settings()).toEqual(next);
   expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
   await expect(s.config.put({ ...next, accent: "red" })).rejects.toThrow("accent");
   await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
-  await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
+  await expect(s.config.put({ ...next, notice: "loud" as never })).rejects.toThrow("notice");
   const other = await fsp.mkdtemp(join(tmpdir(), "rt-shared2-"));
   try {
     expect(await store(other).config.chooseRoot()).toBe(other);

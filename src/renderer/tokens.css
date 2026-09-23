@@ -56,6 +56,7 @@
   --space-6: 24px;
   --radius: 4px;
   --radius-pill: 999px;
+  --nav-width: 200px; /* shell: the nav column; the toast centres over the rest */
 
   /* type scale */
   --font-body: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
