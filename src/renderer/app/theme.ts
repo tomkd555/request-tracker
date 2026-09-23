@@ -43,10 +43,11 @@ export function accentOf(s: Pick<LocalSettings, "theme" | "accent">): string {
   return s.accent ?? THEMES[s.theme].accent;
 }
 
-/** Writes the preset and accent onto <html>; tokens.css derives the rest. */
-export function applyAppearance(s: Pick<LocalSettings, "theme" | "accent">): void {
+/** Writes the preset, accent and notice mode onto <html>; tokens.css and app.css derive the rest. */
+export function applyAppearance(s: Pick<LocalSettings, "theme" | "accent" | "notice">): void {
   const root = document.documentElement;
   root.dataset.theme = THEMES[s.theme].dark ? "dark" : "light";
+  root.dataset.notice = s.notice;
   const accent = accentOf(s);
   root.style.setProperty("--brand", accent);
   root.style.setProperty("--text-on-brand", textOn(accent));

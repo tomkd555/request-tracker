@@ -7,25 +7,23 @@
   --bg-panel: #ffffff; /* issue list: table header row, panels */
   --bg-row: #edf5f0; /* issue list: table rows */
   --bg-row-selected: #fbfbe0; /* issue list: selected row */
-  --bg-row-parent: #ecf6f0; /* parent/child tree: parent row */
   --border-row: #cdcfcc; /* parent/child tree: row separator */
   --border-panel: #cccccc; /* board: panel edge */
   --border-button: #aaaaaa; /* issue list: outlined button */
 
   /* text */
-  --text: #242424; /* board: column header */
-  --text-muted: #737373; /* board: card key */
-  --text-table-header: color-mix(in srgb, var(--brand) 70%, #999999); /* issue list: column labels; approximates the sampled #6f9a89 */
-  --link: color-mix(in srgb, var(--brand) 95%, black); /* gantt: issue title link; approximates the sampled #4f8d78 */
+  --text: #242424; /* body text */
+  --text-muted: #737373; /* secondary text: empty states, hints, timestamps */
+  --text-table-header: color-mix(in srgb, var(--brand) 70%, #999999); /* issue list: column labels */
+  --link: color-mix(in srgb, var(--brand) 95%, black); /* gantt: issue title link */
   --text-overdue: #b3261e; /* issue list: overdue due date; own choice, 5.9:1 on --bg-row (measured) */
-  --text-due-soon: #8a5a00; /* issue list: due within 3 days; own choice, 5.3:1 on --bg-row (measured) */
+  --text-due-soon: #8a5a00; /* issue list: due within the due-soon window (3 days by default); own choice, 5.3:1 on --bg-row (measured) */
   --link-missing: #a63d2f; /* wiki: link to a page that does not exist yet; own choice, 5.6:1 on --bg-panel */
   --diff-added: #d8f0dc; /* wiki history: added line */
   --diff-removed: #f8d7d3; /* wiki history: removed line */
 
   /* brand; theme.ts overrides --brand and --text-on-brand with the chosen preset or accent */
   --brand: #52987c; /* issue list: selected filter chip, count badge */
-  --brand-border: color-mix(in srgb, var(--brand) 90%, black); /* parent/child tree: parent row left border; approximates the sampled #44987b */
   --text-on-brand: #ffffff; /* text on the brand colour */
   --bg-nav-active: rgba(255, 255, 255, 0.2); /* nav: the current item, a light wash over the brand colour */
 
@@ -33,7 +31,7 @@
   --status-open: #ed8276;
   --status-text: #ffffff;
 
-  /* priority markers (issue list: arrows) */
+  /* priority (issue list: 高/中/低 text) */
   --priority-high: #d35365;
   --priority-normal: #6c8ab2;
   --priority-low: #83aea0;
@@ -56,6 +54,7 @@
   --space-6: 24px;
   --radius: 4px;
   --radius-pill: 999px;
+  --nav-width: 200px; /* shell: the nav column; the toast centres over the rest */
 
   /* type scale */
   --font-body: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
@@ -72,7 +71,6 @@
   --bg-panel: #262626;
   --bg-row: #222825;
   --bg-row-selected: #33331f;
-  --bg-row-parent: #24302b;
   --border-row: #3f423f;
   --border-panel: #444444;
   --border-button: #666666;

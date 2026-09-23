@@ -8,13 +8,13 @@ import { dueTone } from "../issues/dueTone";
 import { FilterBar } from "../issues/FilterBar";
 import { defaultFilter, filterIssues, type IssueFilter } from "../issues/filterIssues";
 import { categoryColor as categoryColorOf, formatDate, labelColor, statusOf } from "../issues/labels";
-import { staleMessage } from "../issues/saveError";
 import { isUnseen } from "../issues/seen";
 import { SavedFilters } from "../issues/SavedFilters";
 import { DEFAULT_SORT, issueComparator } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
 import type { Issue, IssueStatus } from "../../shared/types";
 import "./kanban.css";
+import { errorMessage } from "../messages";
 
 const KEY_MIME = "text/plain";
 
@@ -37,7 +37,7 @@ export function Kanban(): React.JSX.Element {
       await window.api.issues.put({ ...issue, status, updatedAt: new Date().toISOString(), updatedBy: me.username }, issue.updatedAt);
       await refreshOne(key);
     } catch (err) {
-      setMessage(staleMessage(err));
+      setMessage(errorMessage(err));
       await refreshOne(key); // the record on disk is unchanged, so the card renders back in its original column
     }
   };

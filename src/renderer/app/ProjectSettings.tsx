@@ -6,6 +6,7 @@ import { useSaveMessage } from "./Settings";
 import { nextColor, PALETTE } from "./theme";
 import { useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
+import { errorMessage, M } from "../messages";
 
 /** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the 状態 stages, the ラベル list, the members, the 汎用列. */
 export function ProjectSettings(): React.JSX.Element {
@@ -120,8 +121,7 @@ function MemberSection(): React.JSX.Element {
       try {
         await action();
       } catch (e) {
-        const m = e instanceof Error ? e.message : String(e);
-        throw new Error(m.includes("in-use") ? "担当者か登録者になっている課題があるため削除できません" : m);
+        throw new Error(errorMessage(e));
       }
       await refreshUsers();
     });
@@ -136,7 +136,7 @@ function MemberSection(): React.JSX.Element {
             <button
               type="button"
               onClick={() => {
-                if (window.confirm(`${u.displayName} をメンバーから削除しますか`)) void act(() => window.api.users.remove(u.username));
+                if (window.confirm(M.confirmRemoveMember(u.displayName))) void act(() => window.api.users.remove(u.username));
               }}
             >
               削除

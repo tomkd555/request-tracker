@@ -1,16 +1,18 @@
 import { useState } from "react";
 import type { IssueDraft } from "../../shared/api";
+import { depthOf, MAX_DEPTH } from "../../shared/issueTree";
 import { ISSUE_PRIORITIES, type CustomField, type IssuePriority } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
+import { showToast } from "../app/toast";
 import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { AssigneeSelect } from "./AssigneeSelect";
-import { messageFor, refusalMessages } from "./attachmentMessages";
 import { MarkdownEditor } from "./FieldEditor";
 import { firstOfKind, PRIORITY_LABEL } from "./labels";
 import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
 import { useIssues } from "./useIssues";
+import { errorMessage, M, refusalMessages } from "../messages";
 
 interface Props {
   parentKey: string | null;
@@ -78,7 +80,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const [created, setCreated] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const parents = issues.filter((i) => i.parentKey === null).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const parents = issues.filter((i) => depthOf(byKey, i.key) < MAX_DEPTH).sort((a, b) => (a.key < b.key ? 1 : -1));
   const presetParent = parentKey !== null ? byKey.get(parentKey) : undefined;
   const template = templates[category];
   const templateApplied = template !== undefined && summary === template.summary && description === template.body;
@@ -132,7 +134,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
         try {
           notes.push(...refusalMessages(await window.api.attachments.add({ kind: "issue", id: issue.key }, paths)));
         } catch (e) {
-          notes.push(messageFor(e));
+          notes.push(errorMessage(e));
         }
       }
       if (again || notes.length > 0) {
@@ -145,9 +147,10 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
         setBusy(false);
         return;
       }
+      showToast(M.issueAdded(issue.key));
       navigate(`/issues/${issue.key}`);
     } catch (err) {
-      setMessages([err instanceof Error ? err.message : String(err)]);
+      setMessages([errorMessage(err)]);
       setBusy(false);
     }
   };
@@ -207,7 +210,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           aria-invalid={submitted && summaryMissing}
           autoFocus
         />
-        {submitted && summaryMissing && <span className="issue-form__error">件名を入力してください</span>}
+        {submitted && summaryMissing && <span className="issue-form__error">{M.summaryRequired}</span>}
       </label>
       <div className="issue-form__field">
         <span className="issue-form__label">詳細</span>
@@ -256,7 +259,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
             aria-invalid={datesReversed}
             onChange={(e) => setDueDate(e.target.value)}
           />
-          {datesReversed && <span className="issue-form__error">期限日は開始日以降にしてください</span>}
+          {datesReversed && <span className="issue-form__error">{M.dueBeforeStart}</span>}
         </div>
         <label htmlFor="new-parent" className="issue-form__term">
           親課題
@@ -277,7 +280,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
               }}
             />
           )}
-          {parentInvalid && <span className="issue-form__error">該当する課題がありません</span>}
+          {parentInvalid && <span className="issue-form__error">{M.parentNotFound}</span>}
         </div>
         {project.fields.map((f) => (
           <FieldRow key={f.id} field={f} value={fields[f.id] ?? ""} onChange={(v) => setFields((x) => ({ ...x, [f.id]: v }))} />

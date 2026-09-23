@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createStore } from "../../../src/main/store";
 import { collectionDirs, layout } from "../../../src/main/store/paths";
 import type { IssueDraft } from "../../../src/shared/api";
+import { MAX_DEPTH } from "../../../src/shared/issueTree";
 import { DEFAULT_LOCAL_SETTINGS, DEFAULT_STATUSES, type IssueFilter, type SavedFilter } from "../../../src/shared/types";
 
 let userData: string;
@@ -151,6 +152,25 @@ test("concurrent creates from two stores get distinct keys", async () => {
   await s2.config.get();
   const keys = (await Promise.all([s1.issues.create(draft()), s2.issues.create(draft()), s1.issues.create(draft())])).map((i) => i.key);
   expect(new Set(keys).size).toBe(3);
+});
+
+test("issues.create and put refuse a parent that would make a cycle or a chain past MAX_DEPTH levels", async () => {
+  const s = store(shared);
+  await s.config.chooseRoot();
+  await s.project.init(4);
+  let parentKey: string | null = null;
+  for (let level = 1; level <= MAX_DEPTH; level++) parentKey = (await s.issues.create(draft({ parentKey }))).key;
+  await expect(s.issues.create(draft({ parentKey }))).rejects.toThrow("too-deep");
+  const root = (await s.issues.get("26-0001"))!;
+  await expect(s.issues.put({ ...root, parentKey: "26-0001" })).rejects.toThrow("cycle");
+  await expect(s.issues.put({ ...root, parentKey: "26-0003" })).rejects.toThrow("cycle");
+  const sixth = await s.issues.create(draft({ parentKey: "26-0001" })); // level 2, beside 26-0002
+  const second = (await s.issues.get("26-0002"))!;
+  await expect(s.issues.put({ ...second, parentKey: sixth.key })).rejects.toThrow("too-deep"); // four levels under level 2 make six
+  await s.issues.put({ ...sixth, parentKey: "26-0004" }); // level 4 takes a leaf
+  await s.issues.put({ ...second, parentKey: null }); // the chain 26-0002..26-0005 becomes its own tree of four levels
+  await s.issues.put({ ...root, parentKey: "26-0005" }); // and 26-0001 as a leaf under it makes five
+  await s.issues.put({ ...(await s.issues.get("26-0003"))!, parentKey: "gone-key" }); // a parent that no longer exists is kept
 });
 
 test("issues.remove refuses a parent with children and trashes a leaf", async () => {
@@ -346,13 +366,13 @@ test("config.json holding only rootDir loads with default settings; config.put v
   const s = store(shared);
   await fsp.writeFile(join(userData, "config.json"), JSON.stringify({ rootDir: shared, dueSoonDays: 99 }), "utf8");
   expect(await s.config.get()).toEqual({ rootDir: shared, ...DEFAULT_LOCAL_SETTINGS });
-  const next = { theme: "dark" as const, accent: "#123abc", dueSoonDays: 7, savedFilters: [] };
+  const next = { theme: "dark" as const, accent: "#123abc", notice: "still" as const, dueSoonDays: 7, savedFilters: [] };
   expect(await s.config.put(next)).toEqual({ ...next, rootDir: shared });
   expect(s.settings()).toEqual(next);
   expect(await store(null).config.get()).toEqual({ ...next, rootDir: shared });
   await expect(s.config.put({ ...next, accent: "red" })).rejects.toThrow("accent");
   await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
-  await expect(s.config.put({ ...next, dueSoonDays: 31 })).rejects.toThrow("dueSoonDays");
+  await expect(s.config.put({ ...next, notice: "loud" as never })).rejects.toThrow("notice");
   const other = await fsp.mkdtemp(join(tmpdir(), "rt-shared2-"));
   try {
     expect(await store(other).config.chooseRoot()).toBe(other);

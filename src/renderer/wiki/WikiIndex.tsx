@@ -3,6 +3,7 @@ import { navigate } from "../app/useHashRoute";
 import { formatDateTime } from "../issues/labels";
 import { useWiki } from "./useWiki";
 import { flattenTree } from "./wikiTree";
+import { M } from "../messages";
 
 /** Every page as a tree, with who touched it last. */
 export function WikiIndex(): React.JSX.Element {
@@ -35,7 +36,7 @@ export function WikiIndex(): React.JSX.Element {
           {loaded && rows.length === 0 && (
             <tr className="issue-table__row">
               <td colSpan={3} className="issue-table__cell text--muted">
-                ページはありません
+                {M.noPages}
               </td>
             </tr>
           )}

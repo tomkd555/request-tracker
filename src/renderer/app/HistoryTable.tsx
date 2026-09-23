@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatDateTime } from "../issues/labels";
 import { displayNameOf, useSession } from "./UserContext";
+import { M } from "../messages";
 
 interface Props<T extends { updatedAt: string; updatedBy: string }> {
   /** Loads the previous versions, oldest first. */
@@ -25,7 +26,7 @@ export function HistoryTable<T extends { updatedAt: string; updatedBy: string }>
     };
   }, [load, version]);
 
-  if (items.length === 0) return <p className="text--muted">履歴はありません</p>;
+  if (items.length === 0) return <p className="text--muted">{M.noHistory}</p>;
   return (
     <table className="history">
       <tbody>

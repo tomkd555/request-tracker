@@ -11,11 +11,11 @@ import { defaultFilter, filterIssues, type IssueFilter } from "./filterIssues";
 import { groupByParent } from "./groupByParent";
 import { issuesToCsv } from "./issuesToCsv";
 import { categoryColor as categoryColorOf, formatDate, labelColor, PRIORITY_LABEL, statusName, statusStyle } from "./labels";
-import { staleMessage } from "./saveError";
 import { isUnseen } from "./seen";
 import { SavedFilters } from "./SavedFilters";
 import { DEFAULT_SORT, fieldSortKey, issueComparator, nextSort, type IssueSort, type SortKey } from "./sortIssues";
 import { useIssues } from "./useIssues";
+import { errorMessage, M } from "../messages";
 
 const FIXED_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "key", label: "キー" },
@@ -63,7 +63,7 @@ export function IssueList(): React.JSX.Element {
         results.push({ key, ok: true, message: "" });
       } catch (e) {
         // ponytail: one issues:put per selected issue, no batch IPC; add one if a hundred writes over the share gets slow
-        results.push({ key, ok: false, message: staleMessage(e) });
+        results.push({ key, ok: false, message: errorMessage(e) });
       }
     }
     await reload();
@@ -74,9 +74,9 @@ export function IssueList(): React.JSX.Element {
     setMessage(null);
     try {
       const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: (s) => statusName(project.statuses, s) }, project.fields), `issues-${day}.csv`);
-      setMessage(saved ? "CSVを保存しました" : null);
+      setMessage(saved ? M.csvSaved : null);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage(errorMessage(e));
     }
   };
 
@@ -122,13 +122,13 @@ export function IssueList(): React.JSX.Element {
             return (
               <tr
                 key={i.key}
-                className={`issue-table__row${depth === 1 ? " issue-table__row--child" : ""}`}
+                className={`issue-table__row${depth > 0 ? " issue-table__row--child" : ""}`}
                 onClick={() => navigate(`/issues/${i.key}`)}
               >
                 <td className="issue-table__cell issue-table__cell--check" onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" aria-label={`${i.key} を選択`} checked={selected.has(i.key)} onChange={() => toggleRow(i.key)} />
                 </td>
-                <td className="issue-table__cell issue-table__cell--key">
+                <td className="issue-table__cell issue-table__cell--key" style={depth > 0 ? { paddingLeft: `calc(var(--space-3) + ${depth * 24}px)` } : undefined}>
                   {isUnseen(i, me.username) && <span className="issue-table__unseen" role="img" aria-label="更新あり" />}
                   {i.key}
                 </td>
@@ -168,7 +168,7 @@ export function IssueList(): React.JSX.Element {
           {loaded && rows.length === 0 && (
             <tr className="issue-table__row">
               <td colSpan={columns.length + 1} className="issue-table__cell text--muted">
-                該当する課題はありません
+                {M.noIssues}
               </td>
             </tr>
           )}

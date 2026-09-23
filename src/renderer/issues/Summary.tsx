@@ -4,6 +4,7 @@ import { displayNameOf, useSession } from "../app/UserContext";
 import { countByMonth, monthOf, toCsv, type Count } from "./countByMonth";
 import { statusName } from "./labels";
 import { useIssues } from "./useIssues";
+import { errorMessage, M } from "../messages";
 
 export function Summary(): React.JSX.Element {
   const { users, project } = useSession();
@@ -18,9 +19,9 @@ export function Summary(): React.JSX.Element {
     setMessage(null);
     try {
       const saved = await window.api.summary.exportCsv(toCsv(counts, { user, status }), `summary-${month}.csv`);
-      setMessage(saved ? "CSVを保存しました" : null);
+      setMessage(saved ? M.csvSaved : null);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage(errorMessage(e));
     }
   };
 

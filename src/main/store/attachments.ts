@@ -7,9 +7,11 @@ import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
 
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
-// Everything Windows runs on open, including script hosts and shortcuts; shared by the add path and the open path.
+// Extensions Windows hands to an interpreter or installer on open: executables, script hosts, shortcuts, help files,
+// ClickOnce launchers. Shared by the add path and the open path. Extend when a new runnable type turns up.
 export const REFUSED_EXTENSIONS = new Set([
-  ".exe", ".bat", ".cmd", ".com", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".msi", ".msp", ".scr", ".pif", ".lnk", ".url", ".scf", ".reg", ".msc", ".cpl", ".jar",
+  ".exe", ".bat", ".cmd", ".com", ".ps1", ".psc1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".msi", ".msp", ".scr", ".pif", ".lnk", ".url", ".scf", ".reg", ".msc", ".cpl", ".jar",
+  ".chm", ".application", ".appref-ms", ".settingcontent-ms",
 ]);
 
 /** Error messages are stable tokens; the renderer turns them into Japanese. */

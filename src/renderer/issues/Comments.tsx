@@ -5,7 +5,7 @@ import { displayNameOf, useSession } from "../app/UserContext";
 import { useNavigationGuard } from "../app/useHashRoute";
 import { changeEntries, type ChangeEntry } from "./diffVersions";
 import { formatDateTime } from "./labels";
-import { staleMessage } from "./saveError";
+import { errorMessage, M } from "../messages";
 
 interface Props {
   issue: Issue;
@@ -55,7 +55,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
       try {
         if (statusChanged) await onStatus(status);
       } catch (e) {
-        setError(staleMessage(e));
+        setError(errorMessage(e));
         return;
       }
       if (body === "") return;
@@ -65,7 +65,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
         setDraft("");
         await load();
       } catch (e) {
-        setError(staleMessage(e));
+        setError(errorMessage(e));
       }
     } finally {
       setPosting(false);
@@ -91,7 +91,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
         </div>
       </div>
       {feed.length === 0 ? (
-        <p className="text--muted">コメントはありません</p>
+        <p className="text--muted">{M.noComments}</p>
       ) : (
         <ul className="comments">
           {feed.map((f) =>

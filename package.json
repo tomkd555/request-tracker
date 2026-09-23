@@ -1,6 +1,6 @@
 {
   "name": "request-tracker",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Request tracker for a small team over a shared folder",
   "main": "./out/main/index.js",
   "author": "TOMKD",
@@ -28,6 +28,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest run",
+    "notices": "node scripts/third-party-notices.mjs > THIRD-PARTY-NOTICES.txt",
     "build": "npm run typecheck && electron-vite build",
     "package": "npm run build && electron-builder --win portable",
     "postinstall": "electron-builder install-app-deps"

@@ -13,7 +13,7 @@ export function resolveParent(text: string, candidates: Issue[]): { key: string 
 
 type Props = {
   value: string | null;
-  /** Top-level issues that may become the parent; the owner excludes the issue itself. */
+  /** Issues that may become the parent; the owner excludes the issue itself, everything under it, and any level too deep (see parentRefusal). */
   candidates: Issue[];
   onChange(key: string | null, invalid: boolean): void;
   /** "change": report every keystroke (a form that validates on submit); "blur": report on blur or Enter (a field that saves at once). */

@@ -3,10 +3,11 @@ import type { IssueFilter, SavedFilter } from "../../shared/types";
 import { useSession } from "../app/UserContext";
 import { defaultFilter, EMPTY_FILTER } from "./filterIssues";
 import { removeFilter, sameFilter, upsertFilter } from "./savedFilter";
+import { M } from "../messages";
 
 type Props = { filter: IssueFilter; onChange(f: IssueFilter): void };
 
-/** Bookmarks a filter per machine, in config.json. Shown beside FilterBar on the list and gantt screens. */
+/** Bookmarks a filter per machine, in config.json. Shown beside FilterBar on the list, kanban and gantt screens. */
 export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
   const { config, project, refreshConfig } = useSession();
   const [selected, setSelected] = useState("");
@@ -22,7 +23,7 @@ export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
   const save = async (): Promise<void> => {
     const name = window.prompt("保存する名前")?.trim();
     if (!name) return;
-    if (config.savedFilters.some((s) => s.name === name) && !window.confirm(`「${name}」を上書きしますか`)) return;
+    if (config.savedFilters.some((s) => s.name === name) && !window.confirm(M.confirmOverwrite(name))) return;
     await persist(upsertFilter(config.savedFilters, name, filter));
     setSelected(name);
   };
@@ -54,7 +55,7 @@ export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
             }
           }}
         >
-          <option value="">選択してください</option>
+          <option value="">{M.selectPrompt}</option>
           {config.savedFilters.map((s) => (
             <option key={s.name} value={s.name}>
               {s.name === selected && dirty ? `${s.name}（未保存）` : s.name}

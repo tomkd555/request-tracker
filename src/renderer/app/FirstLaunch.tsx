@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { STAMP_ID, type User } from "../../shared/types";
 import type { BootStep } from "./boot";
+import { errorMessage, M } from "../messages";
 
 interface Props { step: Exclude<BootStep, "ready">; users: User[]; onDone(): void; error?: string | null }
 
@@ -28,8 +29,7 @@ export function FirstLaunch({ step, users, onDone, error: bootError = null }: Pr
     try {
       if ((await action()) !== false) onDone();
     } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      setError(m.includes("already-claimed") ? "この名前は別の端末で使われています" : m);
+      setError(errorMessage(e));
     }
   };
   const chooseFolder = (): Promise<void> => run(async () => (await window.api.config.chooseRoot()) !== null);
@@ -47,7 +47,7 @@ export function FirstLaunch({ step, users, onDone, error: bootError = null }: Pr
       {step === "folder" && (
         <section>
           <h2>共有フォルダ</h2>
-          <p>全員が読み書きできるネットワーク上のフォルダを選んでください。</p>
+          <p>{M.folderPrompt}</p>
           {bootError && <p className="text--error">{bootError}</p>}
           <div className="form-actions">
             {bootError && (
@@ -64,7 +64,7 @@ export function FirstLaunch({ step, users, onDone, error: bootError = null }: Pr
       {step === "month" && (
         <section>
           <h2>プロジェクトの作成</h2>
-          <p>このフォルダにはまだプロジェクトがありません。</p>
+          <p>{M.folderEmpty}</p>
           <label className="first-launch__label">
             年度の開始月
             <select className="first-launch__field" value={month} onChange={(e) => setMonth(Number(e.target.value))}>

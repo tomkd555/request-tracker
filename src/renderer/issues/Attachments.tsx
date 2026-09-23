@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AttachmentOwner } from "../../shared/api";
 import type { Attachment } from "../../shared/types";
-import { messageFor, refusalMessages } from "./attachmentMessages";
 import { formatDateTime } from "./labels";
+import { errorMessage, M, refusalMessages } from "../messages";
 
 const formatSize = (bytes: number): string =>
   bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -26,7 +26,7 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
       setMessages(refusalMessages(r));
       await load();
     } catch (e) {
-      setMessages([messageFor(e)]);
+      setMessages([errorMessage(e)]);
     }
   };
 
@@ -34,17 +34,17 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
     try {
       await window.api.attachments.open(owner, name);
     } catch (e) {
-      setMessages([messageFor(e)]);
+      setMessages([errorMessage(e)]);
     }
   };
 
   const remove = async (name: string): Promise<void> => {
-    if (!window.confirm(`${name} を削除しますか`)) return;
+    if (!window.confirm(M.confirmDelete(name))) return;
     try {
       await window.api.attachments.remove(owner, name);
       await load();
     } catch (e) {
-      setMessages([messageFor(e)]);
+      setMessages([errorMessage(e)]);
     }
   };
 
@@ -70,7 +70,7 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
           <button type="button" onClick={() => void add(null)}>
             追加
           </button>
-          <button type="button" onClick={() => window.api.attachments.openFolder(owner).catch((e) => setMessages([messageFor(e)]))}>
+          <button type="button" onClick={() => window.api.attachments.openFolder(owner).catch((e) => setMessages([errorMessage(e)]))}>
             フォルダを開く
           </button>
         </div>
@@ -81,7 +81,7 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
         </p>
       ))}
       {items.length === 0 ? (
-        <p className="text--muted">添付ファイルはありません</p>
+        <p className="text--muted">{M.noAttachments}</p>
       ) : (
         <table className="attachments__table">
           <tbody>

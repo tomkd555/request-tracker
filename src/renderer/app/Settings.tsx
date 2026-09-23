@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { THEME_NAMES, type LocalSettings, type ThemeName } from "../../shared/types";
+import { NOTICE_MODES, THEME_NAMES, type LocalSettings, type NoticeMode, type ThemeName } from "../../shared/types";
 import { accentOf, applyAppearance, THEMES } from "./theme";
 import { useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
+import { errorMessage, M } from "../messages";
 
 /** Result line under a form: the saved message, or the store's error. Shared with the project settings screen. */
 export function useSaveMessage(): [string | null, (action: () => Promise<void>) => Promise<void>] {
@@ -11,13 +12,15 @@ export function useSaveMessage(): [string | null, (action: () => Promise<void>) 
     setMessage(null);
     try {
       await action();
-      setMessage("保存しました");
+      setMessage(M.saved);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage(errorMessage(e));
     }
   };
   return [message, run];
 }
+
+const NOTICE_LABEL: Record<NoticeMode, string> = { motion: "動きつきで表示", still: "動きなしで表示", off: "表示しない" };
 
 /** Per-machine settings: name, appearance and timing, the shared folder. Team settings live on ProjectSettings. */
 export function Settings(): React.JSX.Element {
@@ -42,15 +45,15 @@ function AppearanceSection(): React.JSX.Element {
   const save = (): Promise<void> =>
     run(async () => {
       // The payload starts from the live session config, not the draft snapshot taken at mount, so a view saved
-      // elsewhere in the meantime (savedFilters) is not reverted; only the four fields this form edits come from draft.
-      const next = { ...config, theme: draft.theme, accent: draft.accent, dueSoonDays: draft.dueSoonDays };
+      // elsewhere in the meantime (savedFilters) is not reverted; only the fields this form edits come from draft.
+      const next = { ...config, theme: draft.theme, accent: draft.accent, notice: draft.notice, dueSoonDays: draft.dueSoonDays };
       const saved = await window.api.config.put(next);
       applyAppearance(saved);
       await refreshConfig();
     });
   const patch = (p: Partial<LocalSettings>): void => setDraft((d) => ({ ...d, ...p }));
   useNavigationGuard(
-    draft.theme !== config.theme || draft.accent !== config.accent || draft.dueSoonDays !== config.dueSoonDays,
+    draft.theme !== config.theme || draft.accent !== config.accent || draft.notice !== config.notice || draft.dueSoonDays !== config.dueSoonDays,
   );
 
   return (
@@ -80,6 +83,15 @@ function AppearanceSection(): React.JSX.Element {
             プリセットの色に戻す
           </button>
         </div>
+        <fieldset className="settings__fieldset">
+          <legend>保存後の通知</legend>
+          {NOTICE_MODES.map((mode) => (
+            <label key={mode} className="settings__radio">
+              <input type="radio" name="notice" value={mode} checked={draft.notice === mode} onChange={() => patch({ notice: mode })} />
+              {NOTICE_LABEL[mode]}
+            </label>
+          ))}
+        </fieldset>
         <div className="settings__row">
           <label className="settings__inline">
             期限間近（日）

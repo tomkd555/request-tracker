@@ -2,18 +2,22 @@
 
 export type ThemeName = "green" | "blue" | "gray" | "dark";
 export const THEME_NAMES: ThemeName[] = ["green", "blue", "gray", "dark"];
+/** The status message after a save that moved to another screen: shown with motion, shown without motion, or never shown. */
+export type NoticeMode = "motion" | "still" | "off";
+export const NOTICE_MODES: NoticeMode[] = ["motion", "still", "off"];
 
 /** Per-machine preferences in %APPDATA%\request-tracker\config.json; a file written before a field existed gets the default on read. */
 export interface LocalSettings {
   theme: ThemeName;
   accent: string | null; // "#rrggbb"; null = the preset's own accent
+  notice: NoticeMode;
   dueSoonDays: number; // 0–30
   // ponytail: saved views live per machine; move the array to project.json with its own project:putViews if the team asks for shared views
-  savedFilters: SavedFilter[]; // named issue-list/gantt filters; [] on files written before this field
+  savedFilters: SavedFilter[]; // named filters shared by the list, kanban and gantt screens; [] on files written before this field
 }
 export interface LocalConfig extends LocalSettings { rootDir: string }
 
-export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "green", accent: null, dueSoonDays: 3, savedFilters: [] };
+export const DEFAULT_LOCAL_SETTINGS: LocalSettings = { theme: "green", accent: null, notice: "motion", dueSoonDays: 3, savedFilters: [] };
 export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 export interface Project {
@@ -79,7 +83,7 @@ export interface IssueFilter {
   fields: Record<string, string>;
 }
 
-/** A named filter bookmarked on the issue list or gantt screen. */
+/** A named filter bookmarked on the issue list, kanban or gantt screen. */
 export interface SavedFilter { name: string; filter: IssueFilter }
 
 export interface Issue {
@@ -91,7 +95,7 @@ export interface Issue {
   priority: IssuePriority;
   assignee: string | null; // username
   reporter: string; // username
-  parentKey: string | null; // one level: a child has no children
+  parentKey: string | null; // a chain spans at most MAX_DEPTH levels (see issueTree)
   startDate: string | null; // YYYY-MM-DD
   dueDate: string | null; // YYYY-MM-DD
   createdAt: string;
@@ -188,6 +192,7 @@ const intIn = (v: unknown, min: number, max: number): v is number => Number.isIn
 export function assertLocalSettings(s: LocalSettings): void {
   if (!THEME_NAMES.includes(s.theme)) throw new Error(`unknown theme: ${String(s.theme)}`);
   if (s.accent !== null && !(str(s.accent) && HEX_COLOR.test(s.accent))) throw new Error(`accent must be #rrggbb: ${String(s.accent)}`);
+  if (!NOTICE_MODES.includes(s.notice)) throw new Error(`unknown notice: ${String(s.notice)}`);
   if (!intIn(s.dueSoonDays, 0, 30)) throw new Error(`dueSoonDays out of range: ${String(s.dueSoonDays)}`);
 }
 
@@ -197,6 +202,7 @@ export function localSettingsFrom(v: Record<string, unknown>): LocalSettings {
   return {
     theme: THEME_NAMES.includes(v.theme as ThemeName) ? (v.theme as ThemeName) : d.theme,
     accent: str(v.accent) && HEX_COLOR.test(v.accent) ? v.accent : d.accent,
+    notice: NOTICE_MODES.includes(v.notice as NoticeMode) ? (v.notice as NoticeMode) : d.notice,
     dueSoonDays: intIn(v.dueSoonDays, 0, 30) ? v.dueSoonDays : d.dueSoonDays,
     savedFilters: Array.isArray(v.savedFilters) ? v.savedFilters.filter(isSavedFilter) : d.savedFilters,
   };

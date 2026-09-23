@@ -5,10 +5,10 @@ import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { Attachments } from "../issues/Attachments";
 import { formatDateTime } from "../issues/labels";
-import { staleMessage } from "../issues/saveError";
 import { useWiki } from "./useWiki";
 import { WikiHistory } from "./WikiHistory";
 import { ancestorsOf, childrenMap } from "./wikiTree";
+import { errorMessage, M } from "../messages";
 
 interface Heading { level: number; text: string; id: string }
 
@@ -37,23 +37,22 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
       await window.api.wiki.put({ ...page, title: old.title, body: old.body, note: `${formatDateTime(old.updatedAt)} の版に戻す`, updatedAt: new Date().toISOString(), updatedBy: me.username }, page.updatedAt);
       await refreshOne(page.id);
     } catch (e) {
-      setError(staleMessage(e));
+      setError(errorMessage(e, "wiki"));
     }
   };
 
   const remove = async (): Promise<void> => {
     if (children.length > 0) {
-      setError("子ページがあるため削除できません");
+      setError(M.pageHasChildren);
       return;
     }
-    if (!window.confirm(`${page.title} を削除しますか`)) return;
+    if (!window.confirm(M.confirmDelete(page.title))) return;
     try {
       await window.api.wiki.remove(page.id);
       await refreshOne(page.id);
       navigate("/wiki");
     } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      setError(m.includes("has-children") ? "子ページがあるため削除できません" : m);
+      setError(errorMessage(e, "wiki"));
     }
   };
 
@@ -63,7 +62,7 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
         <a href="#/wiki">Wiki</a>
         {ancestors.map((a) => (
           <span key={a.id} className="breadcrumb__crumb">
-            <span className="breadcrumb__sep">›</span>
+            <span className="breadcrumb__sep" aria-hidden="true">›</span>
             <a href={`#/wiki/${a.id}`}>{a.title}</a>
           </span>
         ))}

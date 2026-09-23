@@ -5,9 +5,9 @@ import { Markdown } from "../app/Markdown";
 import { useSession } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { MarkdownEditor } from "../issues/FieldEditor";
-import { staleMessage } from "../issues/saveError";
 import { useWiki } from "./useWiki";
 import { descendantIdsOf, flattenTree, normalizeTitle } from "./wikiTree";
+import { errorMessage, M } from "../messages";
 
 interface Props {
   id: string | null;
@@ -37,7 +37,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
       setBody(existing.body);
       setParentId(existing.parentId);
     }
-  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [existing?.id]);
 
   const dirty = existing ? title !== existing.title || body !== existing.body || parentId !== existing.parentId : title !== presetTitle || body !== "";
   useNavigationGuard(dirty && !busy);
@@ -68,8 +68,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
         navigate(`/wiki/${created.id}`);
       }
     } catch (e) {
-      const m = staleMessage(e);
-      setError(m.includes("cycle") ? "このページの下のページは親ページに選べません" : m);
+      setError(errorMessage(e, "wiki"));
       setBusy(false);
     }
   };
@@ -95,8 +94,8 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
         </label>
         <div className="issue-form__cell">
           <input id="wiki-title" className="issue-form__control" value={title} onChange={(e) => setTitle(e.target.value)} aria-invalid={submitted && (titleMissing || duplicate)} autoFocus />
-          {submitted && titleMissing && <span className="issue-form__error">タイトルを入力してください</span>}
-          {submitted && duplicate && <span className="issue-form__error">同じ親ページの下に同名のページがあります</span>}
+          {submitted && titleMissing && <span className="issue-form__error">{M.titleRequired}</span>}
+          {submitted && duplicate && <span className="issue-form__error">{M.duplicateTitle}</span>}
         </div>
         <label htmlFor="wiki-parent" className="issue-form__term">
           親ページ

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { M } from "../messages";
 
 export interface Route { path: string; query: URLSearchParams }
 
@@ -40,7 +41,7 @@ export function useHashRoute(): Route {
         restoring = false;
         return;
       }
-      if (activeGuards > 0 && !window.confirm("編集内容を破棄しますか")) {
+      if (activeGuards > 0 && !window.confirm(M.confirmDiscard)) {
         restoring = true;
         window.location.hash = accepted.current;
         return;
