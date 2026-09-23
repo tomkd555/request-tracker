@@ -21,6 +21,7 @@ import { useWiki, WikiProvider } from "../wiki/useWiki";
 import { Search } from "../search/Search";
 import "./app.css";
 import "../issues/issues.css";
+import { M } from "../messages";
 
 interface Boot { step: BootStep; config: LocalConfig | null; project: Project | null; me: User | null; users: User[]; error: string | null }
 
@@ -40,8 +41,8 @@ export function App(): React.JSX.Element {
       const where = config ? `共有フォルダ（${config.rootDir}）` : "共有フォルダ";
       const invalid = e instanceof Error && e.message.includes("project-invalid");
       const error = invalid
-        ? `${where}のproject.jsonを読めません。`
-        : `${where}に接続できません。ネットワークドライブやVPNを確認してください。`;
+        ? M.projectInvalidAt(where)
+        : M.shareUnreachableAt(where);
       setBoot({ step: "folder", config, project: null, me: null, users: [], error });
     }
   }, []);
@@ -110,7 +111,7 @@ function Shell(): React.JSX.Element {
       setError(null);
     } catch (e) {
       // The share dropped mid-session: the screens keep what they read, and the message says so until a refresh succeeds.
-      setError(`共有フォルダを読めません。ネットワークドライブやVPNを確認してください。（${e instanceof Error ? e.message : String(e)}）`);
+      setError(M.shareUnreadable(e instanceof Error ? e.message : String(e)));
     }
   }, [refreshUsers, refreshProject, issues.reload, wiki.reload]);
   const first = useRef(true);

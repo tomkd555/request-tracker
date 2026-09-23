@@ -7,13 +7,12 @@ import { showToast } from "../app/toast";
 import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { AssigneeSelect } from "./AssigneeSelect";
-import { messageFor, refusalMessages } from "./attachmentMessages";
 import { MarkdownEditor } from "./FieldEditor";
 import { firstOfKind, PRIORITY_LABEL } from "./labels";
 import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
-import { staleMessage } from "./saveError";
 import { useIssues } from "./useIssues";
+import { errorMessage, M, refusalMessages } from "../messages";
 
 interface Props {
   parentKey: string | null;
@@ -135,7 +134,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
         try {
           notes.push(...refusalMessages(await window.api.attachments.add({ kind: "issue", id: issue.key }, paths)));
         } catch (e) {
-          notes.push(messageFor(e));
+          notes.push(errorMessage(e));
         }
       }
       if (again || notes.length > 0) {
@@ -148,10 +147,10 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
         setBusy(false);
         return;
       }
-      showToast(`${issue.key} を追加しました`);
+      showToast(M.issueAdded(issue.key));
       navigate(`/issues/${issue.key}`);
     } catch (err) {
-      setMessages([staleMessage(err)]);
+      setMessages([errorMessage(err)]);
       setBusy(false);
     }
   };
@@ -211,7 +210,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           aria-invalid={submitted && summaryMissing}
           autoFocus
         />
-        {submitted && summaryMissing && <span className="issue-form__error">件名を入力してください</span>}
+        {submitted && summaryMissing && <span className="issue-form__error">{M.summaryRequired}</span>}
       </label>
       <div className="issue-form__field">
         <span className="issue-form__label">詳細</span>
@@ -260,7 +259,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
             aria-invalid={datesReversed}
             onChange={(e) => setDueDate(e.target.value)}
           />
-          {datesReversed && <span className="issue-form__error">期限日は開始日以降にしてください</span>}
+          {datesReversed && <span className="issue-form__error">{M.dueBeforeStart}</span>}
         </div>
         <label htmlFor="new-parent" className="issue-form__term">
           親課題
@@ -281,7 +280,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
               }}
             />
           )}
-          {parentInvalid && <span className="issue-form__error">該当する課題がありません</span>}
+          {parentInvalid && <span className="issue-form__error">{M.parentNotFound}</span>}
         </div>
         {project.fields.map((f) => (
           <FieldRow key={f.id} field={f} value={fields[f.id] ?? ""} onChange={(v) => setFields((x) => ({ ...x, [f.id]: v }))} />

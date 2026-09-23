@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { IssueStatus, Project, User } from "../../shared/types";
 import { AssigneeSelect } from "./AssigneeSelect";
 import { BULK_MAX, type BulkPatch, type BulkResult } from "./bulkEdit";
+import { M } from "../messages";
 
 const KEEP = "__keep__";
 type DueMode = "keep" | "set" | "clear";
@@ -110,10 +111,10 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
       <button type="button" onClick={onClear}>
         選択解除
       </button>
-      {overCap && <p className="text--error">{`一度に更新できるのは${BULK_MAX}件までです`}</p>}
+      {overCap && <p className="text--error">{M.bulkOverCap(BULK_MAX)}</p>}
       {result && (
         <div className="bulk-bar__result">
-          <p>{successCount}件を更新しました</p>
+          <p>{M.bulkUpdated(successCount)}</p>
           {failures.length > 0 && (
             <ul className="bulk-bar__failures">
               {failures.map((f) => (

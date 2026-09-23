@@ -7,6 +7,7 @@ import { WikiIndex } from "./WikiIndex";
 import { childrenMap, pathIds, searchPages } from "./wikiTree";
 import { WikiView } from "./WikiView";
 import "./wiki.css";
+import { M } from "../messages";
 
 /** The wiki screens share one frame: the page tree on the left, the index, a page or the editor on the right. */
 export function WikiScreen({ route }: { route: Route }): React.JSX.Element {
@@ -92,12 +93,12 @@ function Sidebar({ currentId }: { currentId: string | null }): React.JSX.Element
               </div>
             </li>
           ))}
-          {hits.length === 0 && <li className="text--muted wiki-tree__empty">該当するページがありません</li>}
+          {hits.length === 0 && <li className="text--muted wiki-tree__empty">{M.noPagesMatch}</li>}
         </ul>
       ) : (
         <ul className="wiki-tree__list">
           {(children.get(null) ?? []).map((p) => node(p, 0))}
-          {loaded && pages.length === 0 && <li className="text--muted wiki-tree__empty">ページはありません</li>}
+          {loaded && pages.length === 0 && <li className="text--muted wiki-tree__empty">{M.noPages}</li>}
         </ul>
       )}
     </aside>

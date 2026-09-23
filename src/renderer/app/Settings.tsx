@@ -3,6 +3,7 @@ import { NOTICE_MODES, THEME_NAMES, type LocalSettings, type NoticeMode, type Th
 import { accentOf, applyAppearance, THEMES } from "./theme";
 import { useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
+import { errorMessage, M } from "../messages";
 
 /** Result line under a form: the saved message, or the store's error. Shared with the project settings screen. */
 export function useSaveMessage(): [string | null, (action: () => Promise<void>) => Promise<void>] {
@@ -11,9 +12,9 @@ export function useSaveMessage(): [string | null, (action: () => Promise<void>) 
     setMessage(null);
     try {
       await action();
-      setMessage("保存しました");
+      setMessage(M.saved);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage(errorMessage(e));
     }
   };
   return [message, run];

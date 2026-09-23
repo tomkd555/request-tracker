@@ -6,11 +6,11 @@ import { FilterBar } from "../issues/FilterBar";
 import { defaultFilter, filterIssues, type IssueFilter } from "../issues/filterIssues";
 import { statusName, statusStyle } from "../issues/labels";
 import { SavedFilters } from "../issues/SavedFilters";
-import { staleMessage } from "../issues/saveError";
 import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
 import { datesAfterDrag, layoutGantt, rangeFor, shiftMonth, type DragMode, type GanttRow, type GroupBy, type Months, type Segment } from "./layoutGantt";
 import "./gantt.css";
+import { errorMessage, M } from "../messages";
 
 const DAY_PX: Record<Months, number> = { 1: 28, 2: 20, 3: 14, 6: 8 };
 const MONTH_OPTIONS: Months[] = [1, 2, 3, 6];
@@ -100,7 +100,7 @@ export function Gantt(): React.JSX.Element {
       await window.api.issues.put({ ...issue, ...datesAfterDrag(issue, d.mode, d.delta, range), updatedAt: new Date().toISOString(), updatedBy: me.username }, issue.updatedAt);
       await refreshOne(issue.key);
     } catch (e) {
-      setMessage(staleMessage(e));
+      setMessage(errorMessage(e));
       await refreshOne(issue.key); // snaps the bar back to the record actually on disk
     }
   };
@@ -306,7 +306,7 @@ export function Gantt(): React.JSX.Element {
           )}
           {bodyRows === 0 && (
             <div className="gantt__empty" style={{ gridRow: 3, gridColumn: "1 / -1" }}>
-              該当する課題はありません
+              {M.noIssues}
             </div>
           )}
         </div>

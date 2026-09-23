@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { User } from "../../shared/types";
 import { useSession } from "../app/UserContext";
+import { errorMessage } from "../messages";
 
 const ADD = "__add__";
 
@@ -38,7 +39,7 @@ export function AssigneeSelect({ value, users, leading, onChange, id, className,
       setName("");
       setAdding(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

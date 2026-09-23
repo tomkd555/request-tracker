@@ -15,9 +15,9 @@ import { firstOfKind, formatDateTime, INVERSE_LABEL, PRIORITY_LABEL, RELATION_LA
 import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
 import { addRelation, relatedIssues, relationRows } from "./relatedIssues";
-import { staleMessage } from "./saveError";
 import { markSeen } from "./seen";
 import { useIssues } from "./useIssues";
+import { errorMessage, M } from "../messages";
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
   const { me, users, project, config } = useSession();
@@ -63,7 +63,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     try {
       await put(patch);
     } catch (e) {
-      setError(staleMessage(e));
+      setError(errorMessage(e));
     }
   };
   const reload = (): void => {
@@ -90,17 +90,16 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
 
   const remove = async (): Promise<void> => {
     if (children.length > 0) {
-      setError("子課題があるため削除できません");
+      setError(M.issueHasChildren);
       return;
     }
-    if (!window.confirm(`${issue.key} ${issue.summary} を削除しますか`)) return;
+    if (!window.confirm(M.confirmDelete(`${issue.key} ${issue.summary}`))) return;
     try {
       await window.api.issues.remove(issue.key);
       await refreshOne(issue.key);
       navigate("/issues");
     } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      setError(m.includes("has-children") ? "子課題があるため削除できません" : m);
+      setError(errorMessage(e));
     }
   };
 
@@ -159,7 +158,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
                 )}
               </div>
               {children.length === 0 ? (
-                <p className="text--muted">子課題はありません</p>
+                <p className="text--muted">{M.noChildIssues}</p>
               ) : (
                 <table className="issue-table">
                   <thead>

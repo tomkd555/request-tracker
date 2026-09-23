@@ -3,6 +3,7 @@ import type { WikiPage } from "../../shared/types";
 import { diffHunks, diffLines } from "../app/diffLines";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { formatDateTime } from "../issues/labels";
+import { M } from "../messages";
 
 interface Props { page: WikiPage; onRestore(old: WikiPage): void }
 
@@ -24,7 +25,7 @@ export function WikiHistory({ page, onRestore }: Props): React.JSX.Element {
     };
   }, [page.id, page.updatedAt]);
 
-  if (history.length === 0) return <p className="text--muted">履歴はありません</p>;
+  if (history.length === 0) return <p className="text--muted">{M.noHistory}</p>;
   const versions = [...history, page];
   const rows = history.map((old, i) => ({ old, next: versions[i + 1] })).reverse();
 
@@ -69,7 +70,7 @@ function HistoryRow({ old, next, open, onToggle, onRestore, userName }: RowProps
               </p>
             )}
             {hunks.length === 0 ? (
-              <p className="text--muted">本文に変更はありません</p>
+              <p className="text--muted">{M.noBodyChange}</p>
             ) : (
               <pre className="wiki-diff">
                 {hunks.map((l, i) =>

@@ -5,6 +5,7 @@ import { useIssues } from "../issues/useIssues";
 import { useWiki } from "../wiki/useWiki";
 import { searchAll, type Hit } from "./searchAll";
 import "./search.css";
+import { M } from "../messages";
 
 const SECTIONS: { kind: Hit["kind"]; label: string }[] = [
   { kind: "issue", label: "課題" },
@@ -58,8 +59,8 @@ export function Search(): React.JSX.Element {
         <button type="submit">検索</button>
       </form>
       {error && <p className="text--error">{error}</p>}
-      {query === "" && <p className="text--muted">キーワードを入力してください</p>}
-      {query !== null && query !== "" && hits.length === 0 && <p className="text--muted">該当はありません</p>}
+      {query === "" && <p className="text--muted">{M.keywordPrompt}</p>}
+      {query !== null && query !== "" && hits.length === 0 && <p className="text--muted">{M.noHits}</p>}
       {SECTIONS.map(({ kind, label }) => {
         const rows = hits.filter((h) => h.kind === kind);
         if (rows.length === 0) return null;
