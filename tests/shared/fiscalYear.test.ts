@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fiscalYearOf, fiscalYy } from "../../../src/shared/fiscalYear";
+import { fiscalYearOf, fiscalYy } from "../../src/shared/fiscalYear";
 
 test("a date after the start month belongs to the current year", () => {
   expect(fiscalYearOf(new Date(2026, 8, 12), 4)).toBe(2026);

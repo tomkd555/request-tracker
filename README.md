@@ -49,8 +49,8 @@ There is no server and no database. The shared folder is the database:
 - The previous version is copied to `history/` before every overwrite. Deletion moves the file to `trash/`.
 - A save carries the `updatedAt` the client last read; when the file on disk holds a newer one, the store refuses the write before anything is copied or written, so the later editor sees the message and reloads. Restoring a version goes through the same check.
 - A typed link is stored on the issue it was added to; the other issue shows the inverse when read. A label is stored by name, like a category, so a label removed from the project stays on its issues as a grey chip.
-- A client running 0.2.0 keeps the 0.3.0 fields it cannot show (`labels`, `relations`) when it saves, because every save writes the whole record it read.
-- An issue's `status` is the id of a stage in `project.json`; the four stages of 0.3.0 keep their ids, so a 0.4.0 client reads older records unchanged. A client older than 0.4.0 skips an issue on a stage added later, so update every client before adding a stage.
+- Every save writes the whole record the client read, so a field the client has no screen for survives its saves.
+- An issue's `status` is the id of a stage in `project.json`; an issue whose stage the project no longer lists reads as the first stage.
 - Issue keys are `YY-NNNN`: the two-digit fiscal year and a sequence within it (`26-0001`). The key is claimed with an exclusive create, so two clients creating at the same moment get distinct keys with no counter file.
 - Nothing runs in the background. The app reads the shared folder when a screen opens, after its own save, and when 更新 is pressed; a change another person made shows on the next of those. A listing is served from memory while the directory's mtime is unchanged and the listing is under a minute old (every write is a temp file plus a rename inside the directory, so the mtime moves), and a client's own write drops its cache at once. SMB shares deliver no file-watch events reliably, so there is no watcher.
 - The current user is the OS username; the name shown to other members is asked once on first launch and stored in `users/`. A member added by name in project settings is a record with a stamp id; when that person launches the app and picks the name, the OS username is written into the record as `login`, so the assignee value on existing issues stays as it is.
@@ -58,7 +58,7 @@ There is no server and no database. The shared folder is the database:
 
 ## Requirements
 
-- Windows 11 (Electron 39 also supports Windows 10; only 11 has been tested)
+- Windows 10 or later
 - A shared folder every user can write to (a network drive or a synced folder)
 
 ## First launch

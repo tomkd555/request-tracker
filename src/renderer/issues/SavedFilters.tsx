@@ -7,7 +7,7 @@ import { M } from "../messages";
 
 type Props = { filter: IssueFilter; onChange(f: IssueFilter): void };
 
-/** Bookmarks a filter per machine, in config.json. Shown beside FilterBar on the list and gantt screens. */
+/** Bookmarks a filter per machine, in config.json. Shown beside FilterBar on the list, kanban and gantt screens. */
 export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
   const { config, project, refreshConfig } = useSession();
   const [selected, setSelected] = useState("");

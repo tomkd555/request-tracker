@@ -13,7 +13,7 @@ export interface LocalSettings {
   notice: NoticeMode;
   dueSoonDays: number; // 0–30
   // ponytail: saved views live per machine; move the array to project.json with its own project:putViews if the team asks for shared views
-  savedFilters: SavedFilter[]; // named issue-list/gantt filters; [] on files written before this field
+  savedFilters: SavedFilter[]; // named filters shared by the list, kanban and gantt screens; [] on files written before this field
 }
 export interface LocalConfig extends LocalSettings { rootDir: string }
 
@@ -83,7 +83,7 @@ export interface IssueFilter {
   fields: Record<string, string>;
 }
 
-/** A named filter bookmarked on the issue list or gantt screen. */
+/** A named filter bookmarked on the issue list, kanban or gantt screen. */
 export interface SavedFilter { name: string; filter: IssueFilter }
 
 export interface Issue {
