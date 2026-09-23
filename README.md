@@ -122,4 +122,4 @@ Releases are cut by hand. `.github/workflows/ci.yml` type-checks, tests and buil
 
 ## License
 
-MIT. See `LICENSE`. The packages bundled into the exe are listed with their licences in `THIRD-PARTY-NOTICES.txt`; `npm run notices` regenerates it after a dependency change.
+MIT. See `LICENSE`. The name describes what the app does; the project is independent of other products called Request Tracker. The packages bundled into the exe are listed with their licences in `THIRD-PARTY-NOTICES.txt`; `npm run notices` regenerates it after a dependency change.
