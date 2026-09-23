@@ -37,7 +37,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
       setBody(existing.body);
       setParentId(existing.parentId);
     }
-  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [existing?.id]);
 
   const dirty = existing ? title !== existing.title || body !== existing.body || parentId !== existing.parentId : title !== presetTitle || body !== "";
   useNavigationGuard(dirty && !busy);

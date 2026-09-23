@@ -20,7 +20,7 @@ A desktop app for a small team to file and track requests without a server. Ever
 - Colour presets (green, blue, grey, dark) with a free accent colour per machine, and a colour per category and per label shared by the team
 - Members registered by name in project settings or right from the assignee field (メンバーを追加…), so an issue can be assigned to someone who has yet to open the app; that person picks the name on first launch and it becomes theirs
 - Status stages defined per project: name, colour, order, and a kind (活動中, 確認待ち, 完了) that drives the due-date tones, the 確認待ち filter, 確認して完了 and the monthly closed count; a stage can be removed while issues still use it, and those issues read as the first stage
-- Two settings screens: 設定 (name, appearance, due-soon window, shared folder; all per machine) and プロジェクト設定 (categories with colours and templates, status stages, labels, members, custom columns; shared by the team)
+- Two settings screens: 設定 (name, which is written to the shared `users/` folder; appearance, post-save notice, due-soon window and shared folder per machine) and プロジェクト設定 (categories with colours and templates, status stages, labels, members, custom columns; shared by the team)
 
 ## How it works
 
@@ -58,7 +58,7 @@ There is no server and no database. The shared folder is the database:
 
 ## Requirements
 
-- Windows 10 or 11
+- Windows 11 (Electron 39 also supports Windows 10; only 11 has been tested)
 - A shared folder every user can write to (a network drive or a synced folder)
 
 ## First launch
@@ -67,7 +67,7 @@ There is no server and no database. The shared folder is the database:
 2. Run it. A three-step screen (shared folder, project, name) opens. Pick the shared folder. If the folder holds no project yet, set the fiscal year start month (default April); the app creates `project.json` and the directories.
 3. Enter your name, or pick it from the members already registered in project settings. The issue list opens; the next launch opens it directly. When the folder cannot be reached later (drive offline, VPN down), the same screen names the folder and offers to reload or pick another one.
 
-The chosen folder is stored in `%APPDATA%\request-tracker\config.json`, together with the colour preset, accent colour, due-soon window and the saved filters. The settings screen changes any of them, including the folder.
+The chosen folder is stored in `%APPDATA%\request-tracker\config.json`, together with the colour preset, accent colour, post-save notice, due-soon window and the saved filters. The settings screen changes any of them, including the folder.
 
 ## Development
 
@@ -122,4 +122,4 @@ Releases are cut by hand. `.github/workflows/ci.yml` type-checks, tests and buil
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See `LICENSE`. The packages bundled into the exe are listed with their licences in `THIRD-PARTY-NOTICES.txt`; `npm run notices` regenerates it after a dependency change.

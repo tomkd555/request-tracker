@@ -28,6 +28,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest run",
+    "notices": "node scripts/third-party-notices.mjs > THIRD-PARTY-NOTICES.txt",
     "build": "npm run typecheck && electron-vite build",
     "package": "npm run build && electron-builder --win portable",
     "postinstall": "electron-builder install-app-deps"
