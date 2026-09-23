@@ -15,8 +15,8 @@
   /* text */
   --text: #242424; /* board: column header */
   --text-muted: #737373; /* board: card key */
-  --text-table-header: color-mix(in srgb, var(--brand) 70%, #999999); /* issue list: column labels; approximates the sampled #6f9a89 */
-  --link: color-mix(in srgb, var(--brand) 95%, black); /* gantt: issue title link; approximates the sampled #4f8d78 */
+  --text-table-header: color-mix(in srgb, var(--brand) 70%, #999999); /* issue list: column labels */
+  --link: color-mix(in srgb, var(--brand) 95%, black); /* gantt: issue title link */
   --text-overdue: #b3261e; /* issue list: overdue due date; own choice, 5.9:1 on --bg-row (measured) */
   --text-due-soon: #8a5a00; /* issue list: due within 3 days; own choice, 5.3:1 on --bg-row (measured) */
   --link-missing: #a63d2f; /* wiki: link to a page that does not exist yet; own choice, 5.6:1 on --bg-panel */
@@ -25,7 +25,7 @@
 
   /* brand; theme.ts overrides --brand and --text-on-brand with the chosen preset or accent */
   --brand: #52987c; /* issue list: selected filter chip, count badge */
-  --brand-border: color-mix(in srgb, var(--brand) 90%, black); /* parent/child tree: parent row left border; approximates the sampled #44987b */
+  --brand-border: color-mix(in srgb, var(--brand) 90%, black); /* parent/child tree: parent row left border */
   --text-on-brand: #ffffff; /* text on the brand colour */
   --bg-nav-active: rgba(255, 255, 255, 0.2); /* nav: the current item, a light wash over the brand colour */
 

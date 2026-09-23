@@ -2,8 +2,6 @@
 
 A desktop app for a small team to file and track requests without a server. Every client reads and writes a folder of JSON files on a shared network drive; attachments are copied into that folder. The UI is Japanese.
 
-Screenshots: to be added.
-
 ## Features
 
 - Parent issues with child issues, each with status, priority, category, labels, assignee, start and due dates, a Markdown description, typed links to other issues (関連, 重複, 先行, with the other side shown as 後続) and the project's custom columns (汎用列: free text or a choice list, never required)
@@ -85,7 +83,7 @@ npm run package      # build and electron-builder, producing dist/RequestTracker
 
 If electron-builder fails while extracting `winCodeSign` with a symlink permission error, enable Windows Developer Mode or run that step once from an administrator shell. The exe is unsigned.
 
-Stack: Electron 39, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, vitest, plain CSS with the palette in `src/renderer/tokens.css`. Tests cover the store against a real temporary directory and every pure function (filters, key allocation, counts, gantt layout); React components have no automated tests.
+Stack: Electron 39, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, vitest, plain CSS with the palette in `src/renderer/tokens.css`. Tests cover the store against a real temporary directory and the pure functions behind filters, key allocation, counts, messages and gantt layout; React components have no automated tests.
 
 Layout:
 
@@ -120,18 +118,7 @@ Releases are cut by hand. `.github/workflows/ci.yml` type-checks, tests and buil
 - The exe starts on a machine without Node or this repository
 - Two instances pointed at the real network share see each other's changes on the next screen change or 更新, and simultaneous creation yields distinct keys
 
-Two branches carry the code. `master` is the private working branch. `public` is an orphan branch holding one squashed commit per release, and `origin/master` on GitHub is `public`; a pull request merged on GitHub lands on `public` alone and the next squash reverts it, so dependency bumps are applied on `master` by hand. Publishing a release:
-
-```
-git checkout public
-git read-tree -u --reset master      # the index and worktree become master's tree; HEAD stays on public
-git diff master --stat               # prints nothing
-git commit -m "X.Y.Z: ..."
-git push origin public:master
-git tag vX.Y.Z public && git push origin vX.Y.Z
-gh release create vX.Y.Z dist/RequestTracker-X.Y.Z.exe --title "X.Y.Z"
-git checkout master
-```
+`master` receives one squashed commit per release, tagged `vX.Y.Z`, with the exe attached to the GitHub release. Pull requests and dependency bumps are folded into the next release by hand.
 
 ## License
 
