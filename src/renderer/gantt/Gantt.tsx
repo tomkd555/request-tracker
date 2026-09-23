@@ -159,7 +159,12 @@ export function Gantt(): React.JSX.Element {
       <div
         key={i}
         className={`gantt__cell ${cls}`}
-        style={{ gridRow: row, gridColumn: i + 1, left: LEFT_COLS.slice(0, i).reduce((a, b) => a + b, 0) }}
+        style={{
+          gridRow: row,
+          gridColumn: i + 1,
+          left: LEFT_COLS.slice(0, i).reduce((a, b) => a + b, 0),
+          ...(i === 0 && r.depth > 0 ? { paddingLeft: `calc(var(--space-2) + ${r.depth * 24}px)` } : {}),
+        }}
         onClick={() => navigate(`/issues/${r.key}`)}
       >
         {content}
@@ -169,7 +174,7 @@ export function Gantt(): React.JSX.Element {
       <div key={r.key} style={{ display: "contents" }}>
         {cell(
           0,
-          `gantt__label${r.depth === 1 ? " gantt__label--child" : ""}`,
+          "gantt__label",
           <>
             {r.hasChildren ? (
               <button

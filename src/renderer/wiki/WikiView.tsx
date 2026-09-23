@@ -63,7 +63,7 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
         <a href="#/wiki">Wiki</a>
         {ancestors.map((a) => (
           <span key={a.id} className="breadcrumb__crumb">
-            <span className="breadcrumb__sep">›</span>
+            <span className="breadcrumb__sep" aria-hidden="true">›</span>
             <a href={`#/wiki/${a.id}`}>{a.title}</a>
           </span>
         ))}

@@ -91,7 +91,7 @@ export interface Issue {
   priority: IssuePriority;
   assignee: string | null; // username
   reporter: string; // username
-  parentKey: string | null; // one level: a child has no children
+  parentKey: string | null; // a chain spans at most MAX_DEPTH levels (see issueTree)
   startDate: string | null; // YYYY-MM-DD
   dueDate: string | null; // YYYY-MM-DD
   createdAt: string;

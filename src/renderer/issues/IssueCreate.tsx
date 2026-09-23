@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { IssueDraft } from "../../shared/api";
+import { depthOf, MAX_DEPTH } from "../../shared/issueTree";
 import { ISSUE_PRIORITIES, type CustomField, type IssuePriority } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
@@ -10,6 +11,7 @@ import { MarkdownEditor } from "./FieldEditor";
 import { firstOfKind, PRIORITY_LABEL } from "./labels";
 import { LabelPicker } from "./LabelPicker";
 import { ParentField } from "./ParentField";
+import { staleMessage } from "./saveError";
 import { useIssues } from "./useIssues";
 
 interface Props {
@@ -78,7 +80,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const [created, setCreated] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const parents = issues.filter((i) => i.parentKey === null).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const parents = issues.filter((i) => depthOf(byKey, i.key) < MAX_DEPTH).sort((a, b) => (a.key < b.key ? 1 : -1));
   const presetParent = parentKey !== null ? byKey.get(parentKey) : undefined;
   const template = templates[category];
   const templateApplied = template !== undefined && summary === template.summary && description === template.body;
@@ -147,7 +149,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       }
       navigate(`/issues/${issue.key}`);
     } catch (err) {
-      setMessages([err instanceof Error ? err.message : String(err)]);
+      setMessages([staleMessage(err)]);
       setBusy(false);
     }
   };

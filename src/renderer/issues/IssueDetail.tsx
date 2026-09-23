@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ancestorsOf, depthOf, descendantKeysOf, heightOf, MAX_DEPTH } from "../../shared/issueTree";
 import { ISSUE_PRIORITIES, RELATION_TYPES, type Issue, type RelationType } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { categoryOptions, displayNameOf, useSession, withCurrent } from "../app/UserContext";
@@ -35,10 +36,14 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   }, [issue]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
   if (!issue) return <p>課題 {issueKey} が見つかりません。</p>;
-  const parent = issue.parentKey ? byKey.get(issue.parentKey) : undefined;
-  const children = [...byKey.values()].filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
+  const all = [...byKey.values()];
+  const ancestors = ancestorsOf(byKey, issue.key);
+  const depth = ancestors.length + 1;
+  const children = all.filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
   const related = relatedIssues(issue, byKey);
-  const parentCandidates = [...byKey.values()].filter((i) => i.parentKey === null && i.key !== issue.key).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const underThis = descendantKeysOf(all, issue.key);
+  const height = heightOf(all, issue.key);
+  const parentCandidates = all.filter((i) => !underThis.has(i.key) && depthOf(byKey, i.key) + height <= MAX_DEPTH).sort((a, b) => (a.key < b.key ? 1 : -1));
   const rows = relationRows(issue, byKey);
   const shownKeys = new Set(rows.map((r) => r.key));
   const mentionRows = related.filter((r) => !shownKeys.has(r.key));
@@ -104,16 +109,18 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
       <div className="issue-detail__head">
         <nav className="breadcrumb" aria-label="階層">
           <a href="#/issues">課題</a>
-          {parent && (
-            <>
-              <span className="breadcrumb__sep">›</span>
-              <a href={`#/issues/${parent.key}`}>
-                {parent.key} {parent.summary}
+          {ancestors.map((a) => (
+            <span key={a.key} className="breadcrumb__crumb">
+              <span className="breadcrumb__sep" aria-hidden="true">›</span>
+              <a href={`#/issues/${a.key}`}>
+                {a.key} {a.summary}
               </a>
-            </>
-          )}
-          <span className="breadcrumb__sep">›</span>
-          <span className="issue-detail__key">{issue.key}</span>
+            </span>
+          ))}
+          <span className="breadcrumb__crumb">
+            <span className="breadcrumb__sep" aria-hidden="true">›</span>
+            <span className="issue-detail__key" aria-current="page">{issue.key}</span>
+          </span>
         </nav>
         <div className="issue-detail__actions">
           {statusKind(statuses, issue.status) === "review" && issue.reporter === me.username && doneStage !== undefined && (
@@ -141,13 +148,15 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
       <div className="issue-detail__body">
         <div className="issue-detail__main">
           <MarkdownField title="詳細" value={issue.description} onSave={(description) => save({ description })} preview={(v) => <Markdown source={v} />} />
-          {issue.parentKey === null && (
+          {(children.length > 0 || depth < MAX_DEPTH) && (
             <section>
               <div className="section-head">
                 <h2>子課題</h2>
-                <a className="button--quiet" href={`#/issues/new?parent=${issue.key}`}>
-                  子課題を追加
-                </a>
+                {depth < MAX_DEPTH && (
+                  <a className="button--quiet" href={`#/issues/new?parent=${issue.key}`}>
+                    子課題を追加
+                  </a>
+                )}
               </div>
               {children.length === 0 ? (
                 <p className="text--muted">子課題はありません</p>
@@ -332,21 +341,19 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               </div>
             );
           })}
-          {children.length === 0 && (
-            <div className="issue-detail__prop">
-              <span className="issue-detail__term">親課題</span>
-              <ParentField
-                value={issue.parentKey}
-                candidates={parentCandidates}
-                commitOn="blur"
-                className="issue-detail__control"
-                ariaLabel="親課題"
-                onChange={(key, invalid) => {
-                  if (!invalid && key !== issue.parentKey) void save({ parentKey: key });
-                }}
-              />
-            </div>
-          )}
+          <div className="issue-detail__prop">
+            <span className="issue-detail__term">親課題</span>
+            <ParentField
+              value={issue.parentKey}
+              candidates={parentCandidates}
+              commitOn="blur"
+              className="issue-detail__control"
+              ariaLabel="親課題"
+              onChange={(key, invalid) => {
+                if (!invalid && key !== issue.parentKey) void save({ parentKey: key });
+              }}
+            />
+          </div>
           <div className="issue-detail__prop">
             <span className="issue-detail__term">登録者</span>
             <span>{displayNameOf(users, issue.reporter)}</span>

@@ -1,3 +1,4 @@
+import { childrenMap } from "../../shared/issueTree";
 import type { Issue, IssueStatus, StatusDef } from "../../shared/types";
 import { addDays, dayDiff, fromYmd, ymd } from "../issues/dates";
 import { isActiveStatus } from "../issues/labels";
@@ -9,7 +10,7 @@ export interface Segment { startCol: number; span: number }
 export interface GanttRow {
   key: string;
   summary: string;
-  depth: 0 | 1;
+  depth: number;
   assignee: string | null;
   status: IssueStatus;
   startDate: string | null;
@@ -101,7 +102,6 @@ const toneOf = (i: Issue, today: string, statuses: StatusDef[]): Tone =>
 /** Rows for the range: dated issues, the parents holding them, and (when asked) undated ones; parents first, children indented. */
 export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptions): GanttLayout {
   const days = daysOf(range);
-  const byKey = new Map(issues.map((i) => [i.key, i]));
   const spans = new Map<string, { from: string; to: string; kind: "bar" | "point" }>();
   for (const i of issues) {
     const s = spanOf(i);
@@ -111,28 +111,28 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
     const s = spans.get(key);
     return s !== undefined && s.from <= range.end && s.to >= range.start;
   };
-  const childrenOf = new Map<string, Issue[]>();
-  for (const i of issues) if (i.parentKey !== null && byKey.has(i.parentKey)) childrenOf.set(i.parentKey, [...(childrenOf.get(i.parentKey) ?? []), i]);
+  const children = childrenMap(issues);
+  const childrenOf = (key: string): Issue[] => children.get(key) ?? [];
 
-  // A parent with no dates of its own takes its children's span (OpenProject's clamp).
+  // A parent with no dates of its own takes its descendants' span (OpenProject's clamp): each child's own span, or its bracket.
   const bracketOf = (parent: Issue): { from: string; to: string } | null => {
-    const kids = (childrenOf.get(parent.key) ?? []).map((c) => spans.get(c.key)).filter((s): s is NonNullable<typeof s> => s !== undefined);
+    const kids = childrenOf(parent.key)
+      .map((c) => spans.get(c.key) ?? bracketOf(c))
+      .filter((s): s is NonNullable<typeof s> => s !== null && s !== undefined);
     if (kids.length === 0) return null;
     return { from: kids.reduce((m, s) => (s.from < m ? s.from : m), kids[0].from), to: kids.reduce((m, s) => (s.to > m ? s.to : m), kids[0].to) };
   };
 
   const visible = (i: Issue): boolean => {
     if (inRange(i.key)) return true;
-    if (i.parentKey === null) {
-      const b = bracketOf(i);
-      if (b !== null && b.from <= range.end && b.to >= range.start) return true;
-      if ((childrenOf.get(i.key) ?? []).some((c) => inRange(c.key))) return true;
-    }
+    const b = bracketOf(i);
+    if (b !== null && b.from <= range.end && b.to >= range.start) return true;
+    if (childrenOf(i.key).some(visible)) return true;
     return opts.includeUndated && spans.get(i.key) === undefined;
   };
 
-  const row = (i: Issue, depth: 0 | 1): GanttRow => {
-    const kids = childrenOf.get(i.key) ?? [];
+  const row = (i: Issue, depth: number): GanttRow => {
+    const kids = childrenOf(i.key);
     const s = spans.get(i.key);
     let kind: BarKind = "none";
     let bar: Segment | null = null;
@@ -165,12 +165,18 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
   };
 
   const desc = (a: Issue, b: Issue): number => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0);
-  const tops = issues.filter((i) => (i.parentKey === null || !byKey.has(i.parentKey)) && (visible(i) || (childrenOf.get(i.key) ?? []).some(visible))).sort(opts.compare ?? desc);
+  const tops = (children.get(null) ?? []).filter(visible).sort(opts.compare ?? desc);
   const rows: GanttRow[] = [];
+  const walk = (parent: Issue, depth: number): void => {
+    if (opts.collapsed.has(parent.key)) return;
+    for (const c of childrenOf(parent.key).filter(visible).sort((a, b) => -desc(a, b))) {
+      rows.push(row(c, depth));
+      walk(c, depth + 1);
+    }
+  };
   for (const top of tops) {
     rows.push(row(top, 0));
-    if (opts.collapsed.has(top.key)) continue;
-    for (const c of (childrenOf.get(top.key) ?? []).filter(visible).sort((a, b) => -desc(a, b))) rows.push(row(c, 1));
+    walk(top, 1);
   }
 
   let groups: GanttGroup[];

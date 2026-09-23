@@ -6,7 +6,7 @@ import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAtta
 import { mkdirp } from "./collection";
 import { addComment, commentsCollection, listAllComments } from "./comments";
 import { loadConfig, saveConfig } from "./config";
-import { createIssue, issuesCollection, removeIssue } from "./issues";
+import { createIssue, issuesCollection, putIssue, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
 import { initProject, putCategories, putFields, putLabels, putStatuses, readProject } from "./project";
 import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
@@ -107,7 +107,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
         if (project === null) throw new Error("project.json is missing");
         return createIssue(need(), project, draft);
       },
-      put: async (issue, expectedUpdatedAt) => issuesCollection(need()).put(issue.key, issue, expectedUpdatedAt),
+      put: async (issue, expectedUpdatedAt) => putIssue(need(), issue, expectedUpdatedAt),
       remove: async (key) => removeIssue(need(), key),
       history: async (key) => (await issuesCollection(need()).history(key)).map(withDefaults),
     },

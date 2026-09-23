@@ -5,6 +5,7 @@ test("a stale rejection reads the same whether it comes straight from the store 
   const expected = "他の人が先に保存しました。再読み込みしてください";
   expect(staleMessage(new Error("stale"))).toBe(expected);
   expect(staleMessage(new Error("Error invoking remote method 'issues:put': Error: stale"))).toBe(expected);
-  expect(staleMessage(new Error("cycle"))).toBe("cycle");
+  expect(staleMessage(new Error("Error invoking remote method 'issues:put': Error: cycle"))).toBe("この課題の下の課題は親課題に選べません");
+  expect(staleMessage(new Error("too-deep"))).toBe("課題は5階層までです");
   expect(staleMessage("x")).toBe("x");
 });

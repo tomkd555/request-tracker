@@ -122,13 +122,13 @@ export function IssueList(): React.JSX.Element {
             return (
               <tr
                 key={i.key}
-                className={`issue-table__row${depth === 1 ? " issue-table__row--child" : ""}`}
+                className={`issue-table__row${depth > 0 ? " issue-table__row--child" : ""}`}
                 onClick={() => navigate(`/issues/${i.key}`)}
               >
                 <td className="issue-table__cell issue-table__cell--check" onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" aria-label={`${i.key} を選択`} checked={selected.has(i.key)} onChange={() => toggleRow(i.key)} />
                 </td>
-                <td className="issue-table__cell issue-table__cell--key">
+                <td className="issue-table__cell issue-table__cell--key" style={depth > 0 ? { paddingLeft: `calc(var(--space-3) + ${depth * 24}px)` } : undefined}>
                   {isUnseen(i, me.username) && <span className="issue-table__unseen" role="img" aria-label="更新あり" />}
                   {i.key}
                 </td>

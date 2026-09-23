@@ -4,6 +4,7 @@ import { isIssue, type Issue, type Project } from "../../shared/types";
 import { allocateKey, keyOfFileName } from "./allocateKey";
 import { collection, mkdirp, readDir, type Collection } from "./collection";
 import { fiscalYearOf, fiscalYy } from "../../shared/fiscalYear";
+import { parentRefusal } from "../../shared/issueTree";
 import type { Layout } from "./paths";
 
 export const issuesCollection = (l: Layout): Collection<Issue> =>
@@ -20,6 +21,20 @@ async function keysIn(dir: string): Promise<string[]> {
 
 export const HAS_CHILDREN = "has-children";
 
+/** Rejects with "cycle" or "too-deep" (see parentRefusal) when the parent named would break the tree; a parent that no longer exists is kept. */
+async function assertParent(l: Layout, key: string | null, parentKey: string | null): Promise<void> {
+  if (parentKey === null) return;
+  const issues = await readDir(l.issues, isIssue); // uncached: the guard must see the share as it is
+  if (!issues.some((i) => i.key === parentKey)) return;
+  const refusal = parentRefusal(issues, key, parentKey);
+  if (refusal !== null) throw new Error(refusal);
+}
+
+export async function putIssue(l: Layout, issue: Issue, expectedUpdatedAt?: string): Promise<void> {
+  await assertParent(l, issue.key, issue.parentKey);
+  await issuesCollection(l).put(issue.key, issue, expectedUpdatedAt);
+}
+
 /** Moves the record to trash; refused while any issue still names it as parent. The attachments folder stays. */
 export async function removeIssue(l: Layout, key: string): Promise<void> {
   const c = issuesCollection(l);
@@ -30,6 +45,7 @@ export async function removeIssue(l: Layout, key: string): Promise<void> {
 /** Allocates the key from issues/ and trash/issues/, creates the record exclusively, and makes the attachments folder. */
 export async function createIssue(l: Layout, project: Project, draft: IssueDraft): Promise<Issue> {
   const yy = fiscalYy(fiscalYearOf(draft.createdAt, project.fiscalYearStartMonth));
+  await assertParent(l, null, draft.parentKey);
   const c = issuesCollection(l);
   for (let attempt = 0; attempt < 100; attempt++) {
     const used = [...(await keysIn(l.issues)), ...(await keysIn(l.trashIssues))];

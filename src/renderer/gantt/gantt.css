@@ -116,10 +116,6 @@
   font-weight: 600;
 }
 
-.gantt__label--child {
-  padding-left: calc(var(--space-2) + 24px);
-}
-
 .gantt__toggle {
   flex: 0 0 18px;
   width: 18px;

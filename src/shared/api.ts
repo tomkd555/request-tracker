@@ -44,8 +44,12 @@ export type StoreApi = {
   issues: {
     list(): Promise<Issue[]>;
     get(key: string): Promise<Issue | null>;
+    /** Rejects with "too-deep" when parentKey sits on level MAX_DEPTH (see issueTree). */
     create(draft: IssueDraft): Promise<Issue>;
-    /** Rejects with "stale" when `expectedUpdatedAt` is given and no longer matches the record on disk (or the record is gone). */
+    /**
+     * Rejects with "cycle" when parentKey is the issue or one under it, with "too-deep" when the chain would pass MAX_DEPTH
+     * levels, or with "stale" when `expectedUpdatedAt` is given and no longer matches the record on disk (or the record is gone).
+     */
     put(issue: Issue, expectedUpdatedAt?: string): Promise<void>;
     remove(key: string): Promise<void>;
     history(key: string): Promise<Issue[]>;

@@ -80,6 +80,18 @@ test("a dateless parent takes its children's span as a bracket; collapsing hides
   expect(c[0].collapsed).toBe(true);
 });
 
+test("a grandchild's dates reach the root's bracket through a dateless child; collapsing the child hides the grandchild alone", () => {
+  const family = [
+    issue({ key: "26-0001" }),
+    issue({ key: "26-0002", parentKey: "26-0001" }),
+    issue({ key: "26-0003", parentKey: "26-0002", startDate: "2026-09-03", dueDate: "2026-09-10" }),
+  ];
+  const r = rows(family);
+  expect(r.map((x) => `${x.depth}:${x.key}:${x.kind}`)).toEqual(["0:26-0001:bracket", "1:26-0002:bracket", "2:26-0003:bar"]);
+  expect(r[0].bar).toEqual({ startCol: 2, span: 8 });
+  expect(rows(family, { collapsed: new Set(["26-0002"]) }).map((x) => x.key)).toEqual(["26-0001", "26-0002"]);
+});
+
 test("grouping by assignee keeps children under their parent and puts 未設定 last", () => {
   const l = layoutGantt(
     [
