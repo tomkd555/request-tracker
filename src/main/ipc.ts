@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell } from "electron";
+import { app, clipboard, dialog, ipcMain, shell } from "electron";
 import { API_METHODS, type StoreApi } from "../shared/api";
 import { createStore } from "./store";
 import { currentUsername } from "./store/users";
@@ -17,10 +17,11 @@ export function registerIpc(): ReturnType<typeof createStore> {
       return r.canceled ? null : r.filePaths;
     },
     openPath: (path) => shell.openPath(path),
-    async chooseSavePath(defaultName) {
-      const r = await dialog.showSaveDialog({ defaultPath: defaultName, filters: [{ name: "CSV", extensions: ["csv"] }] });
+    async chooseSavePath(defaultName, filter) {
+      const r = await dialog.showSaveDialog({ defaultPath: defaultName, filters: [filter] });
       return r.canceled || !r.filePath ? null : r.filePath;
     },
+    writeClipboard: (html, text) => clipboard.write({ html, text }),
   });
 
   for (const group of Object.keys(API_METHODS) as (keyof StoreApi)[]) {

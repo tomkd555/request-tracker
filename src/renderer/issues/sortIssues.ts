@@ -1,6 +1,7 @@
 import { ISSUE_PRIORITIES, type Issue, type StatusDef } from "../../shared/types";
 
-type FixedKey = "key" | "summary" | "category" | "assignee" | "status" | "priority" | "dueDate" | "updatedAt";
+export const FIXED_SORT_KEYS = ["key", "summary", "category", "assignee", "status", "priority", "dueDate", "updatedAt"] as const;
+type FixedKey = (typeof FIXED_SORT_KEYS)[number];
 /** A fixed column, or a 汎用列 as "field:<CustomField id>". */
 export type SortKey = FixedKey | `field:${string}`;
 export interface IssueSort { key: SortKey; dir: "asc" | "desc" }

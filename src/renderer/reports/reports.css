@@ -1,0 +1,44 @@
+.report-paper {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-6);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+}
+
+.report-edit {
+  max-width: 960px;
+}
+
+.wording-panel {
+  margin-top: var(--space-4);
+}
+
+.wording-panel__table {
+  margin-bottom: var(--space-3);
+}
+
+.block-dialog {
+  width: min(640px, 92vw);
+  max-height: 85vh;
+  padding: var(--space-6);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text);
+}
+
+.block-dialog::backdrop {
+  background: var(--bg-backdrop);
+}
+
+.block-dialog__fieldset {
+  flex-wrap: wrap;
+}
+
+.block-dialog__legend {
+  padding: 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

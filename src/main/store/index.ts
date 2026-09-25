@@ -1,6 +1,6 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
-import type { StoreApi } from "../../shared/api";
+import type { SaveFilter, StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalConfig, type LocalSettings } from "../../shared/types";
 import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
@@ -9,6 +9,7 @@ import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, putIssue, removeIssue } from "./issues";
 import { layout, type Layout } from "./paths";
 import { initProject, putCategories, putFields, putLabels, putStatuses, readProject } from "./project";
+import { createReport, putReport, removeReport, reportsCollection } from "./reports";
 import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { createPage, putPage, removePage, wikiCollection, withWikiDefaults } from "./wiki";
 
@@ -21,8 +22,10 @@ export interface StoreDeps {
   chooseFiles(): Promise<string[] | null>;
   /** Opens a file or folder with the OS; resolves to an error message, or "" on success (shell.openPath). */
   openPath(path: string): Promise<string>;
-  /** Save dialog; the chosen path, or null when cancelled. */
-  chooseSavePath(defaultName: string): Promise<string | null>;
+  /** Save dialog offering `filter`; the chosen path, or null when cancelled. */
+  chooseSavePath(defaultName: string, filter: SaveFilter): Promise<string | null>;
+  /** Puts HTML and its plain-text form on the clipboard. */
+  writeClipboard(html: string, text: string): void;
 }
 
 /** Records written before `category`, `fields`, `labels` or `relations` existed come back with "", {} and [] so the renderer always sees them. */
@@ -56,7 +59,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
     async warm() {
       const swallow = (): undefined => undefined;
       if ((await loadLayout().catch(swallow)) == null) return;
-      await Promise.all([usersCollection(need()).list().catch(swallow), issuesCollection(need()).list().catch(swallow), wikiCollection(need()).list().catch(swallow)]);
+      await Promise.all([usersCollection(need()).list().catch(swallow), issuesCollection(need()).list().catch(swallow), wikiCollection(need()).list().catch(swallow), reportsCollection(need()).list().catch(swallow)]);
     },
     config: {
       get: loadLayout,
@@ -113,7 +116,7 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
     },
     summary: {
       async exportCsv(csv, defaultName) {
-        const path = await deps.chooseSavePath(defaultName);
+        const path = await deps.chooseSavePath(defaultName, { name: "CSV", extensions: ["csv"] });
         if (path === null) return false;
         await fsp.writeFile(path, "﻿" + csv, "utf8");
         return true;
@@ -156,6 +159,20 @@ export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | n
       put: async (p, expectedUpdatedAt) => putPage(need(), p, expectedUpdatedAt),
       remove: async (id) => removePage(need(), id),
       history: async (id) => (await wikiCollection(need()).history(id)).map(withWikiDefaults),
+    },
+    reports: {
+      list: async () => reportsCollection(need()).list(),
+      get: async (id) => reportsCollection(need()).get(id),
+      create: async (r) => createReport(need(), r),
+      put: async (r, expectedUpdatedAt) => putReport(need(), r, expectedUpdatedAt),
+      remove: async (id) => removeReport(need(), id),
+      async save(text, defaultName, filter) {
+        const path = await deps.chooseSavePath(defaultName, filter);
+        if (path === null) return false;
+        await fsp.writeFile(path, text, "utf8");
+        return true;
+      },
+      copy: async (html, text) => deps.writeClipboard(html, text),
     },
   };
 }

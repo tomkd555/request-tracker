@@ -29,12 +29,15 @@ export function layout(root: string) {
     wiki: join(root, "wiki"),
     wikiAttachments: (id: string) => join(root, "wiki-attachments", assertStamp(id)),
     wikiAttachmentsRoot: join(root, "wiki-attachments"),
+    reports: join(root, "reports"),
     historyIssues: join(root, "history", "issues"),
     historyWiki: join(root, "history", "wiki"),
+    historyReports: join(root, "history", "reports"),
     historyProject: join(root, "history", "project"),
     trashUsers: join(root, "trash", "users"),
     trashIssues: join(root, "trash", "issues"),
     trashWiki: join(root, "trash", "wiki"),
+    trashReports: join(root, "trash", "reports"),
     trashAttachments: (key: string) => join(root, "trash", "attachments", assertKey(key)),
     trashWikiAttachments: (id: string) => join(root, "trash", "wiki-attachments", assertStamp(id)),
   };
@@ -43,5 +46,5 @@ export function layout(root: string) {
 export type Layout = ReturnType<typeof layout>;
 
 export function collectionDirs(l: Layout): string[] {
-  return [l.users, l.issues, l.commentsRoot, l.attachmentsRoot, l.wiki, l.wikiAttachmentsRoot, l.historyIssues, l.historyWiki, l.trashIssues, l.trashWiki];
+  return [l.users, l.issues, l.commentsRoot, l.attachmentsRoot, l.wiki, l.wikiAttachmentsRoot, l.reports, l.historyIssues, l.historyWiki, l.historyReports, l.trashIssues, l.trashWiki, l.trashReports];
 }
