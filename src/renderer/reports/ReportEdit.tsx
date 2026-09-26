@@ -102,7 +102,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
   };
 
   const tools: EditorTool[] = BLOCK_KINDS.map((kind) => ({
-    label: BLOCK_LABEL[kind],
+    label: `${BLOCK_LABEL[kind]}…`, // opens a dialog, the way a Windows menu item with an ellipsis does
     onClick(sel, insert) {
       const lineStart = sel.text.lastIndexOf("\n", sel.start - 1) + 1;
       const nl = sel.text.indexOf("\n", sel.start);
@@ -163,7 +163,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
         }
       }}
     >
-      <h1>{existing ? "レポートの編集" : "新規レポート"}</h1>
+      <h1>{existing ? "レポートの編集" : from !== null ? "レポートの複製" : "新規レポート"}</h1>
       <label className="issue-form__field">
         タイトル
         <input className="issue-form__control" value={title} onChange={(e) => setTitle(e.target.value)} aria-invalid={submitted && titleMissing} autoFocus />
@@ -171,7 +171,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       </label>
       <label className="issue-form__field settings__inline">
         <input type="checkbox" checked={isTemplate} onChange={(e) => setIsTemplate(e.target.checked)} />
-        テンプレートとして保存
+        このレポートをテンプレートにする
       </label>
       {!existing && from === null && (
         <label className="issue-form__field">

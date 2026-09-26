@@ -214,7 +214,7 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
       >
         <h2>{BLOCK_LABEL[kind]}</h2>
         <fieldset className="settings__fieldset block-dialog__fieldset">
-          <legend className="block-dialog__legend">対象</legend>
+          <legend className="block-dialog__legend">対象の課題</legend>
           <span className="filter-bar__label">状態</span>
           {project.statuses.map((s) => (
             <label key={s.id} className="filter-bar__check">
@@ -245,6 +245,10 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
             </select>
           </label>
           <span className="filter-bar__label">ラベル</span>
+          <label className="filter-bar__check">
+            <input type="checkbox" checked={scope.labels.length === 0} onChange={() => setScope({ ...scope, labels: [] })} />
+            すべて
+          </label>
           {project.labels.map((l) => (
             <label key={l.name} className="filter-bar__check">
               <input type="checkbox" checked={scope.labels.includes(l.name)} onChange={() => setScope({ ...scope, labels: toggleLabel(scope.labels, l.name) })} />
@@ -252,7 +256,7 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
             </label>
           ))}
           <label className="filter-bar__field">
-            期限
+            期限日
             <select value={scope.due} onChange={(e) => setScope({ ...scope, due: e.target.value as DueFilter })}>
               {DUE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -268,14 +272,15 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
           <MonthField label="登録月" value={scope.createdIn} onChange={(v) => setScope({ ...scope, createdIn: v })} />
           <MonthField label="更新月" value={scope.updatedIn} onChange={(v) => setScope({ ...scope, updatedIn: v })} />
           <label className="filter-bar__field">
-            課題キー
+            キー
             <input type="text" value={scope.keys} onChange={(e) => setScope({ ...scope, keys: e.target.value })} />
+            <span className="block-dialog__format">複数は空白で区切る</span>
           </label>
         </fieldset>
 
         {kind === "issues" && (
           <fieldset className="settings__fieldset block-dialog__fieldset">
-            <legend className="block-dialog__legend">表示</legend>
+            <legend className="block-dialog__legend">表の列と並び順</legend>
             <span className="filter-bar__label">列</span>
             {ISSUE_COLUMNS.map((c) => (
               <label key={c} className="filter-bar__check">
@@ -309,14 +314,14 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
             </label>
             <label className="filter-bar__field">
               行数の上限
-              <input type="number" min={1} className="settings__number" value={limit} onChange={(e) => setLimit(e.target.value)} />
+              <input type="number" min={1} className="block-dialog__number" value={limit} onChange={(e) => setLimit(e.target.value)} />
             </label>
           </fieldset>
         )}
 
         {kind === "summary" && (
           <fieldset className="settings__fieldset block-dialog__fieldset">
-            <legend className="block-dialog__legend">表示</legend>
+            <legend className="block-dialog__legend">集計する表</legend>
             <span className="filter-bar__label">集計</span>
             <label className="settings__inline">
               <input type="radio" name="summary-mode" checked={mode === "month"} onChange={() => setMode("month")} />
@@ -339,7 +344,7 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
 
         {kind === "gantt" && (
           <fieldset className="settings__fieldset block-dialog__fieldset">
-            <legend className="block-dialog__legend">表示</legend>
+            <legend className="block-dialog__legend">期間とグループ</legend>
             <MonthField label="対象月" value={ganttMonth} onChange={setGanttMonth} />
             <label className="filter-bar__field">
               期間
@@ -367,7 +372,7 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
 
         <div className="form-actions">
           <button type="submit" className="button--primary">
-            {initial ? "更新" : "挿入"}
+            {initial ? "本文に反映" : "本文に挿入"}
           </button>
           <button type="button" onClick={cancel}>
             キャンセル

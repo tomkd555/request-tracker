@@ -83,7 +83,7 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
       </table>
       <div className="form-actions">
         <button type="button" onClick={() => updateRows([...rows, { from: "", to: "" }])}>
-          追加
+          行を追加
         </button>
       </div>
       <h2>課題ごとの言い換え</h2>

@@ -7,7 +7,7 @@ import { COLUMN_LABEL, DEFAULT_COLUMNS, dateLabel, EMPTY_ROWS, scopeIssues, term
 type Props = { block: IssuesBlock; report: ReportContent; ctx: ReportContext };
 
 export interface IssuesRow { key: string; values: string[] }
-const NOWRAP: ReadonlySet<IssueColumn> = new Set(["key", "startDate", "dueDate", "updatedAt", "createdAt"]);
+const NOWRAP: ReadonlySet<IssueColumn> = new Set(["key", "status", "startDate", "dueDate", "updatedAt", "createdAt"]);
 const cellClass = (c: IssueColumn): string | undefined => (NOWRAP.has(c) ? "report-doc__nowrap" : undefined);
 export interface IssuesTableData { columns: IssueColumn[]; rows: IssuesRow[]; total: number }
 interface Group { label: string | null; rows: Issue[] }
@@ -54,7 +54,7 @@ function sortedRows(block: IssuesBlock, ctx: ReportContext): { rows: Issue[]; to
 }
 
 /** The line under a table the limit cut: which part of the whole it shows. */
-export const cutLine = (shown: number, total: number): string | null => (shown < total ? `全${total}件のうち${shown}件` : null);
+export const cutLine = (shown: number, total: number): string | null => (shown < total ? `該当${total}件のうち${shown}件` : null);
 
 /** The rows of an `::issues` block, one string per column; shared by the on-screen table and the Markdown export. */
 export function issuesTableRows(block: IssuesBlock, report: ReportContent, ctx: ReportContext): IssuesTableData {

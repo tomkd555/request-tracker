@@ -30,14 +30,19 @@ export const REPORT_CSS = `
 .report-doc th { background: #f0f0f0; font-weight: 600; }
 .report-doc h2, .report-doc h3, .report-doc h4 { break-after: avoid-page; page-break-after: avoid; }
 .report-doc__nowrap { white-space: nowrap; }
-.report-doc__num { text-align: right; }
-.report-doc__scroll { overflow-x: auto; margin: 8px 0 16px; }
+.report-doc th.report-doc__num, .report-doc td.report-doc__num { text-align: right; width: 6em; }
+.report-doc__scroll, .report-doc__summary { margin: 8px 0 16px; }
+.report-doc__scroll { overflow-x: auto; }
 .report-doc__scroll table { margin: 0; }
+.report-doc__summary table { margin: 0 0 8px; }
+.report-doc__summary table:last-child { margin-bottom: 0; }
 .report-doc__cut, .report-doc__key { margin: 4px 0 0; font-size: 14px; color: #737373; }
 .report-doc__key-swatch { display: inline-block; width: 14px; height: 14px; margin: 0 4px 0 12px; vertical-align: -2px; background: #a9c4dd; }
 .report-doc__key-swatch:first-child { margin-left: 0; }
 .report-doc__key-swatch.report-doc__gantt-bar--overdue { background: #efc3bd; }
 .report-doc__key-swatch.report-doc__gantt-bar--muted { background: #d8d8d8; }
+.report-doc__key-swatch.report-doc__gantt-late { background: #e06b5c; }
+.report-doc__key-swatch.report-doc__gantt-today { background: #fae9d3; }
 @media (max-width: 700px) {
   .report-doc__issues { min-width: 640px; }
 }

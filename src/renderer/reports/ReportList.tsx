@@ -21,7 +21,7 @@ export function ReportList(): React.JSX.Element {
         <thead>
           <tr>
             <th className="issue-table__header">タイトル</th>
-            <th className="issue-table__header">種別</th>
+            <th className="issue-table__header">区分</th>
             <th className="issue-table__header">更新日</th>
             <th className="issue-table__header">更新者</th>
           </tr>
@@ -29,7 +29,9 @@ export function ReportList(): React.JSX.Element {
         <tbody>
           {reports.map((r) => (
             <tr key={r.id} className="issue-table__row" onClick={() => navigate(`/reports/${r.id}`)}>
-              <td className="issue-table__cell issue-table__cell--key">{r.title}</td>
+              <td className="issue-table__cell issue-table__cell--key">
+                <a href={`#/reports/${r.id}`}>{r.title}</a>
+              </td>
               <td className="issue-table__cell">{r.isTemplate ? "テンプレート" : "レポート"}</td>
               <td className="issue-table__cell">{formatDateTime(r.updatedAt)}</td>
               <td className="issue-table__cell">{displayNameOf(users, r.updatedBy)}</td>

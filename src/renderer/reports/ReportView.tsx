@@ -74,9 +74,9 @@ export function ReportView({ id }: { id: string }): React.JSX.Element {
           <a className="link-button" href={`#/reports/${report.id}/edit`}>
             編集
           </a>
-          <a className="link-button" href={`#/reports/new?from=${report.id}`}>
+          <button type="button" onClick={() => navigate(`/reports/new?from=${report.id}`)}>
             複製
-          </a>
+          </button>
           <button type="button" onClick={() => void exportHtml()}>
             HTMLに出力
           </button>
@@ -86,7 +86,7 @@ export function ReportView({ id }: { id: string }): React.JSX.Element {
           <button type="button" onClick={() => void copy()}>
             クリップボードにコピー
           </button>
-          <button type="button" onClick={() => void remove()}>
+          <button type="button" className="button--danger" onClick={() => void remove()}>
             削除
           </button>
         </div>

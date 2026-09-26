@@ -1,6 +1,6 @@
 import { displayNameOf } from "../app/UserContext";
 import { layoutGantt, rangeFor, type GanttLayout, type GanttRow, type Months } from "../gantt/layoutGantt";
-import { KIND_LABEL } from "../issues/labels";
+import type { StatusKind } from "../../shared/types";
 import { BLOCK_LABEL, EMPTY_ROWS, resolveMonth, scopeIssues, termOf, type GanttBlock, type ReportContent, type ReportContext } from "./blocks";
 
 type Props = { block: GanttBlock; report: ReportContent; ctx: ReportContext };
@@ -61,6 +61,11 @@ export function GanttSvg({ block, report, ctx }: Props): React.JSX.Element {
   const height = HEADER_H + lines.length * ROW_H;
 
   const t = (name: string): string => termOf(report.terms, name);
+  const stageNames = (pick: (kind: StatusKind) => boolean): string =>
+    ctx.project.statuses
+      .filter((s) => pick(s.kind))
+      .map((s) => t(s.name))
+      .join("・");
   return (
     <div className="report-doc__scroll">
     <svg className="report-doc__gantt" viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={BLOCK_LABEL.gantt}>
@@ -110,9 +115,11 @@ export function GanttSvg({ block, report, ctx }: Props): React.JSX.Element {
       })}
     </svg>
     <p className="report-doc__key">
-      <span className="report-doc__key-swatch report-doc__gantt-bar" /> {t(KIND_LABEL.active)}
+      <span className="report-doc__key-swatch report-doc__gantt-bar" /> {stageNames((k) => k === "active")}
       <span className="report-doc__key-swatch report-doc__gantt-bar--overdue" /> 期限超過
-      <span className="report-doc__key-swatch report-doc__gantt-bar--muted" /> {t(KIND_LABEL.review)}・{t(KIND_LABEL.done)}
+      <span className="report-doc__key-swatch report-doc__gantt-late" /> 超過日数
+      <span className="report-doc__key-swatch report-doc__gantt-bar--muted" /> {stageNames((k) => k !== "active")}
+      <span className="report-doc__key-swatch report-doc__gantt-today" /> 今日
     </p>
     </div>
   );
