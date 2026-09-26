@@ -26,6 +26,7 @@
   --brand: #52987c; /* issue list: selected filter chip, count badge */
   --text-on-brand: #ffffff; /* text on the brand colour */
   --bg-nav-active: rgba(255, 255, 255, 0.2); /* nav: the current item, a light wash over the brand colour */
+  --bg-backdrop: rgba(0, 0, 0, 0.4); /* report block dialog: the shade over the screen behind it */
 
   /* stage colours live in project.json (DEFAULT_STATUSES for the presets); these two remain for the unseen dot and the pill fallback */
   --status-open: #ed8276;

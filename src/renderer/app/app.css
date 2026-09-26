@@ -135,6 +135,12 @@ button:disabled {
   border-color: var(--brand);
 }
 
+/* a destructive action reads apart from the safe ones beside it */
+.button--danger {
+  color: var(--text-overdue);
+  border-color: var(--text-overdue);
+}
+
 .button--quiet {
   display: inline-block;
   padding: 2px var(--space-3);

@@ -20,7 +20,8 @@ export function monthOf(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function tally(keys: string[]): Count[] {
+/** Counts per distinct key, most frequent first, ties by key. */
+export function tally(keys: string[]): Count[] {
   const m = new Map<string, number>();
   for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
   return [...m.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));

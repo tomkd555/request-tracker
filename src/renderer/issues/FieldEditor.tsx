@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { applyCommand, TOOLBAR_LABEL, type ToolbarCommand } from "../app/markdownToolbar";
+import { applyCommand, insertBlock, TOOLBAR_LABEL, type Selection, type ToolbarCommand } from "../app/markdownToolbar";
 import { useNavigationGuard } from "../app/useHashRoute";
 
 type TextProps = { value: string; onSave(v: string): void; className?: string; required?: boolean };
@@ -82,10 +82,17 @@ type EditorProps = {
   /** The current fiscal year's "YY-", for the 課題キー command. */
   issuePrefix?: string;
   ariaLabel?: string;
+  /** Buttons after the commands; each receives the textarea's selection and an `insert` that puts a block at it (the reports add their blocks this way). */
+  tools?: EditorTool[];
 };
 
+export interface EditorTool {
+  label: string;
+  onClick(sel: Selection, insert: (block: string) => void): void;
+}
+
 /** Markdown textarea with a toolbar and 編集 / プレビュー tabs. Controlled; the owner decides when to save. */
-export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extraCommands = [], issuePrefix = "", ariaLabel }: EditorProps): React.JSX.Element {
+export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extraCommands = [], issuePrefix = "", ariaLabel, tools = [] }: EditorProps): React.JSX.Element {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const area = useRef<HTMLTextAreaElement>(null);
   const pending = useRef<{ start: number; end: number } | null>(null);
@@ -107,6 +114,17 @@ export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extr
     onChange(next.text);
   };
 
+  const runTool = (t: EditorTool): void => {
+    const el = area.current;
+    if (!el) return;
+    const sel: Selection = { text: value, start: el.selectionStart, end: el.selectionEnd };
+    t.onClick(sel, (block) => {
+      const next = insertBlock(sel, block.endsWith("\n") ? block : `${block}\n`);
+      pending.current = { start: next.start, end: next.end };
+      onChange(next.text);
+    });
+  };
+
   return (
     <div className="markdown-editor">
       <div className="markdown-editor__bar">
@@ -123,6 +141,11 @@ export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extr
             {[...BASE_COMMANDS, ...extraCommands].map((c) => (
               <button key={c} type="button" className="markdown-editor__tool" onMouseDown={(e) => e.preventDefault()} onClick={() => run(c)}>
                 {TOOLBAR_LABEL[c]}
+              </button>
+            ))}
+            {tools.map((t) => (
+              <button key={t.label} type="button" className="markdown-editor__tool markdown-editor__tool--block" onMouseDown={(e) => e.preventDefault()} onClick={() => runTool(t)}>
+                {t.label}
               </button>
             ))}
           </div>

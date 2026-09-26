@@ -8,6 +8,9 @@ import { MAX_DEPTH } from "../shared/issueTree";
 export const M = {
   saved: "保存しました",
   csvSaved: "CSVを保存しました",
+  htmlSaved: "HTMLを保存しました",
+  markdownSaved: "Markdownを保存しました",
+  copied: "クリップボードにコピーしました",
   issueAdded: (key: string): string => `${key} を追加しました`,
   bulkUpdated: (n: number): string => `${n}件を更新しました`,
   bulkOverCap: (max: number): string => `一度に更新できるのは${max}件までです`,
@@ -32,6 +35,8 @@ export const M = {
   noPagesMatch: "該当するページはありません",
   noPages: "ページはありません",
   noHistory: "履歴はありません",
+  noReports: "レポートはありません",
+  blockInvalid: (line: number): string => `${line}行目のブロックの設定を読めません`,
   noAttachments: "添付ファイルはありません",
   noComments: "コメントはありません",
   noChildIssues: "子課題はありません",

@@ -19,6 +19,10 @@ import { Kanban } from "../kanban/Kanban";
 import { WikiScreen } from "../wiki/WikiFrame";
 import { useWiki, WikiProvider } from "../wiki/useWiki";
 import { Search } from "../search/Search";
+import { ReportEdit } from "../reports/ReportEdit";
+import { ReportList } from "../reports/ReportList";
+import { ReportView } from "../reports/ReportView";
+import { ReportsProvider, useReports } from "../reports/useReports";
 import "./app.css";
 import "../issues/issues.css";
 import { M } from "../messages";
@@ -74,7 +78,9 @@ export function App(): React.JSX.Element {
     <Ready me={boot.me} users={boot.users} project={boot.project} config={boot.config} refreshUsers={refreshUsers} refreshProject={refreshProject} refreshConfig={refreshConfig}>
       <IssuesProvider>
         <WikiProvider>
-          <Shell />
+          <ReportsProvider>
+            <Shell />
+          </ReportsProvider>
         </WikiProvider>
       </IssuesProvider>
     </Ready>
@@ -104,25 +110,26 @@ function Shell(): React.JSX.Element {
   const { refreshUsers, refreshProject } = useSession();
   const issues = useIssues();
   const wiki = useWiki();
+  const reports = useReports();
   const [error, setError] = useState<string | null>(null);
   const refreshAll = useCallback(async (): Promise<void> => {
     try {
-      await Promise.all([refreshUsers(), refreshProject(), issues.reload(), wiki.reload()]);
+      await Promise.all([refreshUsers(), refreshProject(), issues.reload(), wiki.reload(), reports.reload()]);
       setError(null);
     } catch (e) {
       // The share dropped mid-session: the screens keep what they read, and the message says so until a refresh succeeds.
       setError(M.shareUnreadable(e instanceof Error ? e.message : String(e)));
     }
-  }, [refreshUsers, refreshProject, issues.reload, wiki.reload]);
+  }, [refreshUsers, refreshProject, issues.reload, wiki.reload, reports.reload]);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
-      first.current = false; // App.load has just read the same records; the issues and pages still need their first read
-      void Promise.all([issues.reload(), wiki.reload()]).catch(() => void refreshAll());
+      first.current = false; // App.load has just read the same records; the issues, pages and reports still need their first read
+      void Promise.all([issues.reload(), wiki.reload(), reports.reload()]).catch(() => void refreshAll());
       return;
     }
     void refreshAll();
-  }, [refreshAll, route.path, issues.reload, wiki.reload]);
+  }, [refreshAll, route.path, issues.reload, wiki.reload, reports.reload]);
   return (
     <div className="shell">
       <Nav current={route.path} onRefresh={refreshAll} />
@@ -151,6 +158,10 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
     return <IssueCreate key={query.get("parent") ?? query.get("copy") ?? ""} parentKey={query.get("parent")} copyFrom={query.get("copy")} />;
   }
   if (path.startsWith("/search")) return <Search />;
+  if (path === "/reports/new") return <ReportEdit key={query.get("from") ?? ""} id={null} from={query.get("from")} />;
+  const r = /^\/reports\/([^/]+)(\/edit)?$/.exec(path);
+  if (r) return r[2] ? <ReportEdit key={r[1]} id={r[1]} from={null} /> : <ReportView key={r[1]} id={r[1]} />;
+  if (path.startsWith("/reports")) return <ReportList />;
   const m = /^\/issues\/([^/]+)$/.exec(path);
   if (m) return <IssueDetail key={m[1]} issueKey={m[1]} />;
   return <IssueList />;

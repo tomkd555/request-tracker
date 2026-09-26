@@ -16,6 +16,7 @@ A desktop app for a small team to file and track requests without a server. Ever
 - Wiki pages in Markdown as a tree (parent page, sidebar, breadcrumb, index), `[[タイトル]]` links that create a missing page on click, a table of contents from the headings, attachments, a change note per save, and a line diff between versions
 - Gantt chart of 1, 2, 3 or 6 months: any issue with a start or due date, a late segment past the due date, a parent's span from its children, grouping by assignee, sort by key, subject, assignee, status or due date, folding, and drag to move a bar or one of its edges
 - Monthly counts by reporter, assignee, status and category, with CSV export (UTF-8 with BOM, for spreadsheet apps)
+- Reports for people outside the team, shared on the folder: a Markdown document whose `::issues`, `::summary` and `::gantt` lines render an issue table, count tables or a gantt chart from the issues as they stand each time the report is opened; each block is placed from the editor's toolbar through a dialog (which issues, which columns, which month) and can be reopened from its line; report-only wording (a term map for stage, category, label and member names, and a per-issue subject and note) that leaves the issues untouched; templates, duplication, and output as a self-contained HTML file, a Markdown file, or the clipboard as HTML plus text for pasting into Word, Outlook or Excel
 - Nothing runs in the background: the app reads the shared folder when a screen opens, after a save, and on 更新 in the nav
 - Colour presets (green, blue, grey, dark) with a free accent colour per machine, and a colour per category and per label shared by the team
 - Members registered by name in project settings or right from the assignee field (メンバーを追加…), so an issue can be assigned to someone who has yet to open the app; that person picks the name on first launch and it becomes theirs
@@ -34,13 +35,16 @@ There is no server and no database. The shared folder is the database:
   comments/<KEY>/<stamp>-<username>.json
   attachments/<KEY>/<filename>         copied files and folders
   wiki/<id>.json                       title, Markdown body, parent page id, change note
+  reports/<id>.json                    title, Markdown body with block lines, term map, per-issue wording, template flag
   wiki-attachments/<id>/<filename>     files attached to a wiki page
   history/issues/<KEY>/<stamp>.json    previous versions
   history/wiki/<id>/<stamp>.json
+  history/reports/<id>/<stamp>.json
   history/project/<stamp>.json
   trash/issues/<KEY>.json              deleted records; nothing is ever unlinked
   trash/users/<id>.json
   trash/wiki/<id>.json
+  trash/reports/<id>.json
   trash/attachments/<KEY>/<filename>
   trash/wiki-attachments/<id>/<filename>
 ```
@@ -55,6 +59,7 @@ There is no server and no database. The shared folder is the database:
 - Nothing runs in the background. The app reads the shared folder when a screen opens, after its own save, and when 更新 is pressed; a change another person made shows on the next of those. A listing is served from memory while the directory's mtime is unchanged and the listing is under a minute old (every write is a temp file plus a rename inside the directory, so the mtime moves), and a client's own write drops its cache at once. SMB shares deliver no file-watch events reliably, so there is no watcher.
 - The current user is the OS username; the name shown to other members is asked once on first launch and stored in `users/`. A member added by name in project settings is a record with a stamp id; when that person launches the app and picks the name, the OS username is written into the record as `login`, so the assignee value on existing issues stays as it is.
 - Every record read from the shared folder is validated; a corrupt file is skipped and logged, and never blocks the list.
+- A report is rendered when it is opened, previewed or exported, so its tables and chart follow the issues; nothing is copied into the record. A block line is `::issues`, `::summary` or `::gantt` followed by JSON on the same line, for example `::issues {"statuses":["open","in_progress"],"columns":["key","summary","assignee","dueDate"],"sort":"dueDate"}`; a line whose JSON cannot be read renders as a message naming the line. `{{today}}`, `{{month}}`, `{{prevMonth}}` and `{{me}}` in the text are replaced on render. A month given as `current` or `previous` follows the day the report is opened, so a saved report shows the month it is opened in. The exported HTML carries its own stylesheet and prints on A4; Word opens it directly.
 
 ## Requirements
 
@@ -83,7 +88,7 @@ npm run package      # build and electron-builder, producing dist/RequestTracker
 
 If electron-builder fails while extracting `winCodeSign` with a symlink permission error, enable Windows Developer Mode or run that step once from an administrator shell. The exe is unsigned.
 
-Stack: Electron 39, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, vitest, plain CSS with the palette in `src/renderer/tokens.css`. Tests cover the store against a real temporary directory and the pure functions behind filters, key allocation, counts, messages and gantt layout; React components have no automated tests.
+Stack: Electron 39, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, vitest, plain CSS with the palette in `src/renderer/tokens.css`. Tests cover the store against a real temporary directory and the pure functions behind filters, key allocation, counts, messages, gantt layout, report blocks and report export; React components have no automated tests.
 
 Layout:
 
@@ -93,7 +98,7 @@ src/main/store/          all file-system access: collections, identity, config
 src/main/ipc.ts          IPC handlers; the only path from renderer to the file system
 src/preload/index.ts     contextBridge exposing window.api (typed in src/shared/api.ts)
 src/shared/types.ts      record types; this file is the schema
-src/renderer/            React screens: app shell, issues, kanban, search, wiki, gantt
+src/renderer/            React screens: app shell, issues, kanban, search, wiki, gantt, reports
 tests/                   vitest, mirroring src/
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "request-tracker",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Request tracker for a small team over a shared folder",
   "main": "./out/main/index.js",
   "author": "TOMKD",

@@ -1,10 +1,12 @@
-import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Project, StatusDef, User, WikiPage } from "./types";
+import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Project, Report, StatusDef, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
 export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
 /** What an attachment belongs to: an issue by key, or a wiki page by id. */
 export type AttachmentOwner = { kind: "issue"; id: string } | { kind: "wiki"; id: string };
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
+/** File type offered by the save dialog. */
+export interface SaveFilter { name: string; extensions: string[] }
 
 // IPC surface between renderer and main. Each group.method maps to the channel "group:method".
 export type StoreApi = {
@@ -81,6 +83,19 @@ export type StoreApi = {
     remove(id: string): Promise<void>;
     history(id: string): Promise<WikiPage[]>;
   };
+  reports: {
+    list(): Promise<Report[]>;
+    get(id: string): Promise<Report | null>;
+    /** Resolves to the report with its allocated id. */
+    create(r: Report): Promise<Report>;
+    /** Rejects with "stale" per `expectedUpdatedAt` (see issues.put). */
+    put(r: Report, expectedUpdatedAt?: string): Promise<void>;
+    remove(id: string): Promise<void>;
+    /** Save dialog filtered to `filter`, then the text as UTF-8; false when cancelled. */
+    save(text: string, defaultName: string, filter: SaveFilter): Promise<boolean>;
+    /** Puts the rendered report on the clipboard as HTML, with `text` as the plain-text form. */
+    copy(html: string, text: string): Promise<void>;
+  };
 };
 
 export type Api = StoreApi & {
@@ -97,4 +112,5 @@ export const API_METHODS = {
   comments: ["list", "add", "listAll"],
   attachments: ["list", "add", "choose", "open", "openFolder", "remove"],
   wiki: ["list", "get", "create", "put", "remove", "history"],
+  reports: ["list", "get", "create", "put", "remove", "save", "copy"],
 } as const satisfies { [G in keyof StoreApi]: readonly (keyof StoreApi[G])[] };

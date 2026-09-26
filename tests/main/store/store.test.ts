@@ -27,7 +27,8 @@ const store = (chosen: string | null, username = "alice") =>
     chooseDirectory: async () => chosen,
     chooseFiles: async () => null,
     openPath: async () => "",
-    chooseSavePath: async () => join(userData, "out.csv"),
+    chooseSavePath: async (_name, filter) => join(userData, `out.${filter.extensions[0]}`),
+    writeClipboard: () => undefined,
   });
 
 test("config.get is null on fresh userData and returns the root after chooseRoot", async () => {

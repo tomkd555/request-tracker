@@ -126,6 +126,27 @@ export interface WikiPage {
   updatedBy: string;
 }
 
+/** Report-only wording for one issue: a 件名 for the report and a one-line 補足; "" keeps the issue's own text. */
+export interface IssueNote { summary: string; note: string }
+
+/**
+ * A report for people outside the team: Markdown with `::issues`, `::summary` and `::gantt` block lines that render from the
+ * issues as they stand when the report is opened or exported (see renderer/reports/blocks.ts). `terms` maps a name the
+ * screens show (a stage, a 種別, a ラベル, a member, a column heading) to the word the report uses; `issueNotes` is keyed by issue key.
+ */
+export interface Report {
+  id: string; // file stamp at creation
+  title: string;
+  body: string; // Markdown plus block lines
+  isTemplate: boolean; // offered as the starting point of a new report
+  terms: Record<string, string>;
+  issueNotes: Record<string, IssueNote>;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
 // Derived from stat, never stored; size is null for a folder.
 export interface Attachment { name: string; kind: "file" | "folder"; size: number | null; addedAt: string }
 
@@ -254,6 +275,26 @@ export function isWikiPage(v: unknown): v is WikiPage {
     str(v.body) &&
     (v.parentId === undefined || strOrNull(v.parentId)) &&
     strOrAbsent(v.note) &&
+    str(v.createdAt) &&
+    str(v.createdBy) &&
+    str(v.updatedAt) &&
+    str(v.updatedBy)
+  );
+}
+
+const isIssueNote = (v: unknown): v is IssueNote => isRec(v) && str(v.summary) && str(v.note);
+
+export function isReport(v: unknown): v is Report {
+  return (
+    isRec(v) &&
+    str(v.id) &&
+    STAMP_ID.test(v.id) &&
+    str(v.title) &&
+    str(v.body) &&
+    bool(v.isTemplate) &&
+    strMap(v.terms) &&
+    isRec(v.issueNotes) &&
+    Object.values(v.issueNotes).every(isIssueNote) &&
     str(v.createdAt) &&
     str(v.createdBy) &&
     str(v.updatedAt) &&

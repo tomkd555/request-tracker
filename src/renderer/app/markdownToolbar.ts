@@ -38,7 +38,7 @@ function wrap(sel: Selection, before: string, after: string, placeholder: string
 }
 
 /** Inserts a block on its own line at the selection and puts the cursor after it. */
-function insertBlock(sel: Selection, block: string): Selection {
+export function insertBlock(sel: Selection, block: string): Selection {
   const head = sel.text.slice(0, sel.start);
   const lead = head === "" || head.endsWith("\n") ? "" : "\n";
   const text = head + lead + block + sel.text.slice(sel.end);

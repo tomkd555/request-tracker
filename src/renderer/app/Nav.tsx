@@ -9,6 +9,7 @@ const ITEMS: { path: string; label: string }[] = [
   { path: "/search", label: "検索" },
   { path: "/gantt", label: "ガントチャート" },
   { path: "/summary", label: "集計" },
+  { path: "/reports", label: "レポート" },
   { path: "/project", label: "プロジェクト設定" },
   { path: "/settings", label: "設定" },
 ];
