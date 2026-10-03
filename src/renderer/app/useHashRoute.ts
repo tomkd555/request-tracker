@@ -17,7 +17,7 @@ export function navigate(to: string): void {
 let activeGuards = 0;
 let restoring = false;
 
-/** While `active`, leaving the route asks 「編集内容を破棄しますか」 and closing the window asks the browser's own question. */
+/** While `active`, leaving the route asks 「編集内容を破棄しますか」, and closing the window has the main process ask the same (will-prevent-unload in main/index.ts). */
 export function useNavigationGuard(active: boolean): void {
   useEffect(() => {
     if (!active) return;

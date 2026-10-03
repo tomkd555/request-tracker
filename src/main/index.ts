@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from "electron";
+import { app, dialog, shell, BrowserWindow } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { registerIpc } from "./ipc";
@@ -40,6 +40,12 @@ function createWindow(): void {
       event.preventDefault();
       openExternally(url);
     }
+  });
+
+  // A screen with unsaved edits cancels beforeunload (useNavigationGuard); Electron asks nothing by itself, so the question is put here, in the renderer's own wording.
+  mainWindow.webContents.on("will-prevent-unload", (event) => {
+    const choice = dialog.showMessageBoxSync(mainWindow, { type: "question", message: "編集内容を破棄しますか", buttons: ["破棄する", "キャンセル"], defaultId: 1, cancelId: 1, noLink: true });
+    if (choice === 0) event.preventDefault(); // overrides the page's cancel, so the window closes
   });
 
   if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {

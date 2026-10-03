@@ -21,7 +21,10 @@ const textOf = (node: React.ReactNode): string => {
 /** Headings written in Markdown render `demote` ranks lower, so a screen's own h1/h2 stay above the content. */
 function components(demote: number): Components {
   const out: Components = {
-    a: ({ node: _node, href, ...props }) => <a href={href} className={href?.startsWith(MISSING_PAGE_PATH) ? "link--missing" : undefined} {...props} />,
+    // A link out of the app opens as a new window, which main hands to the browser; the app's own document never unloads, so a draft's beforeunload stays out of it.
+    a: ({ node: _node, href, ...props }) => (
+      <a href={href} target={href?.startsWith("#") ? undefined : "_blank"} className={href?.startsWith(MISSING_PAGE_PATH) ? "link--missing" : undefined} {...props} />
+    ),
   };
   for (const level of [1, 2, 3, 4, 5, 6] as Level[]) {
     const tag = `h${Math.min(6, level + demote)}`;
