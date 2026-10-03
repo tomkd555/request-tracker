@@ -1,4 +1,4 @@
-import { app, clipboard, dialog, ipcMain, shell } from "electron";
+import { app, clipboard, ClipboardItem, dialog, ipcMain, shell } from "electron";
 import { API_METHODS, type StoreApi } from "../shared/api";
 import { createStore } from "./store";
 import { currentUsername } from "./store/users";
@@ -21,7 +21,7 @@ export function registerIpc(): ReturnType<typeof createStore> {
       const r = await dialog.showSaveDialog({ defaultPath: defaultName, filters: [filter] });
       return r.canceled || !r.filePath ? null : r.filePath;
     },
-    writeClipboard: (html, text) => clipboard.write({ html, text }),
+    writeClipboard: (html, text) => clipboard.write([new ClipboardItem({ "text/html": html, "text/plain": text })]),
   });
 
   for (const group of Object.keys(API_METHODS) as (keyof StoreApi)[]) {

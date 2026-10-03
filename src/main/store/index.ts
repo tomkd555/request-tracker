@@ -25,7 +25,7 @@ export interface StoreDeps {
   /** Save dialog offering `filter`; the chosen path, or null when cancelled. */
   chooseSavePath(defaultName: string, filter: SaveFilter): Promise<string | null>;
   /** Puts HTML and its plain-text form on the clipboard. */
-  writeClipboard(html: string, text: string): void;
+  writeClipboard(html: string, text: string): void | Promise<void>;
 }
 
 /** Records written before `category`, `fields`, `labels` or `relations` existed come back with "", {} and [] so the renderer always sees them. */

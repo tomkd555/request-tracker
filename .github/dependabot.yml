@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      # Electron 39 embeds Node 22; the types follow the runtime, not npm's latest
+      # Electron 44 embeds Node 24; the types follow the Node version Electron embeds
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
