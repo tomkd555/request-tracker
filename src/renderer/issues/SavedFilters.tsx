@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { IssueFilter, SavedFilter } from "../../shared/types";
 import { useSession } from "../app/UserContext";
 import { defaultFilter, EMPTY_FILTER } from "./filterIssues";
 import { removeFilter, sameFilter, upsertFilter } from "./savedFilter";
-import { M } from "../messages";
+import { errorMessage, M } from "../messages";
 
 type Props = { filter: IssueFilter; onChange(f: IssueFilter): void };
 
@@ -11,21 +11,39 @@ type Props = { filter: IssueFilter; onChange(f: IssueFilter): void };
 export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
   const { config, project, refreshConfig } = useSession();
   const [selected, setSelected] = useState("");
+  const [name, setName] = useState<string | null>(null); // the name typed after 保存; null while the field is closed
+  const [error, setError] = useState<string | null>(null);
+  const naming = name !== null;
+  const opener = useRef<HTMLButtonElement>(null);
+  const wasNaming = useRef(false);
+  // The field unmounts with the focus inside it; the button that opened it takes the focus back.
+  useEffect(() => {
+    if (wasNaming.current && !naming) opener.current?.focus();
+    wasNaming.current = naming;
+  }, [naming]);
   const current = config.savedFilters.find((s) => s.name === selected) ?? null;
   const dirty = current !== null && !sameFilter(current.filter, filter);
 
-  const persist = async (savedFilters: SavedFilter[]): Promise<void> => {
-    const next = { ...config, savedFilters };
-    await window.api.config.put(next);
-    await refreshConfig();
+  /** False when config.json could not be written; the reason shows beside the buttons. */
+  const persist = async (savedFilters: SavedFilter[]): Promise<boolean> => {
+    setError(null);
+    try {
+      await window.api.config.put({ ...config, savedFilters });
+      await refreshConfig();
+      return true;
+    } catch (e) {
+      setError(errorMessage(e));
+      return false;
+    }
   };
 
   const save = async (): Promise<void> => {
-    const name = window.prompt("保存する名前")?.trim();
-    if (!name) return;
-    if (config.savedFilters.some((s) => s.name === name) && !window.confirm(M.confirmOverwrite(name))) return;
-    await persist(upsertFilter(config.savedFilters, name, filter));
-    setSelected(name);
+    const n = name?.trim();
+    if (!n) return;
+    if (config.savedFilters.some((s) => s.name === n) && !window.confirm(M.confirmOverwrite(n))) return;
+    if (!(await persist(upsertFilter(config.savedFilters, n, filter)))) return;
+    setSelected(n);
+    setName(null);
   };
 
   const overwrite = async (): Promise<void> => {
@@ -35,8 +53,7 @@ export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
 
   const remove = async (): Promise<void> => {
     if (current === null) return;
-    await persist(removeFilter(config.savedFilters, current.name));
-    setSelected("");
+    if (await persist(removeFilter(config.savedFilters, current.name))) setSelected("");
   };
 
   return (
@@ -63,15 +80,39 @@ export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
           ))}
         </select>
       </label>
-      <button type="button" onClick={() => void save()}>
-        保存
-      </button>
+      {name === null ? (
+        <button type="button" ref={opener} onClick={() => setName("")}>
+          保存
+        </button>
+      ) : (
+        <>
+          <input
+            className="filter-bar__search"
+            aria-label="保存する名前"
+            placeholder="保存する名前"
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void save();
+              if (e.key === "Escape") setName(null);
+            }}
+          />
+          <button type="button" disabled={name.trim() === ""} onClick={() => void save()}>
+            保存
+          </button>
+          <button type="button" onClick={() => setName(null)}>
+            キャンセル
+          </button>
+        </>
+      )}
       <button type="button" disabled={!dirty} onClick={() => void overwrite()}>
         上書き
       </button>
       <button type="button" disabled={current === null} onClick={() => void remove()}>
         削除
       </button>
+      {error && <span className="text--error">{error}</span>}
     </div>
   );
 }

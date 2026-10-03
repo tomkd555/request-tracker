@@ -88,7 +88,7 @@ npm run package      # build and electron-builder, producing dist/RequestTracker
 
 If electron-builder fails while extracting `winCodeSign` with a symlink permission error, enable Windows Developer Mode or run that step once from an administrator shell. The exe is unsigned.
 
-Stack: Electron 39, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, vitest, plain CSS with the palette in `src/renderer/tokens.css`. Tests cover the store against a real temporary directory and the pure functions behind filters, key allocation, counts, messages, gantt layout, report blocks and report export; React components have no automated tests.
+Stack: Electron 44, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, vitest, plain CSS with the palette in `src/renderer/tokens.css`. Tests cover the store against a real temporary directory and the pure functions behind filters, key allocation, counts, messages, gantt layout, report blocks and report export; React components have no automated tests.
 
 Layout:
 
