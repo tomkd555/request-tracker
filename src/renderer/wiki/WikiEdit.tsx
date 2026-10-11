@@ -43,7 +43,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
   useNavigationGuard(dirty && !busy);
 
   if (id !== null && !loaded) return <div className="text--loading">読み込み中</div>;
-  if (id !== null && !existing) return <p>ページが見つかりません。</p>;
+  if (id !== null && !existing) return <p>ページが見つかりません</p>;
 
   const excluded = id !== null ? descendantIdsOf(pages, id) : new Set<string>();
   const parentOptions = flattenTree(pages).filter((r) => !excluded.has(r.page.id));

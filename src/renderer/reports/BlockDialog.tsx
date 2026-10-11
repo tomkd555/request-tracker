@@ -92,7 +92,7 @@ const sameArray = <T,>(a: T[], b: T[]): boolean => a.length === b.length && a.ev
 const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
   { value: "all", label: "すべて" },
   { value: "overdue", label: "期限超過" },
-  { value: "week", label: "今週" },
+  { value: "week", label: "7日以内" },
   { value: "none", label: "期限なし" },
 ];
 // The fixed sort keys, labelled as src/renderer/issues/IssueList.tsx's own column headers.

@@ -77,7 +77,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
   const ctx = useMemo<ReportContext>(() => ({ issues, users, project, me, today: day }), [issues, users, project, me, day]);
 
   if (id !== null && !loaded) return <div className="text--loading">読み込み中</div>;
-  if (id !== null && !existing) return <p>レポートが見つかりません。</p>;
+  if (id !== null && !existing) return <p>レポートが見つかりません</p>;
 
   const templates = reports.filter((r) => r.isTemplate);
   const titleMissing = title.trim() === "";
