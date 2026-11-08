@@ -81,14 +81,13 @@ npm install
 npm run dev          # one instance with hot reload
 npm run dev:second   # a second instance with its own user data, for two-client checks
 npm run typecheck    # tsc for main/preload and for the renderer; serves as lint
-npx vitest run       # unit tests under tests/, mirroring src/
 npm run build        # typecheck and electron-vite build into out/
 npm run package      # build and electron-builder, producing dist/RequestTracker-<version>.exe
 ```
 
 If electron-builder fails while extracting `winCodeSign` with a symlink permission error, enable Windows Developer Mode or run that step once from an administrator shell. The exe is unsigned.
 
-Stack: Electron 44, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, vitest, plain CSS with the palette in `src/renderer/tokens.css`. Tests cover the store against a real temporary directory and the pure functions behind filters, key allocation, counts, messages, gantt layout, report blocks and report export; React components have no automated tests.
+Stack: Electron 44, electron-vite 5, React 19, TypeScript 5.9 (`strict`), `react-markdown`, plain CSS with the palette in `src/renderer/tokens.css`.
 
 Layout:
 
@@ -99,7 +98,6 @@ src/main/ipc.ts          IPC handlers; the only path from renderer to the file s
 src/preload/index.ts     contextBridge exposing window.api (typed in src/shared/api.ts)
 src/shared/types.ts      record types; this file is the schema
 src/renderer/            React screens: app shell, issues, kanban, search, wiki, gantt, reports
-tests/                   vitest, mirroring src/
 ```
 
 A `// ponytail:` comment marks a deliberate shortcut and names its ceiling and the upgrade path.
@@ -112,14 +110,14 @@ A `// ponytail:` comment marks a deliberate shortcut and names its ceiling and t
 - Attachments with one of the extensions listed in `REFUSED_EXTENSIONS` (`src/main/store/attachments.ts`: executables, installers, script hosts, shortcuts, help files and ClickOnce launchers) are refused, on adding and on opening alike. Any other file opens with its registered program.
 - The app stores no passwords or tokens.
 
-See `SECURITY.md` for how to report a problem.
+To report a vulnerability, use "Report a vulnerability" under the repository's Security tab, which opens a private advisory with the maintainer.
 
 ## Release
 
-Releases are cut by hand. `.github/workflows/ci.yml` type-checks, tests and builds on every push; it publishes nothing. Before a release:
+Releases are cut by hand. Before a release:
 
 - Set `version` in `package.json` to `X.Y.Z`
-- `npm run typecheck`, `npx vitest run` and `npm run package` pass locally
+- `npm run typecheck` and `npm run package` pass locally
 - The exe starts on a machine without Node or this repository
 - Two instances pointed at the real network share see each other's changes on the next screen change or 更新, and simultaneous creation yields distinct keys
 
