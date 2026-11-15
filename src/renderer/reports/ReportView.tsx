@@ -20,7 +20,7 @@ export function ReportView({ id }: { id: string }): React.JSX.Element {
   const report = byId.get(id);
 
   if (!loaded) return <div className="text--loading">読み込み中</div>;
-  if (!report) return <p>レポートが見つかりません。</p>;
+  if (!report) return <p>レポートが見つかりません</p>;
 
   const ctx: ReportContext = { issues, users, project, me, today: today() };
 

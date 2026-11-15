@@ -35,7 +35,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     if (issue) markSeen(issue);
   }, [issue]);
   if (!loaded) return <div className="text--loading">読み込み中</div>;
-  if (!issue) return <p>課題 {issueKey} が見つかりません。</p>;
+  if (!issue) return <p>課題 {issueKey} が見つかりません</p>;
   const all = [...byKey.values()];
   const ancestors = ancestorsOf(byKey, issue.key);
   const depth = ancestors.length + 1;

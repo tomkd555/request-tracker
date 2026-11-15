@@ -48,8 +48,8 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
       <table className="issue-table wording-panel__table">
         <thead>
           <tr>
-            <th className="issue-table__header">元の語</th>
-            <th className="issue-table__header">レポートでの語</th>
+            <th className="issue-table__header">元の用語</th>
+            <th className="issue-table__header">レポートでの用語</th>
             <th className="issue-table__header" />
           </tr>
         </thead>
@@ -59,7 +59,7 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
               <td className="issue-table__cell">
                 <input
                   className="issue-form__control"
-                  aria-label="元の語"
+                  aria-label="元の用語"
                   value={r.from}
                   onChange={(e) => updateRows(rows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))}
                 />
@@ -67,7 +67,7 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
               <td className="issue-table__cell">
                 <input
                   className="issue-form__control"
-                  aria-label="レポートでの語"
+                  aria-label="レポートでの用語"
                   value={r.to}
                   onChange={(e) => updateRows(rows.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))}
                 />

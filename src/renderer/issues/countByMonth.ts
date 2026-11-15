@@ -52,7 +52,7 @@ export const cell = (v: string | number): string => {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-/** CSV body (no BOM) with three sections; `nameOf` renders usernames and status ids for display. */
+/** CSV body (no BOM): month and total, five count tables and the closed total; `nameOf` renders usernames and status ids for display. */
 export function toCsv(
   c: MonthlyCounts,
   nameOf: { user(username: string): string; status(status: IssueStatus): string },
