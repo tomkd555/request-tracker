@@ -3,6 +3,10 @@ import { categoryOptions, useSession } from "../app/UserContext";
 import { defaultFilter, type DueFilter, type IssueFilter } from "./filterIssues";
 import { LabelPicker } from "./LabelPicker";
 
+// A select cannot hold null, so the two conditions that are not a milestone id take these values.
+const ALL_MILESTONES = "__all__";
+const NO_MILESTONE = "__none__";
+
 type Props = { filter: IssueFilter; users: User[]; onChange(f: IssueFilter): void };
 
 const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
@@ -71,7 +75,7 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
       </label>
       <label className="filter-bar__field">
         ラベル
-        <LabelPicker project={project} value={filter.labels} onChange={(labels) => onChange({ ...filter, labels })} />
+        <LabelPicker project={project} value={filter.labels} emptyLabel="すべて" onChange={(labels) => onChange({ ...filter, labels })} />
       </label>
       <label className="filter-bar__field">
         期限
@@ -83,6 +87,23 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
           ))}
         </select>
       </label>
+      {(project.milestones ?? []).length > 0 && (
+        <label className="filter-bar__field">
+          マイルストーン
+          <select
+            value={filter.milestone == null ? ALL_MILESTONES : filter.milestone === "" ? NO_MILESTONE : filter.milestone}
+            onChange={(e) => onChange({ ...filter, milestone: e.target.value === ALL_MILESTONES ? null : e.target.value === NO_MILESTONE ? "" : e.target.value })}
+          >
+            <option value={ALL_MILESTONES}>すべて</option>
+            <option value={NO_MILESTONE}>未設定</option>
+            {(project.milestones ?? []).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {project.fields
         .filter((f) => f.options.length > 0)
         .map((f) => (

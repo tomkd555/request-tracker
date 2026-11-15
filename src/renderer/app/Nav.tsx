@@ -1,13 +1,16 @@
-import { unseenMine } from "../issues/seen";
+import { noticesOf } from "../issues/notices";
+import { seenStamp } from "../issues/seen";
 import { useIssues } from "../issues/useIssues";
 import { useSession } from "./UserContext";
 
 const ITEMS: { path: string; label: string }[] = [
   { path: "/issues", label: "課題" },
+  { path: "/notices", label: "お知らせ" },
   { path: "/kanban", label: "カンバン" },
   { path: "/wiki", label: "Wiki" },
   { path: "/search", label: "検索" },
   { path: "/gantt", label: "ガントチャート" },
+  { path: "/recent", label: "最近の更新" },
   { path: "/summary", label: "集計" },
   { path: "/reports", label: "レポート" },
   { path: "/project", label: "プロジェクト設定" },
@@ -16,8 +19,8 @@ const ITEMS: { path: string; label: string }[] = [
 
 export function Nav({ current, onRefresh }: { current: string; onRefresh(): Promise<void> }): React.JSX.Element {
   const { me, project } = useSession();
-  const { issues } = useIssues();
-  const unseen = unseenMine(issues, me.username, project.statuses);
+  const { issues, watched } = useIssues();
+  const unseen = noticesOf(issues, watched, me.username, project.statuses, seenStamp).length;
   return (
     <nav className="nav" aria-label="主メニュー">
       <div className="nav__title">Request Tracker</div>
@@ -26,7 +29,7 @@ export function Nav({ current, onRefresh }: { current: string; onRefresh(): Prom
           <li key={it.path}>
             <a href={`#${it.path}`} className={`nav__link${current.startsWith(it.path) ? " nav__link--active" : ""}`}>
               {it.label}
-              {it.path === "/issues" && unseen > 0 && <span className="nav__badge">{unseen}</span>}
+              {it.path === "/notices" && unseen > 0 && <span className="nav__badge">{unseen}</span>}
             </a>
           </li>
         ))}

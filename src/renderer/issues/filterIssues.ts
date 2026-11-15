@@ -1,4 +1,4 @@
-import type { DueFilter, Issue, IssueFilter, StatusDef } from "../../shared/types";
+import type { DueFilter, Issue, IssueFilter, Milestone, StatusDef } from "../../shared/types";
 import { addDays } from "./dates";
 import { isActiveStatus, statusKind } from "./labels";
 
@@ -14,6 +14,7 @@ export const EMPTY_FILTER: Omit<IssueFilter, "statuses"> = {
   awaitingConfirmation: false,
   labels: [],
   fields: {},
+  milestone: null,
 };
 
 /** The filter a screen opens with: every stage that is not 完了. */
@@ -37,8 +38,19 @@ function matchesDue(i: Issue, due: DueFilter, today: string, active: boolean): b
   }
 }
 
-/** `today` is YYYY-MM-DD; the due conditions compare against it. `me` is the current username for 確認待ち. `statuses` is the project's list. */
-export function filterIssues(issues: Issue[], filter: IssueFilter, today: string, me: string, statuses: StatusDef[]): Issue[] {
+const matchesMilestone = (i: Issue, milestone: string | null | undefined, listed: Milestone[] | undefined): boolean => {
+  if (milestone === null || milestone === undefined) return true;
+  const id = i.milestone ?? null;
+  // An id the project no longer lists reads as no milestone, when the project's list is given.
+  const none = id === null || (listed !== undefined && !listed.some((m) => m.id === id));
+  return milestone === "" ? none : id === milestone;
+};
+
+/**
+ * `today` is YYYY-MM-DD; the due conditions compare against it. `me` is the current username for 確認待ち. `statuses` is the project's list.
+ * `milestones` is the project's list; with it, an issue naming a milestone that is no longer listed counts as having none.
+ */
+export function filterIssues(issues: Issue[], filter: IssueFilter, today: string, me: string, statuses: StatusDef[], milestones?: Milestone[]): Issue[] {
   const kw = filter.keyword.trim().toLowerCase();
   return issues.filter(
     (i) =>
@@ -49,6 +61,7 @@ export function filterIssues(issues: Issue[], filter: IssueFilter, today: string
       (!filter.awaitingConfirmation || (statusKind(statuses, i.status) === "review" && i.reporter === me)) &&
       (filter.labels.length === 0 || filter.labels.some((l) => i.labels.includes(l))) &&
       Object.entries(filter.fields).every(([id, v]) => (i.fields[id] ?? "") === v) &&
+      matchesMilestone(i, filter.milestone, milestones) &&
       matchesDue(i, filter.due, today, isActiveStatus(statuses, i.status)) &&
       (kw === "" ||
         i.summary.toLowerCase().includes(kw) ||

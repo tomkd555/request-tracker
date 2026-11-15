@@ -93,6 +93,90 @@
   text-align: center;
 }
 
+/* The tree list: one line per row; 件名 takes the width the other columns leave and cuts with an ellipsis. */
+.issue-table--tree .issue-table__cell {
+  box-sizing: border-box;
+  height: 36px;
+  padding: var(--space-1) var(--space-2);
+  white-space: nowrap;
+}
+
+.issue-table--tree .issue-table__header {
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+.issue-table--tree .issue-table__cell--summary {
+  width: 100%;
+  max-width: 0;
+}
+
+.issue-table__summary {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.issue-table__summary-text {
+  flex: 0 1 auto;
+  min-width: 4em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.issue-table__summary .issue-table__label {
+  flex: none;
+}
+
+.issue-table__count {
+  flex: none;
+  margin-left: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.issue-table--tree .issue-table__cell--field {
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.issue-table__toggle {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  margin: -2px -3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+}
+
+button.issue-table__toggle {
+  cursor: pointer;
+}
+
+.issue-table__toggle:focus-visible,
+.issue-table__row:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+/* An ancestor shown only to place a filter match in its tree. */
+.issue-table__row--context .issue-table__cell,
+.issue-table__row--context .issue-table__cell--key {
+  color: var(--text-muted);
+}
+
+.issue-table__row--context .pill {
+  opacity: 0.6;
+}
+
 .bulk-bar {
   display: flex;
   flex-wrap: wrap;
@@ -582,6 +666,21 @@
 .issue-detail__prop {
   display: grid;
   gap: var(--space-1);
+}
+
+.issue-detail__hours {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.issue-detail__hours .issue-detail__control {
+  min-width: 0;
+}
+
+.issue-detail__hours span {
+  flex: none;
+  white-space: nowrap;
 }
 
 .issue-detail__prop .issue-detail__control {

@@ -29,7 +29,12 @@ export interface Project {
   fields: CustomField[]; // 汎用列 definitions, in display order; [] on files written before this field
   labels: Label[]; // ラベル definitions, in display order; [] on files written before this field
   statuses: StatusDef[]; // 状態 stages, in display order; DEFAULT_STATUSES on files written before this field
+  // Optional in the type so records built without it still compile; readProject always fills [] on read.
+  milestones?: Milestone[]; // マイルストーン definitions, in display order; [] on files written before this field
 }
+
+/** A named target a group of issues works toward; Issue.milestone holds the id, so a rename never orphans an issue. Dates are YYYY-MM-DD. */
+export interface Milestone { id: string; name: string; startDate: string | null; dueDate: string | null; closed: boolean }
 
 /** A named ラベル with its pill colour; Issue.labels matches one by name, the way 種別 matches Project.categories by name. */
 export interface Label { name: string; color: string }
@@ -81,6 +86,8 @@ export interface IssueFilter {
   labels: string[];
   /** 汎用列 id -> the one value to keep; an id absent here matches every value. */
   fields: Record<string, string>;
+  /** A Milestone.id to keep; "" keeps the issues without one; null (or absent, in a filter saved before this field) keeps every issue. */
+  milestone?: string | null;
 }
 
 /** A named filter bookmarked on the issue list, kanban or gantt screen. */
@@ -104,6 +111,10 @@ export interface Issue {
   fields: Record<string, string>; // CustomField id -> value; {} on records written before this field
   labels: string[]; // Label.name values, the way category names Project.categories; [] on records written before this field
   relations: Relation[]; // typed links this issue names; [] on records written before this field
+  // Optional in the type so records built without them still compile; the store fills null on read.
+  milestone?: string | null; // a Milestone.id; an id the project no longer lists reads as no milestone; null on records written before this field
+  estimatedHours?: number | null; // see isHours; null on records written before this field
+  actualHours?: number | null; // see isHours; null on records written before this field
 }
 
 export interface Comment {
@@ -162,28 +173,41 @@ const strMapOrAbsent = (v: unknown): v is Record<string, string> | undefined => 
 const bool = (v: unknown): v is boolean => typeof v === "boolean";
 const strMap = (v: unknown): v is Record<string, string> => isRec(v) && Object.values(v).every(str);
 const DUE_FILTERS: DueFilter[] = ["all", "overdue", "week", "none"];
-const isTemplate = (v: unknown): v is CategoryTemplate => isRec(v) && str(v.summary) && str(v.body);
+export const isTemplate = (v: unknown): v is CategoryTemplate => isRec(v) && str(v.summary) && str(v.body);
 const templateMapOrAbsent = (v: unknown): v is Record<string, CategoryTemplate> | undefined =>
   v === undefined || (isRec(v) && Object.values(v).every(isTemplate));
-const isField = (v: unknown): v is CustomField => isRec(v) && str(v.id) && str(v.name) && Array.isArray(v.options) && v.options.every(str);
+export const isField = (v: unknown): v is CustomField => isRec(v) && str(v.id) && str(v.name) && Array.isArray(v.options) && v.options.every(str);
 const fieldsOrAbsent = (v: unknown): v is CustomField[] | undefined => v === undefined || (Array.isArray(v) && v.every(isField));
-const isLabel = (v: unknown): v is Label => isRec(v) && str(v.name) && str(v.color);
+export const isLabel = (v: unknown): v is Label => isRec(v) && str(v.name) && str(v.color);
 const labelsOrAbsent = (v: unknown): v is Label[] | undefined => v === undefined || (Array.isArray(v) && v.every(isLabel));
-const isStatusDef = (v: unknown): v is StatusDef => isRec(v) && str(v.id) && str(v.name) && str(v.color) && STATUS_KINDS.includes(v.kind as StatusKind);
+/** 予定時間 and 実績時間: a finite number, 0 or more, with at most 2 decimal places. */
+export const isHours = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && Math.round(v * 100) / 100 === v;
+const hoursOrNullOrAbsent = (v: unknown): v is number | null | undefined => v === undefined || v === null || isHours(v);
+const strOrNullOrAbsent = (v: unknown): v is string | null | undefined => v === undefined || strOrNull(v);
+/** True for a YYYY-MM-DD that names a real calendar day. */
+export function isYmd(s: unknown): s is string {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
+}
+export const isMilestone = (v: unknown): v is Milestone => isRec(v) && str(v.id) && str(v.name) && strOrNull(v.startDate) && strOrNull(v.dueDate) && bool(v.closed);
+const milestonesOrAbsent = (v: unknown): v is Milestone[] | undefined => v === undefined || (Array.isArray(v) && v.every(isMilestone));
+export const isStatusDef = (v: unknown): v is StatusDef => isRec(v) && str(v.id) && str(v.name) && str(v.color) && STATUS_KINDS.includes(v.kind as StatusKind);
 const statusesOrAbsent = (v: unknown): v is StatusDef[] | undefined => v === undefined || (Array.isArray(v) && v.every(isStatusDef));
 
-/** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates`, `fields`, `labels` or `statuses`; `readProject` fills the defaults. */
+/** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates`, `fields`, `labels`, `statuses` or `milestones`; `readProject` fills the defaults. */
 export function isProject(v: unknown): v is Project {
   return (
     isRec(v) &&
-    Number.isInteger(v.fiscalYearStartMonth) &&
+    intIn(v.fiscalYearStartMonth, 1, 12) &&
     str(v.createdAt) &&
     strArrayOrAbsent(v.categories) &&
     strMapOrAbsent(v.categoryColors) &&
     templateMapOrAbsent(v.categoryTemplates) &&
     fieldsOrAbsent(v.fields) &&
     labelsOrAbsent(v.labels) &&
-    statusesOrAbsent(v.statuses)
+    statusesOrAbsent(v.statuses) &&
+    milestonesOrAbsent(v.milestones)
   );
 }
 
@@ -199,7 +223,8 @@ export function isIssueFilter(v: unknown): v is IssueFilter {
     strOrNull(v.category) &&
     bool(v.awaitingConfirmation) &&
     strArrayOrAbsent(v.labels) &&
-    strMap(v.fields)
+    strMap(v.fields) &&
+    strOrNullOrAbsent(v.milestone)
   );
 }
 
@@ -215,6 +240,7 @@ export function assertLocalSettings(s: LocalSettings): void {
   if (s.accent !== null && !(str(s.accent) && HEX_COLOR.test(s.accent))) throw new Error(`accent must be #rrggbb: ${String(s.accent)}`);
   if (!NOTICE_MODES.includes(s.notice)) throw new Error(`unknown notice: ${String(s.notice)}`);
   if (!intIn(s.dueSoonDays, 0, 30)) throw new Error(`dueSoonDays out of range: ${String(s.dueSoonDays)}`);
+  if (!Array.isArray(s.savedFilters) || !s.savedFilters.every(isSavedFilter)) throw new Error("savedFilters is malformed");
 }
 
 /** Each optional field of config.json is taken when valid and otherwise falls back to its default, so an old or hand-edited file still loads. */
@@ -236,7 +262,7 @@ export function isUser(v: unknown): v is User {
 export const ISSUE_KEY = /^\d{2}-\d{4,}$/;
 export const STAMP_ID = /^\d{8}T\d{9}Z$/;
 
-/** Accepts a record without `category`, `fields`, `labels` or `relations` (written before those fields existed); the store fills "", {} and [] on read. */
+/** Accepts a record without `category`, `fields`, `labels`, `relations`, `milestone`, `estimatedHours` or `actualHours` (written before those fields existed); the store fills "", {}, [] and null on read. */
 export function isIssue(v: unknown): v is Issue {
   return (
     isRec(v) &&
@@ -257,7 +283,10 @@ export function isIssue(v: unknown): v is Issue {
     str(v.createdAt) &&
     str(v.updatedAt) &&
     str(v.updatedBy) &&
-    relationsOrAbsent(v.relations)
+    relationsOrAbsent(v.relations) &&
+    strOrNullOrAbsent(v.milestone) &&
+    hoursOrNullOrAbsent(v.estimatedHours) &&
+    hoursOrNullOrAbsent(v.actualHours)
   );
 }
 

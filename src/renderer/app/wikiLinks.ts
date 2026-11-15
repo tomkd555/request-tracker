@@ -1,9 +1,12 @@
 // `[[タイトル]]` and `[[タイトル|表示文字]]` in Markdown become links to the wiki page of that title.
 
+import { splitCode } from "./markdownCode";
+
 const LINK = /\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]/g;
 
-/** Splits on backtick runs so fenced blocks and inline code spans stay untouched; odd segments are code. */
-const splitCode = (src: string): string[] => src.split(/(`+[\s\S]*?`+)/);
+/** Backslash-escapes what would turn link text into other Markdown. */
+const escapeText = (t: string): string => t.replace(/[\\`*_[\]]/g, "\\$&");
+
 
 export const MISSING_PAGE_PATH = "#/wiki/new";
 
@@ -27,7 +30,7 @@ export function linkWikiPages(src: string, resolve: (title: string) => string | 
             const text = (label ?? title).trim();
             const id = resolve(title.trim());
             const href = id !== null ? `#/wiki/${id}` : missingPageHref(title.trim(), parentId);
-            return `[${text}](${href})`;
+            return `[${escapeText(text)}](${href})`;
           }),
     )
     .join("");

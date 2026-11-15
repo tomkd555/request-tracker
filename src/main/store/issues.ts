@@ -8,7 +8,7 @@ import { parentRefusal } from "../../shared/issueTree";
 import type { Layout } from "./paths";
 
 export const issuesCollection = (l: Layout): Collection<Issue> =>
-  collection<Issue>({ dir: l.issues, guard: isIssue, historyDir: l.historyIssues, trashDir: l.trashIssues });
+  collection<Issue>({ dir: l.issues, guard: isIssue, historyDir: l.historyIssues, trashDir: l.trashIssues, idOf: (i) => i.key });
 
 async function keysIn(dir: string): Promise<string[]> {
   try {
@@ -24,7 +24,7 @@ export const HAS_CHILDREN = "has-children";
 /** Rejects with "cycle" or "too-deep" (see parentRefusal) when the parent named would break the tree; a parent that no longer exists is kept. */
 async function assertParent(l: Layout, key: string | null, parentKey: string | null): Promise<void> {
   if (parentKey === null) return;
-  const issues = await readDir(l.issues, isIssue); // uncached: the guard must see the share as it is
+  const issues = await readDir(l.issues, isIssue, (i) => i.key); // uncached: the guard must see the share as it is
   if (!issues.some((i) => i.key === parentKey)) return;
   const refusal = parentRefusal(issues, key, parentKey);
   if (refusal !== null) throw new Error(refusal);
@@ -38,7 +38,7 @@ export async function putIssue(l: Layout, issue: Issue, expectedUpdatedAt?: stri
 /** Moves the record to trash; refused while any issue still names it as parent. The attachments folder stays. */
 export async function removeIssue(l: Layout, key: string): Promise<void> {
   const c = issuesCollection(l);
-  if ((await readDir(l.issues, isIssue)).some((i) => i.parentKey === key)) throw new Error(HAS_CHILDREN); // uncached: the guard must see the share as it is
+  if ((await readDir(l.issues, isIssue, (i) => i.key)).some((i) => i.parentKey === key)) throw new Error(HAS_CHILDREN); // uncached: the guard must see the share as it is
   await c.remove(key);
 }
 
@@ -57,7 +57,8 @@ export async function createIssue(l: Layout, project: Project, draft: IssueDraft
       if ((e as NodeJS.ErrnoException).code === "EEXIST") continue;
       throw e;
     }
-    await mkdirp(l.attachments(key));
+    // The record is saved; a rejection here would make the caller retry a create that already succeeded.
+    await mkdirp(l.attachments(key)).catch((e: unknown) => console.error(`store: attachments folder not created: ${l.attachments(key)}`, e));
     return issue;
   }
   throw new Error("could not allocate an issue key");

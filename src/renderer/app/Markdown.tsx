@@ -1,8 +1,9 @@
-import { createElement, isValidElement, useContext } from "react";
+import { createElement, isValidElement, useContext, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { WikiContext } from "../wiki/useWiki";
 import { normalizeTitle } from "../wiki/wikiTree";
+import { linkProps, makeIdAllocator } from "./anchorLink";
 import { linkIssueKeys } from "./linkIssueKeys";
 import { linkWikiPages, MISSING_PAGE_PATH } from "./wikiLinks";
 
@@ -20,20 +21,19 @@ const textOf = (node: React.ReactNode): string => {
 
 /** Headings written in Markdown render `demote` ranks lower, so a screen's own h1/h2 stay above the content. */
 function components(demote: number): Components {
+  const nextId = makeIdAllocator();
   const out: Components = {
     // A link out of the app opens as a new window, which main hands to the browser; the app's own document never unloads, so a draft's beforeunload stays out of it.
     a: ({ node: _node, href, ...props }) => (
-      <a href={href} target={href?.startsWith("#") ? undefined : "_blank"} className={href?.startsWith(MISSING_PAGE_PATH) ? "link--missing" : undefined} {...props} />
+      <a href={href} {...linkProps(href)} className={href?.startsWith(MISSING_PAGE_PATH) ? "link--missing" : undefined} {...props} />
     ),
   };
   for (const level of [1, 2, 3, 4, 5, 6] as Level[]) {
     const tag = `h${Math.min(6, level + demote)}`;
-    out[`h${level}`] = ({ node: _node, ...props }) => createElement(tag, { ...props, id: headingId(textOf(props.children)) });
+    out[`h${level}`] = ({ node, ...props }) => createElement(tag, { ...props, id: nextId(headingId(textOf(props.children)), node?.position?.start.offset) });
   }
   return out;
 }
-
-const COMPONENTS: Record<number, Components> = { 1: components(1), 2: components(2) };
 
 type Props = {
   source: string;
@@ -50,9 +50,12 @@ type Props = {
 export function Markdown({ source, demote = 2, wikiParentId = null }: Props): React.JSX.Element {
   const wiki = useContext(WikiContext);
   const resolve = (title: string): string | null => wiki?.titles.get(normalizeTitle(title)) ?? null;
+  const text = linkWikiPages(linkIssueKeys(source), resolve, wikiParentId);
+  // Heading ids are handed out per rendering of one text, so repeats get their suffixes in document order.
+  const comps = useMemo(() => components(demote), [demote, text]);
   return (
     <div className="markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS[demote]}>{linkWikiPages(linkIssueKeys(source), resolve, wikiParentId)}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={comps}>{text}</ReactMarkdown>
     </div>
   );
 }

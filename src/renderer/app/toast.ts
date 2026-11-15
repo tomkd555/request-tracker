@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import type { NoticeMode } from "../../shared/types";
 
 export interface Toast { id: number; message: string }
 
@@ -17,6 +18,11 @@ export function clearToast(id: number): void {
   if (current?.id !== id) return;
   current = null;
   listeners.forEach((l) => l());
+}
+
+/** With 表示しない the toast is dropped, so it cannot appear after the setting changes. */
+export function dropToastWhenOff(notice: NoticeMode): void {
+  if (notice === "off" && current !== null) clearToast(current.id);
 }
 
 export function subscribe(listener: () => void): () => void {

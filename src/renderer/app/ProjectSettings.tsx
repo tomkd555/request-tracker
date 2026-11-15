@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { STATUS_KINDS, type CategoryTemplate, type CustomField, type Label, type Project, type StatusDef, type StatusKind } from "../../shared/types";
+import { STATUS_KINDS, type CategoryTemplate, type CustomField, type Issue, type Label, type Milestone, type Project, type StatusDef, type StatusKind } from "../../shared/types";
 import { TextField } from "../issues/FieldEditor";
 import { KIND_LABEL } from "../issues/labels";
+import { milestonesToIcs } from "./ics";
+import { exportProjectSettings, parseProjectSettings } from "./projectSettingsFile";
+import { renamedEntries, renamePlan, type Rename } from "./renameEntries";
 import { useSaveMessage } from "./Settings";
 import { nextColor, PALETTE } from "./theme";
 import { useNavigationGuard } from "./useHashRoute";
@@ -10,19 +13,161 @@ import { errorMessage, M } from "../messages";
 
 /** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the 状態 stages, the ラベル list, the members, the 汎用列. */
 export function ProjectSettings(): React.JSX.Element {
+  const { project, refreshProject } = useSession();
+  const [message, setMessage] = useState<string | null>(null);
+  // Bumped after an import so every section drops its draft and shows the imported lists.
+  const [imported, setImported] = useState(0);
+
+  const exportSettings = async (): Promise<void> => {
+    setMessage(null);
+    try {
+      const saved = await window.api.reports.save(exportProjectSettings(project), "project-settings.json", JSON_FILTER);
+      setMessage(saved ? M.settingsExported : null);
+    } catch (e) {
+      setMessage(errorMessage(e));
+    }
+  };
+  const importSettings = async (): Promise<void> => {
+    setMessage(null);
+    try {
+      const text = await window.api.files.openText(JSON_FILTER);
+      if (text === null) return;
+      const parsed = parseProjectSettings(text);
+      if (!parsed.ok) {
+        setMessage(M.settingsFileInvalid(parsed.part));
+        return;
+      }
+      if (!window.confirm(M.confirmReplaceSettings)) return;
+      const s = parsed.settings;
+      try {
+        await window.api.project.putStatuses(s.statuses);
+        await window.api.project.put(s.categories, s.categoryColors, s.categoryTemplates);
+        await window.api.project.putLabels(s.labels);
+        await window.api.project.putFields(s.fields);
+        await window.api.project.putMilestones(s.milestones);
+      } finally {
+        await refreshProject();
+        setImported((n) => n + 1);
+      }
+      setMessage(M.settingsImported);
+    } catch (e) {
+      setMessage(errorMessage(e));
+    }
+  };
+
   return (
     <div>
       <header className="toolbar">
         <h1 className="toolbar__heading">プロジェクト設定</h1>
+        <div className="form-actions">
+          <button type="button" onClick={() => void exportSettings()}>
+            設定をエクスポート
+          </button>
+          <button type="button" onClick={() => void importSettings()}>
+            設定をインポート
+          </button>
+        </div>
       </header>
-      <div className="settings">
+      {message && <p className="text--muted">{message}</p>}
+      <div className="settings" key={imported}>
         <CategorySection />
         <StatusSection />
         <LabelSection />
+        <MilestoneSection />
         <MemberSection />
         <FieldSection />
       </div>
     </div>
+  );
+}
+
+const JSON_FILTER = { name: "JSON", extensions: ["json"] };
+const ICS_FILTER = { name: "iCalendar", extensions: ["ics"] };
+
+const milestoneRowsOf = (p: Project): Milestone[] => (p.milestones ?? []).map((m) => ({ ...m }));
+
+function MilestoneSection(): React.JSX.Element {
+  const { project, refreshProject } = useSession();
+  const [rows, setRows] = useState<Milestone[]>(() => milestoneRowsOf(project));
+  const [dirty, setDirty] = useState(false);
+  const [message, run] = useSaveMessage();
+  const [icsMessage, setIcsMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!dirty) setRows(milestoneRowsOf(project));
+  }, [project, dirty]);
+  useNavigationGuard(dirty);
+
+  const update = (next: Milestone[]): void => {
+    setRows(next);
+    setDirty(true);
+  };
+  const edit = (i: number, patch: Partial<Milestone>): void => update(rows.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const save = (): Promise<void> =>
+    run(async () => {
+      if (rows.some((r) => r.startDate !== null && r.dueDate !== null && r.dueDate < r.startDate)) throw new Error(M.dueBeforeStart);
+      await window.api.project.putMilestones(rows);
+      setDirty(false);
+      await refreshProject();
+    });
+  const exportIcs = async (): Promise<void> => {
+    setIcsMessage(null);
+    try {
+      const listed = project.milestones ?? [];
+      if (!listed.some((m) => m.dueDate !== null)) {
+        setIcsMessage(M.icsNoDueDate);
+        return;
+      }
+      const saved = await window.api.reports.save(milestonesToIcs(listed, new Date()), "milestones.ics", ICS_FILTER);
+      setIcsMessage(saved ? M.icsSaved : null);
+    } catch (e) {
+      setIcsMessage(errorMessage(e));
+    }
+  };
+
+  return (
+    <section className="issue-form settings__section">
+      <h3 className="settings__heading">マイルストーン</h3>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <ul className="settings__list">
+          {rows.map((r, i) => (
+            <li key={r.id} className="settings__row">
+              <input className="settings__name" aria-label="名前" value={r.name} onChange={(e) => edit(i, { name: e.target.value })} />
+              <label className="filter-bar__field">
+                開始日
+                <input type="date" value={r.startDate ?? ""} onChange={(e) => edit(i, { startDate: e.target.value || null })} />
+              </label>
+              <label className="filter-bar__field">
+                期限日
+                <input type="date" value={r.dueDate ?? ""} onChange={(e) => edit(i, { dueDate: e.target.value || null })} />
+              </label>
+              <label className="filter-bar__check">
+                <input type="checkbox" checked={r.closed} onChange={(e) => edit(i, { closed: e.target.checked })} />
+                完了
+              </label>
+              <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>
+                削除
+              </button>
+            </li>
+          ))}
+        </ul>
+        {message && <p className="text--muted">{message}</p>}
+        {icsMessage && <p className="text--muted">{icsMessage}</p>}
+        <div className="form-actions">
+          <button type="button" onClick={() => update([...rows, { id: crypto.randomUUID(), name: "", startDate: null, dueDate: null, closed: false }])}>
+            追加
+          </button>
+          <button type="submit">保存</button>
+          <button type="button" onClick={() => void exportIcs()}>
+            .icsに出力
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -132,7 +277,7 @@ function MemberSection(): React.JSX.Element {
       <ul className="settings__list">
         {members.map((u) => (
           <li key={u.username} className="settings__row">
-            <TextField className="settings__name" value={u.displayName} required onSave={(v) => void act(() => window.api.users.rename(u.username, v))} />
+            <TextField className="settings__name" ariaLabel="メンバーの名前" value={u.displayName} required onSave={(v) => void act(() => window.api.users.rename(u.username, v))} />
             <button
               type="button"
               onClick={() => {
@@ -171,8 +316,31 @@ const EMPTY_TEMPLATE: CategoryTemplate = { summary: "", body: "" };
 const rowsOf = (p: Project): CategoryRow[] =>
   p.categories.map((name) => ({ name, color: p.categoryColors[name] ?? null, template: p.categoryTemplates[name] ?? EMPTY_TEMPLATE, open: false }));
 
+/** Asks whether to rename the old names on the issues that use them; the issues to save when the answer is yes, with the new names in place. */
+async function askRenameOnIssues(renames: Rename[], field: "category" | "labels"): Promise<Issue[]> {
+  if (renames.length === 0) return [];
+  const plan = renamePlan(await window.api.issues.list(), renames, field);
+  const used = plan.counts.filter((c) => c.count > 0);
+  if (used.length === 0) return [];
+  return window.confirm(M.confirmRenameOnIssues(used.map((c) => `「${c.rename.from}」→「${c.rename.to}」: ${c.count}件`))) ? plan.changed : [];
+}
+
+/** Saves the renamed issues, after the setting itself is saved. Every issue is tried, and the ones that failed are named so they can be renamed by hand. */
+async function renameOnIssues(changed: Issue[], username: string): Promise<void> {
+  const now = new Date().toISOString();
+  const failed: string[] = [];
+  for (const issue of changed) {
+    try {
+      await window.api.issues.put({ ...issue, updatedAt: now, updatedBy: username }, issue.updatedAt);
+    } catch {
+      failed.push(issue.key);
+    }
+  }
+  if (failed.length > 0) throw new Error(M.renameOnIssuesFailed(failed));
+}
+
 function CategorySection(): React.JSX.Element {
-  const { project, refreshProject } = useSession();
+  const { me, project, refreshProject } = useSession();
   const [rows, setRows] = useState<CategoryRow[]>(() => rowsOf(project));
   const [dirty, setDirty] = useState(false);
   const [message, run] = useSaveMessage();
@@ -202,6 +370,7 @@ function CategorySection(): React.JSX.Element {
         colors[name] = r.color ?? PALETTE[i % PALETTE.length].hex; // the preset shown for the row is saved with it, so a later reorder keeps every 種別's colour
         templates[name] = r.template;
       });
+      const changed = await askRenameOnIssues(renamedEntries(project.categories, rows.map((r) => r.name)), "category");
       await window.api.project.put(
         rows.map((r) => r.name),
         colors,
@@ -209,6 +378,7 @@ function CategorySection(): React.JSX.Element {
       );
       setDirty(false);
       await refreshProject();
+      await renameOnIssues(changed, me.username);
     });
 
   return (
@@ -389,7 +559,7 @@ interface LabelRow { name: string; color: string }
 const labelRowsOf = (p: Project): LabelRow[] => p.labels.map((l) => ({ name: l.name, color: l.color }));
 
 function LabelSection(): React.JSX.Element {
-  const { project, refreshProject } = useSession();
+  const { me, project, refreshProject } = useSession();
   const [rows, setRows] = useState<LabelRow[]>(() => labelRowsOf(project));
   const [dirty, setDirty] = useState(false);
   const [message, run] = useSaveMessage();
@@ -411,9 +581,11 @@ function LabelSection(): React.JSX.Element {
   const save = (): Promise<void> =>
     run(async () => {
       const labels: Label[] = rows.map((r) => ({ name: r.name, color: r.color }));
+      const changed = await askRenameOnIssues(renamedEntries(project.labels.map((l) => l.name), rows.map((r) => r.name)), "labels");
       await window.api.project.putLabels(labels);
       setDirty(false);
       await refreshProject();
+      await renameOnIssues(changed, me.username);
     });
 
   return (

@@ -1,0 +1,41 @@
+.burndown__scroll {
+  overflow-x: auto;
+  margin-bottom: var(--space-3);
+}
+
+.burndown__svg {
+  display: block;
+  background: var(--bg-panel);
+}
+
+.burndown__text {
+  font-size: var(--text-sm);
+  fill: var(--text);
+}
+
+.burndown__grid {
+  stroke: var(--gantt-grid);
+}
+
+.burndown__line {
+  stroke: var(--brand);
+  stroke-width: 2;
+}
+
+.burndown__dot {
+  fill: var(--brand);
+}
+
+.burndown__ideal {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+
+.burndown__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}

@@ -1,7 +1,9 @@
-import { childrenMap } from "../../shared/issueTree";
-import type { Issue, IssueStatus, StatusDef } from "../../shared/types";
+import { rootedChildrenMap } from "../../shared/issueTree";
+import type { Issue, IssueStatus, Milestone, StatusDef } from "../../shared/types";
+import { compareKeys } from "../issues/compareKeys";
 import { addDays, dayDiff, fromYmd, ymd } from "../issues/dates";
 import { isActiveStatus } from "../issues/labels";
+import { orderMilestones } from "../issues/milestones";
 
 export type Tone = "normal" | "overdue" | "muted";
 /** bar: start to due; point: a start date alone; bracket: a parent's span taken from its children; none: listed without dates. */
@@ -22,6 +24,8 @@ export interface GanttRow {
   tone: Tone;
   hasChildren: boolean;
   collapsed: boolean;
+  /** Listed only to place a row below it: the issue itself fails the filter. */
+  context: boolean;
 }
 export interface GanttGroup { label: string | null; rows: GanttRow[] }
 export interface MonthCell { label: string; startCol: number; span: number }
@@ -30,7 +34,7 @@ export interface GanttLayout { days: DayCell[]; months: MonthCell[]; groups: Gan
 export interface DateRange { start: string; end: string } // YYYY-MM-DD, inclusive
 
 export type Months = 1 | 2 | 3 | 6;
-export type GroupBy = "none" | "assignee";
+export type GroupBy = "none" | "assignee" | "milestone";
 export type DragMode = "move" | "start" | "due";
 
 export interface LayoutOptions {
@@ -46,6 +50,10 @@ export interface LayoutOptions {
   compare?: (a: Issue, b: Issue) => number;
   /** Display name of an assignee, which orders the 担当者 groups; default: the username itself. */
   groupLabel?: (username: string) => string;
+  /** The project's マイルストーン, which order the groups of `groupBy: "milestone"`; a group's label is the milestone id. An issue naming an id missing here has no milestone. */
+  milestones?: Milestone[];
+  /** Ancestors added around the filter's matches (withAncestors); each shows only above a row that shows. */
+  context?: Set<string>;
 }
 
 /** Whole months: the first day of `month` (YYYY-MM) to the last day of the month `months - 1` later. */
@@ -85,7 +93,7 @@ function spanOf(i: Issue): { from: string; to: string; kind: "bar" | "point" } |
   if (i.startDate === null && i.dueDate === null) return null;
   if (i.dueDate === null) return { from: i.startDate as string, to: i.startDate as string, kind: "point" };
   const from = i.startDate ?? ymd(new Date(i.createdAt));
-  // a due date before the start date (each field saves on its own) still draws a one-day bar
+  // a due date before the start date (stored before the screens refused it) still draws a one-day bar
   return { from, to: i.dueDate < from ? from : i.dueDate, kind: "bar" };
 }
 
@@ -111,7 +119,7 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
     const s = spans.get(key);
     return s !== undefined && s.from <= range.end && s.to >= range.start;
   };
-  const children = childrenMap(issues);
+  const children = rootedChildrenMap(issues);
   const childrenOf = (key: string): Issue[] => children.get(key) ?? [];
 
   // A parent with no dates of its own takes its descendants' span (OpenProject's clamp): each child's own span, or its bracket.
@@ -123,7 +131,9 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
     return { from: kids.reduce((m, s) => (s.from < m ? s.from : m), kids[0].from), to: kids.reduce((m, s) => (s.to > m ? s.to : m), kids[0].to) };
   };
 
+  const context = opts.context ?? new Set<string>();
   const visible = (i: Issue): boolean => {
+    if (context.has(i.key)) return childrenOf(i.key).some(visible);
     if (inRange(i.key)) return true;
     const b = bracketOf(i);
     if (b !== null && b.from <= range.end && b.to >= range.start) return true;
@@ -159,12 +169,13 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
       bar,
       late,
       tone: toneOf(i, opts.today, opts.statuses),
-      hasChildren: kids.length > 0,
+      hasChildren: kids.some(visible),
       collapsed: opts.collapsed.has(i.key),
+      context: context.has(i.key),
     };
   };
 
-  const desc = (a: Issue, b: Issue): number => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0);
+  const desc = (a: Issue, b: Issue): number => compareKeys(b.key, a.key);
   const tops = (children.get(null) ?? []).filter(visible).sort(opts.compare ?? desc);
   const rows: GanttRow[] = [];
   const walk = (parent: Issue, depth: number): void => {
@@ -191,6 +202,20 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
     const keys = [...map.keys()].filter((k): k is string => k !== null).sort((a, b) => label(a).localeCompare(label(b), "ja"));
     groups = keys.map((k) => ({ label: k, rows: map.get(k) ?? [] }));
     if (map.has(null)) groups.push({ label: null, rows: map.get(null) ?? [] });
+  } else if (opts.groupBy === "milestone") {
+    const byKey = new Map(issues.map((i) => [i.key, i]));
+    const listed = new Set((opts.milestones ?? []).map((m) => m.id));
+    const map = new Map<string | null, GanttRow[]>();
+    let current: string | null = null;
+    for (const r of rows) {
+      if (r.depth === 0) {
+        const id = byKey.get(r.key)?.milestone ?? null;
+        current = id !== null && listed.has(id) ? id : null;
+      }
+      map.set(current, [...(map.get(current) ?? []), r]);
+    }
+    groups = orderMilestones(opts.milestones ?? []).filter((m) => map.has(m.id)).map((m) => ({ label: m.id, rows: map.get(m.id) ?? [] }));
+    if (map.has(null)) groups.push({ label: null, rows: map.get(null) ?? [] });
   } else {
     groups = [{ label: null, rows }];
   }
@@ -206,10 +231,11 @@ export function layoutGantt(issues: Issue[], range: DateRange, opts: LayoutOptio
 export function datesAfterDrag(issue: Issue, mode: DragMode, delta: number, range: DateRange): { startDate: string | null; dueDate: string | null } {
   let { startDate, dueDate } = issue;
   const from = startDate ?? ymd(new Date(issue.createdAt));
+  if (dueDate !== null && dueDate < from) dueDate = from; // drawn as one day on `from` (spanOf), so every mode measures from that day
   if (mode === "move") {
     if (dueDate === null) return { startDate: addDays(from, delta), dueDate: null };
     startDate = addDays(from, delta);
-    dueDate = addDays(dueDate < from ? from : dueDate, delta);
+    dueDate = addDays(dueDate, delta);
   } else if (mode === "start") {
     startDate = addDays(from < range.start ? range.start : from, delta);
     if (dueDate !== null && startDate > dueDate) startDate = dueDate;

@@ -27,12 +27,15 @@ export function tally(keys: string[]): Count[] {
   return [...m.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
 
+/** The issues created in `month` (YYYY-MM), which the 集計 counts and totals cover. */
+export const createdInMonth = (issues: Issue[], month: string): Issue[] => issues.filter((i) => monthOf(i.createdAt) === month);
+
 /**
  * Counts of issues created in `month` (YYYY-MM) by reporter, assignee ("" = unassigned) and status, plus issues closed in the month.
  * ponytail: updatedAt approximates the closing date; an edit after closing moves the issue to that month.
  */
 export function countByMonth(issues: Issue[], month: string, statuses: StatusDef[]): MonthlyCounts {
-  const inMonth = issues.filter((i) => monthOf(i.createdAt) === month);
+  const inMonth = createdInMonth(issues, month);
   const closed = issues.filter((i) => isDoneStatus(statuses, i.status) && monthOf(i.updatedAt) === month);
   return {
     month,

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertId } from "./collection";
 
 const KEY = /^\d{2}-\d{4,}$/;
 const STAMP = /^\d{8}T\d{9}Z$/;
@@ -24,6 +25,7 @@ export function layout(root: string) {
     issues: join(root, "issues"),
     comments: (key: string) => join(root, "comments", assertKey(key)),
     commentsRoot: join(root, "comments"),
+    watch: (username: string) => join(root, "watch", `${assertId(username)}.json`), // the member id names a file in users/ under the same rule
     attachments: (key: string) => join(root, "attachments", assertKey(key)),
     attachmentsRoot: join(root, "attachments"),
     wiki: join(root, "wiki"),

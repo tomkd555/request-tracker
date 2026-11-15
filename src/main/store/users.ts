@@ -6,7 +6,7 @@ import type { Layout } from "./paths";
 
 export const currentUsername = (): string => userInfo().username;
 
-export const usersCollection = (l: Layout): Collection<User> => collection<User>({ dir: l.users, guard: isUser, trashDir: l.trashUsers });
+export const usersCollection = (l: Layout): Collection<User> => collection<User>({ dir: l.users, guard: isUser, trashDir: l.trashUsers, idOf: (u) => u.username });
 
 /** The user whose file is the OS login, or the member who bound that login on first launch. */
 export async function findUser(l: Layout, login: string): Promise<User | null> {
@@ -62,6 +62,6 @@ export const USER_IN_USE = "in-use";
 
 /** Moves the member to trash/users/; refused while an issue names the member as assignee or reporter. */
 export async function removeUser(l: Layout, username: string): Promise<void> {
-  if ((await readDir(l.issues, isIssue)).some((i) => i.assignee === username || i.reporter === username)) throw new Error(USER_IN_USE); // uncached: the guard must see the share as it is
+  if ((await readDir(l.issues, isIssue, (i) => i.key)).some((i) => i.assignee === username || i.reporter === username)) throw new Error(USER_IN_USE); // uncached: the guard must see the share as it is
   await usersCollection(l).remove(username);
 }

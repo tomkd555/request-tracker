@@ -9,6 +9,13 @@ export const M = {
   saved: "保存しました",
   csvSaved: "CSVを保存しました",
   htmlSaved: "HTMLを保存しました",
+  settingsExported: "設定を保存しました",
+  settingsImported: "設定をインポートしました",
+  settingsFileInvalid: (part: string): string => `設定ファイルの${part}を読めません`,
+  confirmReplaceSettings: "現在のプロジェクト設定を置き換えますか",
+  icsSaved: "ICSを保存しました",
+  icsNoDueDate: "期限日のあるマイルストーンがありません",
+  noBurndownIssues: "このマイルストーンの課題はありません",
   markdownSaved: "Markdownを保存しました",
   copied: "クリップボードにコピーしました",
   issueAdded: (key: string): string => `${key} を追加しました`,
@@ -19,12 +26,34 @@ export const M = {
   confirmDelete: (name: string): string => `${name} を削除しますか`,
   confirmRemoveMember: (name: string): string => `${name} をメンバーから削除しますか`,
   confirmOverwrite: (name: string): string => `「${name}」を上書きしますか`,
+  renameOnIssuesFailed: (keys: string[]): string => `設定は保存しました。次の課題は名前を変更できませんでした：${keys.join("、")}`,
+  confirmRenameOnIssues: (lines: string[]): string => `${lines.join("\n")}\n課題の名前も変更しますか（キャンセルすると設定だけを保存します）`,
 
   summaryRequired: "件名を入力してください",
   titleRequired: "タイトルを入力してください",
   dueBeforeStart: "期限日は開始日以降にしてください",
+  hoursInvalid: "時間は0以上の数で、小数点以下は2桁までです",
   parentNotFound: "該当する課題がありません",
-  duplicateTitle: "同じ親ページの下に同名のページがあります",
+  importNoSummaryColumn: "件名の列がありません",
+  importNoRows: "登録する行がありません",
+  importTooMany: (max: number): string => `${max}行を超えるファイルは登録できません`,
+  importCreated: (n: number): string => `${n}件を登録しました`,
+  importGuide: (max: number): string => `1行目に列名を書いたCSVを選んでください。件名の列が必要です。列名は「CSVに出力」のファイルと同じで、1ファイルにつき${max}行まで登録できます`,
+  importRetry: "登録済みの行をCSVから削除して、もう一度選んでください",
+  importFailedAt: (row: number, detail: string): string => `${row}行目を登録できませんでした：${detail}`,
+  importError: (e: { code: string; column: string; value: string }): string => {
+    switch (e.code) {
+      case "summary": return "件名がありません";
+      case "date": return `${e.column}の形式が違います：${e.value}`;
+      case "dateOrder": return M.dueBeforeStart;
+      case "hours": return `${e.column}：${M.hoursInvalid}（${e.value}）`;
+      case "parent": return `親課題が見つかりません：${e.value}`;
+      case "depth": return `親課題の階層が${MAX_DEPTH}段を超えます：${e.value}`;
+      default: return `${e.column}に「${e.value}」はありません`;
+    }
+  },
+  parentKept: "親課題は戻せないため、現在の親課題のままにしました",
+  duplicateTitle: "同じタイトルのページが既にあります",
   keywordPrompt: "キーワードを入力してください",
   selectPrompt: "選択してください",
   folderPrompt: "全員が読み書きできる共有フォルダを選んでください",
@@ -32,6 +61,8 @@ export const M = {
 
   noIssues: "該当する課題はありません",
   noHits: "該当はありません",
+  noNotices: "お知らせはありません",
+  noRecent: "最近の更新はありません",
   noPagesMatch: "該当するページはありません",
   noPages: "ページはありません",
   noHistory: "履歴はありません",
@@ -40,6 +71,8 @@ export const M = {
   noAttachments: "添付ファイルはありません",
   noComments: "コメントはありません",
   noChildIssues: "子課題はありません",
+  openDescendants: (n: number): string => `配下に未完了の課題が${n}件あります`,
+  datedDescendants: (n: number): string => `配下の課題${n}件に日付があります`,
   noBodyChange: "本文に変更はありません",
 
   issueHasChildren: "子課題があるため削除できません",
@@ -51,6 +84,8 @@ export const M = {
   attachTooLarge: (names: string[]): string => `50MBを超えるファイルは添付できません：${names.join("、")}`,
   attachExecutable: (names: string[]): string => `実行ファイルは添付できません：${names.join("、")}`,
   attachLink: (names: string[]): string => `リンクは添付できません：${names.join("、")}`,
+  attachFailed: (names: string[]): string => `添付できませんでした：${names.join("、")}`,
+  attachDotName: (names: string[]): string => `名前が「.」で始まるファイルやフォルダは添付できません：${names.join("、")}`,
 } as const;
 
 /** Main-process rejection codes and the message each one shows. */
@@ -78,7 +113,13 @@ export function errorMessage(e: unknown, scope: "issue" | "wiki" = "issue"): str
   return m;
 }
 
-const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
+/** True for the stale-write rejection, direct or wrapped by IPC as in errorMessage. */
+export function isStale(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e);
+  return m === "stale" || m.endsWith(": stale");
+}
+
+const fileName = (path: string): string => path.split(/[\\/]/).pop() || path; // a drive root ends in a separator: show the path itself
 
 /** One message per refusal reason, naming the files. */
 export function refusalMessages(r: AddAttachmentsResult): string[] {
@@ -90,5 +131,9 @@ export function refusalMessages(r: AddAttachmentsResult): string[] {
   if (size.length) out.push(M.attachTooLarge(size));
   if (ext.length) out.push(M.attachExecutable(ext));
   if (links.length) out.push(M.attachLink(links));
+  const dotNames = names("name");
+  if (dotNames.length) out.push(M.attachDotName(dotNames));
+  const failed = names("failed");
+  if (failed.length) out.push(M.attachFailed(failed));
   return out;
 }

@@ -7,9 +7,12 @@ import { showToast } from "../app/toast";
 import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { AssigneeSelect } from "./AssigneeSelect";
+import { compareKeys } from "./compareKeys";
 import { MarkdownEditor } from "./FieldEditor";
+import { parseHours } from "./hours";
 import { firstOfKind, PRIORITY_LABEL } from "./labels";
 import { LabelPicker } from "./LabelPicker";
+import { selectableMilestones } from "./milestones";
 import { ParentField } from "./ParentField";
 import { useIssues } from "./useIssues";
 import { errorMessage, M, refusalMessages } from "../messages";
@@ -71,6 +74,10 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const [assignee, setAssignee] = useState<string>(source?.assignee ?? "");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const milestones = project.milestones ?? [];
+  // A copy keeps the source's milestone only while it is open.
+  const [milestone, setMilestone] = useState<string>(selectableMilestones(milestones, null).some((m) => m.id === source?.milestone) ? (source?.milestone ?? "") : "");
+  const [estimatedText, setEstimatedText] = useState(source?.estimatedHours == null ? "" : String(source.estimatedHours));
   const [fields, setFields] = useState<Record<string, string>>(source?.fields ?? {});
   const [parent, setParent] = useState<string | null>(parentKey ?? source?.parentKey ?? null);
   const [parentInvalid, setParentInvalid] = useState(false);
@@ -80,7 +87,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const [created, setCreated] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const parents = issues.filter((i) => depthOf(byKey, i.key) < MAX_DEPTH).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const parents = issues.filter((i) => depthOf(byKey, i.key) < MAX_DEPTH).sort((a, b) => compareKeys(b.key, a.key));
   const presetParent = parentKey !== null ? byKey.get(parentKey) : undefined;
   const template = templates[category];
   const templateApplied = template !== undefined && summary === template.summary && description === template.body;
@@ -88,7 +95,9 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   useNavigationGuard(!busy && (!pristine || paths.length > 0));
   const summaryMissing = summary.trim() === "";
   const datesReversed = startDate !== "" && dueDate !== "" && dueDate < startDate;
-  const blocked = summaryMissing || datesReversed || parentInvalid;
+  const parentMissing = parent !== null && !byKey.has(parent); // from ?parent= or a copied issue, deleted since
+  const estimated = parseHours(estimatedText);
+  const blocked = summaryMissing || datesReversed || parentInvalid || parentMissing || !estimated.ok;
 
   const applyTemplate = (t: { summary: string; body: string }): void => {
     setSummary(t.summary);
@@ -107,6 +116,17 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
     setCreated(null);
     if (blocked) return;
     setBusy(true);
+    try {
+      if (parent !== null && (await window.api.issues.get(parent)) === null) {
+        await refreshOne(parent); // drops it from the list, which shows parentNotFound
+        setBusy(false);
+        return;
+      }
+    } catch (err) {
+      setMessages([errorMessage(err)]);
+      setBusy(false);
+      return;
+    }
     const now = new Date().toISOString();
     const draft: IssueDraft = {
       summary: summary.trim(),
@@ -125,6 +145,9 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       updatedBy: me.username,
       fields,
       relations: [],
+      milestone: milestone || null,
+      estimatedHours: estimated.ok ? estimated.value : null,
+      actualHours: null,
     };
     try {
       const issue = await window.api.issues.create(draft);
@@ -280,7 +303,38 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
               }}
             />
           )}
-          {parentInvalid && <span className="issue-form__error">{M.parentNotFound}</span>}
+          {(parentInvalid || parentMissing) && <span className="issue-form__error">{M.parentNotFound}</span>}
+        </div>
+        {selectableMilestones(milestones, null).length > 0 && (
+          <>
+            <label htmlFor="new-milestone" className="issue-form__term">
+              マイルストーン
+            </label>
+            <div className="issue-form__cell">
+              <select id="new-milestone" className="issue-form__control" value={milestone} onChange={(e) => setMilestone(e.target.value)}>
+                <option value="">未設定</option>
+                {selectableMilestones(milestones, null).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+        <label htmlFor="new-estimated" className="issue-form__term">
+          予定時間
+        </label>
+        <div className="issue-form__cell">
+          <input
+            id="new-estimated"
+            className="issue-form__control"
+            inputMode="decimal"
+            value={estimatedText}
+            aria-invalid={submitted && !estimated.ok}
+            onChange={(e) => setEstimatedText(e.target.value)}
+          />
+          {submitted && !estimated.ok && <span className="issue-form__error">{M.hoursInvalid}</span>}
         </div>
         {project.fields.map((f) => (
           <FieldRow key={f.id} field={f} value={fields[f.id] ?? ""} onChange={(v) => setFields((x) => ({ ...x, [f.id]: v }))} />

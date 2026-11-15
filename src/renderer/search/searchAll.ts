@@ -1,6 +1,7 @@
 import type { Comment, Issue, StatusDef, WikiPage } from "../../shared/types";
 import { today } from "../issues/dates";
 import { EMPTY_FILTER, filterIssues } from "../issues/filterIssues";
+import { errorMessage } from "../messages";
 import { searchPages } from "../wiki/wikiTree";
 
 /** One row of the search screen, grouped by where the keyword was found; `at` carries a comment's `createdAt`. */
@@ -41,4 +42,21 @@ export function searchAll(keyword: string, issues: Issue[], comments: Comment[],
   const wikiHits: Hit[] = searchPages(pages, kw).map((p) => ({ kind: "wiki", id: p.id, title: p.title, snippet: snippet(p.body, kw) }));
 
   return [...issueHits, ...commentHits, ...wikiHits];
+}
+
+/** The hits for `keyword` after reading the comments; a failed read gives no hits and the message to show. */
+export async function searchOutcome(
+  keyword: string,
+  issues: Issue[],
+  loadComments: () => Promise<Comment[]>,
+  pages: WikiPage[],
+  statuses: StatusDef[],
+): Promise<{ hits: Hit[]; error: string | null }> {
+  try {
+    const keys = new Set(issues.map((i) => i.key));
+    const comments = (await loadComments()).filter((c) => keys.has(c.issueKey)); // a comment of a deleted issue has no screen to open
+    return { hits: searchAll(keyword, issues, comments, pages, statuses), error: null };
+  } catch (e) {
+    return { hits: [], error: errorMessage(e) };
+  }
 }

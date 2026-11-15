@@ -1,17 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { textOn } from "../app/theme";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
-import { BULK_MAX, bulkApply, type BulkPatch, type BulkResult } from "./bulkEdit";
+import { BULK_MAX, bulkApply, keepVisible, toggleAllSelection, type BulkPatch, type BulkResult } from "./bulkEdit";
 import { BulkBar } from "./BulkBar";
-import { today } from "./dates";
+import { dateRefusal, today } from "./dates";
 import { dueTone } from "./dueTone";
 import { FilterBar } from "./FilterBar";
 import { defaultFilter, filterIssues, type IssueFilter } from "./filterIssues";
-import { groupByParent } from "./groupByParent";
+import { descendantCounts, withAncestors } from "../../shared/issueTree";
+import { toggled, useCollapsed } from "./collapsed";
+import { groupByParent, treeKeyAction, treeRows, type TreeRow } from "./groupByParent";
 import { issuesToCsv } from "./issuesToCsv";
-import { categoryColor as categoryColorOf, formatDate, labelColor, PRIORITY_LABEL, statusName, statusStyle } from "./labels";
-import { isUnseen } from "./seen";
+import { milestoneName } from "./milestones";
+import { categoryColor as categoryColorOf, formatDate, formatTimestampDate, isDoneStatus, labelColor, PRIORITY_LABEL, statusName, statusStyle } from "./labels";
+import { ProgressCount, TreeKeyCell } from "./TreeCells";
+import { carrySeen, isUnseen } from "./seen";
 import { SavedFilters } from "./SavedFilters";
 import { DEFAULT_SORT, fieldSortKey, issueComparator, nextSort, type IssueSort, type SortKey } from "./sortIssues";
 import { useIssues } from "./useIssues";
@@ -28,28 +32,41 @@ const FIXED_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "updatedAt", label: "更新日" },
 ];
 
+const MILESTONE_COLUMN: { key: SortKey; label: string } = { key: "milestone", label: "マイルストーン" };
+
 export function IssueList(): React.JSX.Element {
   const { me, users, project, config } = useSession();
   const { issues, byKey, loaded, reload } = useIssues();
   const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
   const [message, setMessage] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
   const day = today();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const rows = groupByParent(filterIssues(issues, filter, day, me.username, project.statuses), issueComparator(sort, nameOf, project.statuses));
-  const columns = [...FIXED_COLUMNS, ...project.fields.map((f) => ({ key: fieldSortKey(f.id), label: f.name }))];
-  const visibleKeys = rows.map((r) => r.issue.key);
-  const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.every((k) => selected.has(k));
+  const [collapsed, toggleCollapsed] = useCollapsed();
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const milestones = project.milestones ?? [];
+  const matches = filterIssues(issues, filter, day, me.username, project.statuses, milestones);
+  const compare = issueComparator(sort, nameOf, project.statuses, milestones);
+  // A match keeps its ancestors as context rows, so its level stays readable under a filter.
+  const { issues: shown, context } = withAncestors(issues, matches);
+  const rows = treeRows(shown, compare, collapsed);
+  const counts = descendantCounts(issues, (i) => isDoneStatus(project.statuses, i.status));
+  // The マイルストーン column sits after 期限日 and shows only while the project has a milestone.
+  const afterDue = FIXED_COLUMNS.findIndex((c) => c.key === "dueDate") + 1;
+  const fixedColumns = milestones.length > 0 ? [...FIXED_COLUMNS.slice(0, afterDue), MILESTONE_COLUMN, ...FIXED_COLUMNS.slice(afterDue)] : FIXED_COLUMNS;
+  const columns = [...fixedColumns, ...project.fields.map((f) => ({ key: fieldSortKey(f.id), label: f.name }))];
+  const visibleKeys = rows.filter((r) => !context.has(r.issue.key)).map((r) => r.issue.key);
+  const tabKey = rows.some((r) => r.issue.key === activeKey) ? activeKey : (rows[0]?.issue.key ?? null);
+  // A row a later filter hides leaves the selection, so bulk edit acts on the rows on screen.
+  const selected = keepVisible(chosen, visibleKeys);
+  useEffect(() => {
+    if (selected.size !== chosen.size) setChosen(selected);
+  }, [selected.size, chosen.size]);
+  const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.slice(0, BULK_MAX).every((k) => selected.has(k));
 
-  const toggleAll = (): void => setSelected(allVisibleSelected ? new Set() : new Set(visibleKeys.slice(0, BULK_MAX)));
-  const toggleRow = (key: string): void =>
-    setSelected((s) => {
-      const next = new Set(s);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const toggleAll = (): void => setChosen(toggleAllSelection(selected, visibleKeys));
+  const toggleRow = (key: string): void => setChosen(toggled(selected, key));
 
   const runBulk = async (patch: BulkPatch): Promise<BulkResult[]> => {
     const results: BulkResult[] = [];
@@ -58,8 +75,15 @@ export function IssueList(): React.JSX.Element {
       if (!issue) continue;
       const change = bulkApply(issue, patch);
       if (change === null) continue;
+      const refusal = dateRefusal(issue, change);
+      if (refusal !== null) {
+        results.push({ key, ok: false, message: refusal });
+        continue;
+      }
       try {
-        await window.api.issues.put({ ...issue, ...change, updatedAt: new Date().toISOString(), updatedBy: me.username }, issue.updatedAt);
+        const next = { ...issue, ...change, updatedAt: new Date().toISOString(), updatedBy: me.username };
+        await window.api.issues.put(next, issue.updatedAt);
+        carrySeen(issue, next, me.username);
         results.push({ key, ok: true, message: "" });
       } catch (e) {
         // ponytail: one issues:put per selected issue, no batch IPC; add one if a hundred writes over the share gets slow
@@ -70,10 +94,24 @@ export function IssueList(): React.JSX.Element {
     return results;
   };
 
+  const onRowKey = (e: React.KeyboardEvent<HTMLTableRowElement>, row: TreeRow): void => {
+    if (e.target !== e.currentTarget) return; // a control inside the row keeps its own keys
+    const action = treeKeyAction(e.key, row);
+    if (action === null) return;
+    e.preventDefault();
+    if (action === "toggle") toggleCollapsed(row.issue.key);
+    else if (action === "open") navigate(`/issues/${row.issue.key}`);
+    else {
+      const to = action === "next" ? e.currentTarget.nextElementSibling : e.currentTarget.previousElementSibling;
+      if (to instanceof HTMLElement) to.focus();
+    }
+  };
+
   const exportCsv = async (): Promise<void> => {
     setMessage(null);
     try {
-      const saved = await window.api.summary.exportCsv(issuesToCsv(rows, { user: nameOf, status: (s) => statusName(project.statuses, s) }, project.fields), `issues-${day}.csv`);
+      // The filtered issues, whatever is folded on screen; context rows stay out.
+      const saved = await window.api.summary.exportCsv(issuesToCsv(groupByParent(matches, compare), { user: nameOf, status: (s) => statusName(project.statuses, s) }, project.fields), `issues-${day}.csv`);
       setMessage(saved ? M.csvSaved : null);
     } catch (e) {
       setMessage(errorMessage(e));
@@ -88,6 +126,9 @@ export function IssueList(): React.JSX.Element {
           <button type="button" onClick={() => void exportCsv()}>
             CSVに出力
           </button>
+          <button type="button" onClick={() => navigate("/issues/import")}>
+            CSVから登録
+          </button>
           <a className="link-button" href="#/issues/new">
             課題を追加
           </a>
@@ -97,9 +138,9 @@ export function IssueList(): React.JSX.Element {
       <FilterBar filter={filter} users={users} onChange={setFilter} />
       <SavedFilters filter={filter} onChange={setFilter} />
       {selected.size > 0 && (
-        <BulkBar count={selected.size} users={users} project={project} onExecute={runBulk} onClear={() => setSelected(new Set())} />
+        <BulkBar count={selected.size} users={users} project={project} onExecute={runBulk} onClear={() => setChosen(new Set())} />
       )}
-      <table className="issue-table">
+      <table className="issue-table issue-table--tree" role="treegrid" aria-label="課題">
         <thead>
           <tr>
             <th className="issue-table__header issue-table__header--check">
@@ -116,32 +157,44 @@ export function IssueList(): React.JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ issue: i, depth }) => {
+          {rows.map((row) => {
+            const { issue: i, depth } = row;
             const tone = dueTone(i, day, config.dueSoonDays, project.statuses);
             const categoryColor = categoryColorOf(project, i.category);
+            const isContext = context.has(i.key);
             return (
               <tr
                 key={i.key}
-                className={`issue-table__row${depth > 0 ? " issue-table__row--child" : ""}`}
+                className={`issue-table__row${depth > 0 ? " issue-table__row--child" : ""}${isContext ? " issue-table__row--context" : ""}`}
+                aria-level={depth + 1}
+                aria-expanded={row.hasChildren ? !row.collapsed : undefined}
+                tabIndex={i.key === tabKey ? 0 : -1}
+                onFocus={() => setActiveKey(i.key)}
+                onKeyDown={(e) => onRowKey(e, row)}
                 onClick={() => navigate(`/issues/${i.key}`)}
               >
                 <td className="issue-table__cell issue-table__cell--check" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" aria-label={`${i.key} を選択`} checked={selected.has(i.key)} onChange={() => toggleRow(i.key)} />
+                  {!isContext && <input type="checkbox" aria-label={`${i.key} を選択`} checked={selected.has(i.key)} onChange={() => toggleRow(i.key)} />}
                 </td>
-                <td className="issue-table__cell issue-table__cell--key" style={depth > 0 ? { paddingLeft: `calc(var(--space-3) + ${depth * 24}px)` } : undefined}>
+                <TreeKeyCell row={row} onToggle={toggleCollapsed}>
                   {isUnseen(i, me.username) && <span className="issue-table__unseen" role="img" aria-label="更新あり" />}
                   {i.key}
-                </td>
-                <td className="issue-table__cell">
-                  {i.summary}
-                  {i.labels.map((name) => {
-                    const color = labelColor(project, name);
-                    return (
-                      <span key={name} className="pill issue-table__label" style={{ background: color, color: textOn(color) }}>
-                        {name}
-                      </span>
-                    );
-                  })}
+                </TreeKeyCell>
+                <td className="issue-table__cell issue-table__cell--summary">
+                  <div className="issue-table__summary">
+                    <span className="issue-table__summary-text" title={i.summary}>
+                      {i.summary}
+                    </span>
+                    <ProgressCount count={counts.get(i.key)} />
+                    {i.labels.map((name) => {
+                      const color = labelColor(project, name);
+                      return (
+                        <span key={name} className="pill issue-table__label" style={{ background: color, color: textOn(color) }}>
+                          {name}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </td>
                 <td className="issue-table__cell">
                   {i.category !== "" && (
@@ -156,9 +209,10 @@ export function IssueList(): React.JSX.Element {
                 </td>
                 <td className={`issue-table__cell priority--${i.priority}`}>{PRIORITY_LABEL[i.priority]}</td>
                 <td className={`issue-table__cell${tone === "none" ? "" : ` issue-table__cell--${tone}`}`}>{formatDate(i.dueDate)}</td>
-                <td className="issue-table__cell">{formatDate(i.updatedAt)}</td>
+                {milestones.length > 0 && <td className="issue-table__cell">{milestoneName(milestones, i.milestone)}</td>}
+                <td className="issue-table__cell">{formatTimestampDate(i.updatedAt)}</td>
                 {project.fields.map((f) => (
-                  <td key={f.id} className="issue-table__cell">
+                  <td key={f.id} className="issue-table__cell issue-table__cell--field" title={i.fields[f.id] ?? ""}>
                     {i.fields[f.id] ?? ""}
                   </td>
                 ))}

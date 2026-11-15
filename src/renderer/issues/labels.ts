@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { Issue, IssuePriority, IssueStatus, Project, RelationType, StatusDef, StatusKind } from "../../shared/types";
 import { PALETTE, textOn } from "../app/theme";
 import { withCurrent } from "../app/UserContext";
+import { ymd } from "./dates";
 
 export const PRIORITY_LABEL: Record<IssuePriority, string> = { high: "高", normal: "中", low: "低" };
 
@@ -53,6 +54,11 @@ export function labelOptions(project: Project, current: string[]): string[] {
 }
 
 export const formatDate = (iso: string | null): string => (iso ? iso.slice(0, 10) : "");
+/** The local calendar date of an ISO UTC timestamp, as YYYY-MM-DD; empty for an empty or unreadable one. */
+export const formatTimestampDate = (iso: string): string => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : ymd(d);
+};
 export const formatDateTime = (iso: string): string => {
   const d = new Date(iso);
   const p = (n: number): string => String(n).padStart(2, "0");

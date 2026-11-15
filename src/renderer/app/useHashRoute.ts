@@ -16,13 +16,25 @@ export function navigate(to: string): void {
 // Forms with unsaved changes, counted so two dirty sections on one screen keep the guard until both are saved.
 let activeGuards = 0;
 let restoring = false;
+let discarding = false;
+
+/** True while a form on the screen holds unsaved changes. */
+export const hasUnsavedChanges = (): boolean => activeGuards > 0;
+
+/** Reloads the window past the guards, for a caller that has asked 「編集内容を破棄しますか」 itself. */
+export function reloadDiscarding(): void {
+  discarding = true;
+  window.location.reload();
+}
 
 /** While `active`, leaving the route asks 「編集内容を破棄しますか」, and closing the window has the main process ask the same (will-prevent-unload in main/index.ts). */
 export function useNavigationGuard(active: boolean): void {
   useEffect(() => {
     if (!active) return;
     activeGuards++;
-    const onUnload = (e: BeforeUnloadEvent): void => e.preventDefault();
+    const onUnload = (e: BeforeUnloadEvent): void => {
+      if (!discarding) e.preventDefault();
+    };
     window.addEventListener("beforeunload", onUnload);
     return () => {
       activeGuards--;

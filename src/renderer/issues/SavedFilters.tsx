@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { IssueFilter, SavedFilter } from "../../shared/types";
 import { useSession } from "../app/UserContext";
-import { defaultFilter, EMPTY_FILTER } from "./filterIssues";
-import { removeFilter, sameFilter, upsertFilter } from "./savedFilter";
+import { removeFilter, restoreFilter, sameFilter, upsertFilter } from "./savedFilter";
 import { errorMessage, M } from "../messages";
 
 type Props = { filter: IssueFilter; onChange(f: IssueFilter): void };
@@ -65,11 +64,7 @@ export function SavedFilters({ filter, onChange }: Props): React.JSX.Element {
           onChange={(e) => {
             setSelected(e.target.value);
             const s = config.savedFilters.find((f) => f.name === e.target.value);
-            // A stage deleted since the bookmark was saved is dropped; a bookmark left with no stage opens on the default set.
-            if (s) {
-              const statuses = s.filter.statuses.filter((id) => project.statuses.some((x) => x.id === id));
-              onChange({ ...EMPTY_FILTER, ...s.filter, statuses: statuses.length === 0 ? defaultFilter(project.statuses).statuses : statuses });
-            }
+            if (s) onChange(restoreFilter(s.filter, project));
           }}
         >
           <option value="">{M.selectPrompt}</option>

@@ -74,10 +74,22 @@
   font-weight: 600;
 }
 
+.kanban-card__head .issue-table__count {
+  margin-left: auto;
+}
+
+.kanban-card__priority + .issue-table__count {
+  margin-left: var(--space-2);
+}
+
 .kanban-card__parent {
+  display: block;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: var(--text-sm);
   text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kanban-card__summary {

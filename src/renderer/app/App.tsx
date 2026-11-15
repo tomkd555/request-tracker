@@ -10,6 +10,7 @@ import { ToastRegion } from "./ToastRegion";
 import { SessionContext, useSession } from "./UserContext";
 import { useHashRoute, type Route } from "./useHashRoute";
 import { IssueCreate } from "../issues/IssueCreate";
+import { IssueImport } from "../issues/IssueImport";
 import { IssueDetail } from "../issues/IssueDetail";
 import { IssueList } from "../issues/IssueList";
 import { IssuesProvider, useIssues } from "../issues/useIssues";
@@ -19,6 +20,8 @@ import { Kanban } from "../kanban/Kanban";
 import { WikiScreen } from "../wiki/WikiFrame";
 import { useWiki, WikiProvider } from "../wiki/useWiki";
 import { Search } from "../search/Search";
+import { NoticeList } from "../issues/NoticeList";
+import { RecentList } from "./RecentList";
 import { ReportEdit } from "../reports/ReportEdit";
 import { ReportList } from "../reports/ReportList";
 import { ReportView } from "../reports/ReportView";
@@ -157,7 +160,10 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   if (path === "/issues/new") {
     return <IssueCreate key={query.get("parent") ?? query.get("copy") ?? ""} parentKey={query.get("parent")} copyFrom={query.get("copy")} />;
   }
+  if (path === "/issues/import") return <IssueImport />;
   if (path.startsWith("/search")) return <Search />;
+  if (path.startsWith("/notices")) return <NoticeList />;
+  if (path.startsWith("/recent")) return <RecentList />;
   if (path === "/reports/new") return <ReportEdit key={query.get("from") ?? ""} id={null} from={query.get("from")} />;
   const r = /^\/reports\/([^/]+)(\/edit)?$/.exec(path);
   if (r) return r[2] ? <ReportEdit key={r[1]} id={r[1]} from={null} /> : <ReportView key={r[1]} id={r[1]} />;

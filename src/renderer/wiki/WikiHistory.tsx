@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { WikiPage } from "../../shared/types";
 import { diffHunks, diffLines } from "../app/diffLines";
+import { readHistory } from "../app/HistoryTable";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { formatDateTime } from "../issues/labels";
 import { M } from "../messages";
@@ -15,16 +16,20 @@ export function WikiHistory({ page, onRestore }: Props): React.JSX.Element {
   const { users } = useSession();
   const [history, setHistory] = useState<WikiPage[]>([]);
   const [open, setOpen] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    void window.api.wiki.history(page.id).then((h) => {
-      if (alive) setHistory(h);
+    void readHistory(() => window.api.wiki.history(page.id)).then((r) => {
+      if (!alive) return;
+      setHistory(r.items);
+      setError(r.error);
     });
     return () => {
       alive = false;
     };
   }, [page.id, page.updatedAt]);
 
+  if (error !== null) return <p className="text--error">{error}</p>;
   if (history.length === 0) return <p className="text--muted">{M.noHistory}</p>;
   const versions = [...history, page];
   const rows = history.map((old, i) => ({ old, next: versions[i + 1] })).reverse();

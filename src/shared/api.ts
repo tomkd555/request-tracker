@@ -1,7 +1,7 @@
-import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Project, Report, StatusDef, User, WikiPage } from "./types";
+import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Milestone, Project, Report, StatusDef, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
-export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" }
+export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" | "name" | "failed" }
 /** What an attachment belongs to: an issue by key, or a wiki page by id. */
 export type AttachmentOwner = { kind: "issue"; id: string } | { kind: "wiki"; id: string };
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }
@@ -28,6 +28,8 @@ export type StoreApi = {
     putLabels(labels: Label[]): Promise<Project>;
     /** Replaces the 状態 stages; other fields stay as on disk. An issue on a removed stage reads as the first stage. */
     putStatuses(statuses: StatusDef[]): Promise<Project>;
+    /** Replaces the マイルストーン list; other fields stay as on disk. Rejects a date that is not YYYY-MM-DD and a due date before the start date. */
+    putMilestones(milestones: Milestone[]): Promise<Project>;
   };
   users: {
     /** The record keyed by the OS login, or the member who bound that login with `claim`. */
@@ -96,6 +98,16 @@ export type StoreApi = {
     /** Puts the rendered report on the clipboard as HTML, with `text` as the plain-text form. */
     copy(html: string, text: string): Promise<void>;
   };
+  watch: {
+    /** The issue keys the current member watches (watch/<member id>.json); no keys when the member has no file. */
+    list(): Promise<string[]>;
+    /** Adds (`on`) or removes `key` from the current member's watch list and resolves to the keys now stored. */
+    set(key: string, on: boolean): Promise<string[]>;
+  };
+  files: {
+    /** Open dialog filtered to `filter`, then the file's text: UTF-8 (a BOM is dropped), or Shift_JIS when the bytes are not valid UTF-8; null when cancelled. */
+    openText(filter: SaveFilter): Promise<string | null>;
+  };
 };
 
 export type Api = StoreApi & {
@@ -105,7 +117,7 @@ export type Api = StoreApi & {
 
 export const API_METHODS = {
   config: ["get", "chooseRoot", "put"],
-  project: ["get", "init", "put", "putFields", "putLabels", "putStatuses"],
+  project: ["get", "init", "put", "putFields", "putLabels", "putStatuses", "putMilestones"],
   users: ["me", "register", "list", "add", "rename", "claim", "remove"],
   issues: ["list", "get", "create", "put", "remove", "history"],
   summary: ["exportCsv"],
@@ -113,4 +125,6 @@ export const API_METHODS = {
   attachments: ["list", "add", "choose", "open", "openFolder", "remove"],
   wiki: ["list", "get", "create", "put", "remove", "history"],
   reports: ["list", "get", "create", "put", "remove", "save", "copy"],
+  watch: ["list", "set"],
+  files: ["openText"],
 } as const satisfies { [G in keyof StoreApi]: readonly (keyof StoreApi[G])[] };

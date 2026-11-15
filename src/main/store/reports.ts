@@ -4,7 +4,7 @@ import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
 
 export const reportsCollection = (l: Layout): Collection<Report> =>
-  collection<Report>({ dir: l.reports, guard: isReport, historyDir: l.historyReports, trashDir: l.trashReports });
+  collection<Report>({ dir: l.reports, guard: isReport, historyDir: l.historyReports, trashDir: l.trashReports, idOf: (r) => r.id });
 
 /** The id is the creation stamp; a collision (same millisecond on two clients) retries with the next millisecond, as `createPage` in wiki.ts. */
 export async function createReport(l: Layout, report: Report): Promise<Report> {

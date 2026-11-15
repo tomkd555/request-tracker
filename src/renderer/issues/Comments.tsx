@@ -11,8 +11,8 @@ interface Props {
   issue: Issue;
   /** Bumped by the detail after each save, so the change feed reloads. */
   version: number;
-  /** Saves a new status; rejects on failure. */
-  onStatus(status: IssueStatus): Promise<void>;
+  /** Saves the stage; false when it was not saved (the owner shows why, or the user cancelled). */
+  onStatus(status: IssueStatus): Promise<boolean>;
 }
 
 type FeedItem = { kind: "comment"; at: string; comment: Comment } | { kind: "change"; at: string; change: ChangeEntry };
@@ -32,8 +32,10 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   const load = useCallback(async () => setItems(await window.api.comments.list(issueKey)), [issueKey]);
   const loadChanges = useCallback(async () => {
     const history = await window.api.issues.history(issueKey);
-    setChanges(changeEntries(history, issue, nameOf, project.fields, project.statuses));
-  }, [issueKey, issue, nameOf, project.fields, project.statuses]);
+    // The record as stored: `issue` shows a deleted stage as the first stage, which would read as a status change.
+    const stored = (await window.api.issues.get(issueKey)) ?? issue;
+    setChanges(changeEntries(history, stored, nameOf, project.fields, project.statuses, project.milestones ?? []));
+  }, [issueKey, issue, nameOf, project.fields, project.statuses, project.milestones]);
 
   useEffect(() => {
     void load();
@@ -52,12 +54,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
     setPosting(true);
     setError(null);
     try {
-      try {
-        if (statusChanged) await onStatus(status);
-      } catch (e) {
-        setError(errorMessage(e));
-        return;
-      }
+      if (statusChanged && !(await onStatus(status))) return;
       if (body === "") return;
       const createdAt = new Date().toISOString();
       try {

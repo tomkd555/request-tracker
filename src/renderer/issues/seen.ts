@@ -1,5 +1,4 @@
-import type { Issue, StatusDef } from "../../shared/types";
-import { isDoneStatus } from "./labels";
+import type { Issue } from "../../shared/types";
 
 // ponytail: seen state lives per machine in localStorage; a users/<name>/seen.json on the share would follow if people switch machines
 const KEY = (issueKey: string): string => `seen:${issueKey}`;
@@ -12,17 +11,29 @@ const read = (issueKey: string): string | null => {
   }
 };
 
-export function markSeen(issue: Issue): void {
+const write = (issueKey: string, stamp: string): void => {
   try {
-    window.localStorage.setItem(KEY(issue.key), issue.updatedAt);
+    window.localStorage.setItem(KEY(issueKey), stamp);
   } catch {
     // storage unavailable: the dot simply stays
   }
-}
+};
 
-/** True when someone else saved the issue after this machine last opened it. */
-export const isUnseen = (issue: Issue, me: string): boolean => issue.updatedBy !== me && read(issue.key) !== issue.updatedAt;
+export const markSeen = (issue: Issue): void => write(issue.key, issue.updatedAt);
 
-/** Issues of `me` (assigned or reported) short of 完了 that carry an unseen update. */
-export const unseenMine = (issues: Issue[], me: string, statuses: StatusDef[]): number =>
-  issues.filter((i) => !isDoneStatus(statuses, i.status) && (i.assignee === me || i.reporter === me) && isUnseen(i, me)).length;
+/** Stored in place of a stamp when my own save went over a version of someone else that this machine never opened. */
+export const PENDING = "unseen";
+
+/** True when someone else saved the issue after this machine last opened it, also once my own save from the board, the Gantt or bulk edit went on top of that save. */
+export const unseenFrom = (issue: Issue, me: string, stamp: string | null): boolean => stamp === PENDING || (issue.updatedBy !== me && stamp !== issue.updatedAt);
+
+/** The stamp to store after `me` saved `next` over `prev`: the new version when `prev` was seen, else PENDING, which keeps the dot on. */
+export const stampAfterOwnSave = (prev: Issue, next: Issue, me: string, stamp: string | null): string => (unseenFrom(prev, me, stamp) ? PENDING : next.updatedAt);
+
+/** Call after a save made outside the detail screen (board, Gantt, bulk edit), so a change of someone else that was never opened stays marked. */
+export const carrySeen = (prev: Issue, next: Issue, me: string): void => write(next.key, stampAfterOwnSave(prev, next, me, read(next.key)));
+
+/** The stamp this machine stored for `issueKey`, or null. */
+export const seenStamp = (issueKey: string): string | null => read(issueKey);
+
+export const isUnseen = (issue: Issue, me: string): boolean => unseenFrom(issue, me, read(issue.key));

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import type { Issue } from "../../shared/types";
+import { M } from "../messages";
 
 const optionText = (i: Issue): string => `${i.key} ${i.summary}`;
 
@@ -9,6 +10,11 @@ export function resolveParent(text: string, candidates: Issue[]): { key: string 
   if (t === "") return { key: null, invalid: false };
   const key = t.split(/\s+/)[0];
   return candidates.some((i) => i.key === key) ? { key, invalid: false } : { key: null, invalid: true };
+}
+
+/** The text a field that saves on blur shows once `text` is committed: an invalid text goes back to `restored`, with the reason. */
+export function settleParentText(text: string, candidates: Issue[], restored: string): { text: string; message: string | null } {
+  return resolveParent(text, candidates).invalid ? { text: restored, message: M.parentNotFound } : { text, message: null };
 }
 
 type Props = {
@@ -26,10 +32,12 @@ type Props = {
 export function ParentField({ value, candidates, onChange, commitOn, className, ariaLabel }: Props): React.JSX.Element {
   const listId = useId();
   const current = candidates.find((i) => i.key === value);
-  const [text, setText] = useState(current ? optionText(current) : (value ?? ""));
+  const saved = current ? optionText(current) : (value ?? "");
+  const [text, setText] = useState(saved);
+  const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
-    setText(current ? optionText(current) : (value ?? ""));
-  }, [value, current]);
+    setText(saved);
+  }, [saved]);
 
   return (
     <>
@@ -41,6 +49,7 @@ export function ParentField({ value, candidates, onChange, commitOn, className, 
         placeholder="キーまたは件名"
         onChange={(e) => {
           setText(e.target.value);
+          setMessage(null);
           if (commitOn === "change") {
             const r = resolveParent(e.target.value, candidates);
             onChange(r.key, r.invalid);
@@ -48,14 +57,21 @@ export function ParentField({ value, candidates, onChange, commitOn, className, 
         }}
         onBlur={() => {
           if (commitOn !== "blur") return;
+          const settled = settleParentText(text, candidates, saved);
+          setText(settled.text);
+          setMessage(settled.message);
           const r = resolveParent(text, candidates);
           onChange(r.key, r.invalid);
         }}
         onKeyDown={(e) => {
           if (commitOn === "blur" && e.key === "Enter") (e.target as HTMLInputElement).blur();
-          if (e.key === "Escape") setText(current ? optionText(current) : (value ?? ""));
+          if (e.key === "Escape") {
+            setText(saved);
+            setMessage(null);
+          }
         }}
       />
+      {message !== null && <span className="text--error">{message}</span>}
       <datalist id={listId}>
         {candidates.map((i) => (
           <option key={i.key} value={optionText(i)} />

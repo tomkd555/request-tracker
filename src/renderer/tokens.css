@@ -13,7 +13,7 @@
 
   /* text */
   --text: #242424; /* body text */
-  --text-muted: #737373; /* secondary text: empty states, hints, timestamps */
+  --text-muted: #6b6b6b; /* secondary text: empty states, hints, timestamps; 4.6:1 on --bg-page and 4.8:1 on --bg-row (computed) */
   --text-table-header: color-mix(in srgb, var(--brand) 70%, #999999); /* issue list: column labels */
   --link: color-mix(in srgb, var(--brand) 95%, black); /* gantt: issue title link */
   --text-overdue: #b3261e; /* issue list: overdue due date; own choice, 5.9:1 on --bg-row (measured) */

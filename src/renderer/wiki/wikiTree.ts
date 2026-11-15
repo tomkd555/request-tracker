@@ -7,6 +7,13 @@ const byTitle = (a: WikiPage, b: WikiPage): number => a.title.localeCompare(b.ti
 /** Titles compare trimmed and case-folded, so `[[運用手順]]` finds "運用手順 " and "Home" finds "home". */
 export const normalizeTitle = (t: string): string => t.trim().toLocaleLowerCase();
 
+/** True when another page of the wiki (any parent) already has `title`; `selfId` is the page being edited, null for a new page. */
+export const hasDuplicateTitle = (pages: WikiPage[], selfId: string | null, title: string): boolean =>
+  pages.some((p) => p.id !== selfId && normalizeTitle(p.title) === normalizeTitle(title));
+
+/** The key of the new-page form for one title and parent, so a link to another new page starts a fresh draft. */
+export const newPageKey = (title: string, parentId: string | null): string => `new:${parentId ?? ""}:${title}`;
+
 /** Children per parent id, each list sorted by title; a page whose parent is absent counts as a root. */
 export function childrenMap(pages: WikiPage[]): Map<string | null, WikiPage[]> {
   const ids = new Set(pages.map((p) => p.id));

@@ -1,10 +1,82 @@
 import { useState } from "react";
 import type { IssueStatus } from "../../shared/types";
 import { displayNameOf, useSession } from "../app/UserContext";
-import { countByMonth, monthOf, toCsv, type Count } from "./countByMonth";
+import { burndownRows, loadMilestoneVersions, type BurndownRow } from "./burndown";
+import { BurndownChart, MEASURE_LABEL } from "./BurndownChart";
+import type { BurndownMeasure } from "./burndownGeometry";
+import { countByMonth, createdInMonth, monthOf, toCsv, type Count } from "./countByMonth";
+import { today } from "./dates";
+import { sumHours } from "./hours";
 import { statusName } from "./labels";
+import { orderMilestones } from "./milestones";
 import { useIssues } from "./useIssues";
 import { errorMessage, M } from "../messages";
+
+interface Burndown { rows: BurndownRow[]; dueDay: string | null; today: string }
+
+function BurndownSection(): React.JSX.Element | null {
+  const { project } = useSession();
+  const { issues } = useIssues();
+  const milestones = orderMilestones(project.milestones ?? []);
+  const [milestoneId, setMilestoneId] = useState("");
+  const [measure, setMeasure] = useState<BurndownMeasure>("open");
+  const [shown, setShown] = useState<Burndown | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (milestones.length === 0) return null;
+
+  const show = async (): Promise<void> => {
+    const milestone = milestones.find((m) => m.id === milestoneId);
+    if (!milestone) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const versions = await loadMilestoneVersions(issues, milestone.id, (key) => window.api.issues.history(key));
+      const now = today();
+      setShown({ rows: burndownRows(milestone, versions, project.statuses, now), dueDay: milestone.dueDate, today: now });
+    } catch (e) {
+      setShown(null);
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="settings__section">
+      <h3 className="settings__heading">バーンダウン</h3>
+      <div className="burndown__controls">
+        <select
+          aria-label="マイルストーン"
+          value={milestoneId}
+          onChange={(e) => {
+            setMilestoneId(e.target.value);
+            setShown(null);
+          }}
+        >
+          <option value="">{M.selectPrompt}</option>
+          {milestones.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={milestoneId === "" || busy} onClick={() => void show()}>
+          表示
+        </button>
+        <select aria-label="指標" value={measure} onChange={(e) => setMeasure(e.target.value as BurndownMeasure)}>
+          {(Object.keys(MEASURE_LABEL) as BurndownMeasure[]).map((k) => (
+            <option key={k} value={k}>
+              {MEASURE_LABEL[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="text--error">{error}</p>}
+      {shown !== null && (shown.rows.length === 0 ? <p className="text--muted">{M.noBurndownIssues}</p> : <BurndownChart rows={shown.rows} measure={measure} today={shown.today} dueDay={shown.dueDay} />)}
+    </section>
+  );
+}
 
 export function Summary(): React.JSX.Element {
   const { users, project } = useSession();
@@ -12,6 +84,7 @@ export function Summary(): React.JSX.Element {
   const [month, setMonth] = useState(monthOf(new Date().toISOString()));
   const [message, setMessage] = useState<string | null>(null);
   const counts = countByMonth(issues, month, project.statuses);
+  const hours = sumHours(createdInMonth(issues, month));
   const user = (u: string): string => displayNameOf(users, u);
   const status = (s: IssueStatus): string => statusName(project.statuses, s);
 
@@ -66,7 +139,26 @@ export function Summary(): React.JSX.Element {
         {table("状態", counts.byStatus, (k) => status(k as IssueStatus))}
         {table("種別", counts.byCategory, (k) => k || "未設定")}
         {table("完了 担当者別", counts.closedByAssignee, (k) => (k === "" ? "未設定" : user(k)), counts.closedTotal)}
+        <table className="issue-table">
+          <thead>
+            <tr>
+              <th className="issue-table__header">時間</th>
+              <th className="issue-table__header issue-table__header--num">合計</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="summary__row">
+              <td className="issue-table__cell">予定時間</td>
+              <td className="issue-table__cell issue-table__cell--num">{hours.estimated}</td>
+            </tr>
+            <tr className="summary__row">
+              <td className="issue-table__cell">実績時間</td>
+              <td className="issue-table__cell issue-table__cell--num">{hours.actual}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+      <BurndownSection />
     </div>
   );
 }

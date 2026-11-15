@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { NOTICE_MODES, THEME_NAMES, type LocalSettings, type NoticeMode, type ThemeName } from "../../shared/types";
 import { accentOf, applyAppearance, THEMES } from "./theme";
-import { useNavigationGuard } from "./useHashRoute";
+import { isNameEdited } from "./nameEdit";
+import { hasUnsavedChanges, reloadDiscarding, useNavigationGuard } from "./useHashRoute";
 import { useSession } from "./UserContext";
 import { errorMessage, M } from "../messages";
 
@@ -120,7 +121,7 @@ function DisplayNameSection(): React.JSX.Element {
   const { me, refreshUsers } = useSession();
   const [name, setName] = useState(me.displayName);
   const [message, run] = useSaveMessage();
-  useNavigationGuard(name !== me.displayName);
+  useNavigationGuard(isNameEdited(name, me.displayName));
   return (
     <section className="issue-form settings__section">
       <h3 className="settings__heading">名前</h3>
@@ -129,6 +130,7 @@ function DisplayNameSection(): React.JSX.Element {
           e.preventDefault();
           void run(async () => {
             await window.api.users.rename(me.username, name);
+            setName(name.trim());
             await refreshUsers();
           });
         }}
@@ -150,22 +152,25 @@ function DisplayNameSection(): React.JSX.Element {
 
 function FolderSection(): React.JSX.Element {
   const { config } = useSession();
-  const [message, run] = useSaveMessage();
+  const [message, setMessage] = useState<string | null>(null);
+  // Asked before the folder dialog: once the folder is chosen the store has switched, so the reload must not be cancellable.
+  const change = async (): Promise<void> => {
+    if (hasUnsavedChanges() && !window.confirm(M.confirmDiscard)) return;
+    setMessage(null);
+    try {
+      // The boot sequence runs again against the new folder.
+      if ((await window.api.config.chooseRoot()) !== null) reloadDiscarding();
+    } catch (e) {
+      setMessage(errorMessage(e));
+    }
+  };
   return (
     <section className="issue-form settings__section">
       <h3 className="settings__heading">共有フォルダ</h3>
       <p className="settings__path">{config.rootDir}</p>
       {message && <p className="text--muted">{message}</p>}
       <div className="form-actions">
-        <button
-          type="button"
-          onClick={() =>
-            void run(async () => {
-              // The boot sequence runs again against the new folder.
-              if ((await window.api.config.chooseRoot()) !== null) window.location.reload();
-            })
-          }
-        >
+        <button type="button" onClick={() => void change()}>
           変更
         </button>
       </div>

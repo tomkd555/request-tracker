@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useChoiceDialog } from "../app/ChoiceDialog";
 import { textOn } from "../app/theme";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
@@ -7,14 +8,17 @@ import { today } from "../issues/dates";
 import { dueTone } from "../issues/dueTone";
 import { FilterBar } from "../issues/FilterBar";
 import { defaultFilter, filterIssues, type IssueFilter } from "../issues/filterIssues";
-import { categoryColor as categoryColorOf, formatDate, labelColor, statusOf } from "../issues/labels";
-import { isUnseen } from "../issues/seen";
+import { categoryColor as categoryColorOf, formatDate, isDoneStatus, labelColor, statusOf } from "../issues/labels";
+import { applyWrites, completionWrites, openDescendants, type ParentAnswer } from "../issues/parentOps";
+import { carrySeen, isUnseen } from "../issues/seen";
+import { ProgressCount } from "../issues/TreeCells";
 import { SavedFilters } from "../issues/SavedFilters";
 import { DEFAULT_SORT, issueComparator } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
+import { ancestorsOf, descendantCounts } from "../../shared/issueTree";
 import type { Issue, IssueStatus } from "../../shared/types";
 import "./kanban.css";
-import { errorMessage } from "../messages";
+import { errorMessage, M } from "../messages";
 
 const KEY_MIME = "text/plain";
 
@@ -23,9 +27,11 @@ export function Kanban(): React.JSX.Element {
   const { issues, byKey, refreshOne } = useIssues();
   const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
   const [message, setMessage] = useState<string | null>(null);
+  const { ask, dialog } = useChoiceDialog();
   const day = today();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const columns = columnsOf(filterIssues(issues, filter, day, me.username, project.statuses), project.statuses, filter.statuses, issueComparator(DEFAULT_SORT, nameOf, project.statuses));
+  const counts = descendantCounts(issues, (i) => isDoneStatus(project.statuses, i.status));
+  const columns = columnsOf(filterIssues(issues, filter, day, me.username, project.statuses, project.milestones), project.statuses, filter.statuses, issueComparator(DEFAULT_SORT, nameOf, project.statuses));
 
   const drop = async (status: IssueStatus, e: React.DragEvent<HTMLDivElement>): Promise<void> => {
     e.preventDefault();
@@ -33,18 +39,27 @@ export function Kanban(): React.JSX.Element {
     const issue = byKey.get(key);
     if (!issue || issue.status === status) return;
     setMessage(null);
+    let touched = [key];
     try {
-      await window.api.issues.put({ ...issue, status, updatedAt: new Date().toISOString(), updatedBy: me.username }, issue.updatedAt);
-      await refreshOne(key);
+      let answer: ParentAnswer = "only";
+      const open = isDoneStatus(project.statuses, status) ? openDescendants(issues, key, project.statuses).length : 0;
+      if (open > 0) answer = await ask(M.openDescendants(open), "配下も完了にする");
+      if (answer === "cancel") return;
+      const writes = completionWrites(issues, issue, status, answer, project.statuses, { updatedAt: new Date().toISOString(), updatedBy: me.username });
+      touched = writes.map((w) => w.next.key);
+      await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => carrySeen(byKey.get(next.key) ?? issue, next, me.username));
     } catch (err) {
       setMessage(errorMessage(err));
-      await refreshOne(key); // the record on disk is unchanged, so the card renders back in its original column
     }
+    // A failed first write leaves the record on disk unchanged, so the card renders back in its original column.
+    for (const k of touched) await refreshOne(k);
   };
 
   const card = (i: Issue): React.JSX.Element => {
     const tone = dueTone(i, day, config.dueSoonDays, project.statuses);
     const categoryColor = categoryColorOf(project, i.category);
+    const ancestors = ancestorsOf(byKey, i.key);
+    const parent = ancestors[ancestors.length - 1];
     return (
       <article
         key={i.key}
@@ -57,10 +72,17 @@ export function Kanban(): React.JSX.Element {
           {isUnseen(i, me.username) && <span className="issue-table__unseen" role="img" aria-label="更新あり" />}
           <span className="kanban-card__key">{i.key}</span>
           {i.priority === "high" && <span className="kanban-card__priority">高</span>}
+          <ProgressCount count={counts.get(i.key)} />
         </div>
         {i.parentKey !== null && (
-          <a className="kanban-card__parent" href={`#/issues/${i.parentKey}`} onClick={(e) => e.stopPropagation()}>
+          <a
+            className="kanban-card__parent"
+            href={`#/issues/${i.parentKey}`}
+            title={ancestors.map((a) => `${a.key} ${a.summary}`).join(" › ")}
+            onClick={(e) => e.stopPropagation()}
+          >
             ↳ {i.parentKey}
+            {parent !== undefined && ` ${parent.summary}`}
           </a>
         )}
         <p className="kanban-card__summary">{i.summary}</p>
@@ -93,6 +115,7 @@ export function Kanban(): React.JSX.Element {
         <h1 className="toolbar__heading">カンバン</h1>
       </header>
       {message && <p className="text--error">{message}</p>}
+      {dialog}
       <FilterBar filter={filter} users={users} onChange={setFilter} />
       <SavedFilters filter={filter} onChange={setFilter} />
       <div className="kanban">

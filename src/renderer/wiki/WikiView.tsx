@@ -85,7 +85,21 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
         更新 {formatDateTime(page.updatedAt)} {displayNameOf(users, page.updatedBy)}
         {page.note !== "" && <span className="wiki-page__note">{page.note}</span>}
       </p>
-      {error && <p className="text--error">{error}</p>}
+      {error && (
+        <p className="text--error">
+          {error}{" "}
+          <button
+            type="button"
+            className="button--link"
+            onClick={() => {
+              setError(null);
+              void refreshOne(page.id);
+            }}
+          >
+            再読み込み
+          </button>
+        </p>
+      )}
       {headings.length >= 3 && (
         <nav className="wiki-toc" aria-label="目次">
           <div className="wiki-toc__title">目次</div>

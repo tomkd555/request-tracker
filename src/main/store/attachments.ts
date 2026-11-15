@@ -144,20 +144,39 @@ export async function addAttachments(l: Layout, owner: AttachmentOwner, paths: s
   const result: AddAttachmentsResult = { added: [], refused: [] };
   for (const src of paths) {
     const name = basename(src);
-    const stat = await fsp.stat(src);
+    if (name === "") {
+      result.refused.push({ path: src, reason: "failed" }); // a drive root has no name to store it under
+      continue;
+    }
+    if (name.startsWith(".")) {
+      result.refused.push({ path: src, reason: "name" }); // the listing hides dot names and assertName refuses them, so a copy could never be opened or removed
+      continue;
+    }
     const tmp = join(dir, `.${name}.tmp-${process.pid}-${tmpSeq++}`);
-    if (stat.isDirectory()) {
-      await copyFolder(src, tmp, result.refused);
-      result.added.push(await placeFolder(dir, tmp, name));
-      continue;
+    // One path that fails (source gone, share dropped mid-copy) is reported with the refusals, and the rest are still added.
+    try {
+      const stat = await fsp.lstat(src);
+      if (stat.isSymbolicLink()) {
+        result.refused.push({ path: src, reason: "link" }); // a link or junction would copy whatever it points at
+        continue;
+      }
+      if (stat.isDirectory()) {
+        await copyFolder(src, tmp, result.refused);
+        result.added.push(await placeFolder(dir, tmp, name));
+        continue;
+      }
+      const r = refusalOf(src, stat.size);
+      if (r) {
+        result.refused.push(r);
+        continue;
+      }
+      await fsp.copyFile(src, tmp);
+      result.added.push(await placeFile(dir, tmp, name));
+    } catch (e) {
+      console.error(`store: attachment not added: ${src}`, e);
+      await fsp.rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+      result.refused.push({ path: src, reason: "failed" });
     }
-    const r = refusalOf(src, stat.size);
-    if (r) {
-      result.refused.push(r);
-      continue;
-    }
-    await fsp.copyFile(src, tmp);
-    result.added.push(await placeFile(dir, tmp, name));
   }
   return result;
 }

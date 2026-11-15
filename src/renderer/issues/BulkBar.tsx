@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { IssueStatus, Project, User } from "../../shared/types";
 import { AssigneeSelect } from "./AssigneeSelect";
 import { BULK_MAX, type BulkPatch, type BulkResult } from "./bulkEdit";
+import { selectableMilestones } from "./milestones";
 import { M } from "../messages";
 
 const KEEP = "__keep__";
@@ -21,6 +22,7 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
   const [assignee, setAssignee] = useState<string>(KEEP);
   const [dueMode, setDueMode] = useState<DueMode>("keep");
   const [dueDate, setDueDate] = useState("");
+  const [milestone, setMilestone] = useState<string>(KEEP);
   const [addLabel, setAddLabel] = useState("");
   const [removeLabel, setRemoveLabel] = useState("");
   const [running, setRunning] = useState(false);
@@ -34,6 +36,7 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
     if (assignee !== KEEP) patch.assignee = assignee || null;
     if (dueMode === "set") patch.dueDate = dueDate || null;
     if (dueMode === "clear") patch.dueDate = null;
+    if (milestone !== KEEP) patch.milestone = milestone || null;
     if (addLabel !== "") patch.addLabel = addLabel;
     if (removeLabel !== "") patch.removeLabel = removeLabel;
     setRunning(true);
@@ -83,6 +86,20 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
         </select>
         {dueMode === "set" && <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />}
       </label>
+      {(project.milestones ?? []).length > 0 && (
+        <label className="bulk-bar__field">
+          マイルストーン
+          <select value={milestone} onChange={(e) => setMilestone(e.target.value)}>
+            <option value={KEEP}>変更しない</option>
+            <option value="">未設定</option>
+            {selectableMilestones(project.milestones ?? [], null).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="bulk-bar__field">
         ラベル追加
         <select value={addLabel} onChange={(e) => setAddLabel(e.target.value)}>
@@ -105,7 +122,7 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
           ))}
         </select>
       </label>
-      <button type="button" className="button--primary" disabled={overCap || running} onClick={() => void run()}>
+      <button type="button" className="button--primary" disabled={overCap || running || (dueMode === "set" && dueDate === "")} onClick={() => void run()}>
         実行
       </button>
       <button type="button" onClick={onClear}>

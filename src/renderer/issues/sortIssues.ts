@@ -1,6 +1,8 @@
-import { ISSUE_PRIORITIES, type Issue, type StatusDef } from "../../shared/types";
+import { ISSUE_PRIORITIES, type Issue, type Milestone, type StatusDef } from "../../shared/types";
+import { compareKeys } from "./compareKeys";
+import { orderMilestones } from "./milestones";
 
-export const FIXED_SORT_KEYS = ["key", "summary", "category", "assignee", "status", "priority", "dueDate", "updatedAt"] as const;
+export const FIXED_SORT_KEYS = ["key", "summary", "category", "assignee", "status", "priority", "dueDate", "updatedAt", "milestone"] as const;
 type FixedKey = (typeof FIXED_SORT_KEYS)[number];
 /** A fixed column, or a 汎用列 as "field:<CustomField id>". */
 export type SortKey = FixedKey | `field:${string}`;
@@ -12,16 +14,22 @@ export const fieldSortKey = (id: string): SortKey => `field:${id}`;
 
 const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Comparator for top-level rows. An empty assignee, 汎用列 or due date sorts last in either direction; ties fall back to key descending. Status follows the project's order. */
-export function issueComparator(sort: IssueSort, nameOf: (username: string | null) => string, statuses: StatusDef[]): (a: Issue, b: Issue) => number {
+/**
+ * Comparator for top-level rows. An empty assignee, 汎用列, due date or milestone sorts last in either direction; ties fall back to key descending.
+ * Status follows the project's order, and milestone follows the due date order of `milestones` (see orderMilestones).
+ */
+export function issueComparator(sort: IssueSort, nameOf: (username: string | null) => string, statuses: StatusDef[], milestones: Milestone[] = []): (a: Issue, b: Issue) => number {
   const sign = sort.dir === "asc" ? 1 : -1;
+  const milestoneOrder = orderMilestones(milestones).map((m) => m.id);
+  const milestoneRank = (i: Issue): number => milestoneOrder.indexOf(i.milestone ?? "");
   const statusIndex = (id: string): number => statuses.findIndex((s) => s.id === id);
   const emptyLast = (va: string, vb: string): number => (va === "" && vb !== "" ? 1 : vb === "" && va !== "" ? -1 : cmpStr(va, vb) * sign);
-  return (a, b) => primary(a, b) || cmpStr(b.key, a.key);
+  return (a, b) => primary(a, b) || compareKeys(b.key, a.key);
 
   function primary(a: Issue, b: Issue): number {
     switch (sort.key) {
       case "key":
+        return compareKeys(a.key, b.key) * sign;
       case "summary":
       case "updatedAt":
         return cmpStr(a[sort.key], b[sort.key]) * sign;
@@ -31,6 +39,11 @@ export function issueComparator(sort: IssueSort, nameOf: (username: string | nul
         return emptyLast(a.category, b.category);
       case "dueDate":
         return emptyLast(a.dueDate ?? "", b.dueDate ?? "");
+      case "milestone": {
+        const ra = milestoneRank(a);
+        const rb = milestoneRank(b);
+        return ra === -1 && rb !== -1 ? 1 : rb === -1 && ra !== -1 ? -1 : (ra - rb) * sign;
+      }
       case "status":
         return (statusIndex(a.status) - statusIndex(b.status)) * sign;
       case "priority":

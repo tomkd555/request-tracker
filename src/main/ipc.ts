@@ -21,6 +21,10 @@ export function registerIpc(): ReturnType<typeof createStore> {
       const r = await dialog.showSaveDialog({ defaultPath: defaultName, filters: [filter] });
       return r.canceled || !r.filePath ? null : r.filePath;
     },
+    async chooseOpenPath(filter) {
+      const r = await dialog.showOpenDialog({ properties: ["openFile"], filters: [filter] });
+      return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0];
+    },
     writeClipboard: (html, text) => clipboard.write([new ClipboardItem({ "text/html": html, "text/plain": text })]),
   });
 

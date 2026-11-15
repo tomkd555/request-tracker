@@ -1,9 +1,8 @@
 import { useState } from "react";
-import type { Comment } from "../../shared/types";
 import { useSession } from "../app/UserContext";
 import { useIssues } from "../issues/useIssues";
 import { useWiki } from "../wiki/useWiki";
-import { searchAll, type Hit } from "./searchAll";
+import { searchOutcome, type Hit } from "./searchAll";
 import "./search.css";
 import { M } from "../messages";
 
@@ -34,13 +33,9 @@ export function Search(): React.JSX.Element {
       return;
     }
     // ponytail: one full pass over comments/ per search; cache it in the renderer and drop it on 更新 if a search starts to feel slow
-    try {
-      const comments: Comment[] = await window.api.comments.listAll();
-      setHits(searchAll(kw, issues, comments, pages, project.statuses));
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
+    const outcome = await searchOutcome(kw, issues, () => window.api.comments.listAll(), pages, project.statuses);
+    setHits(outcome.hits);
+    setError(outcome.error);
   };
 
   return (

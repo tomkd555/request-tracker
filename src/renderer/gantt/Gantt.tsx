@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
+import { useChoiceDialog } from "../app/ChoiceDialog";
 import { displayNameOf, useSession } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
+import { withAncestors } from "../../shared/issueTree";
+import { useCollapsed } from "../issues/collapsed";
 import { ymd } from "../issues/dates";
 import { FilterBar } from "../issues/FilterBar";
 import { defaultFilter, filterIssues, type IssueFilter } from "../issues/filterIssues";
 import { statusName, statusStyle } from "../issues/labels";
+import { milestoneName } from "../issues/milestones";
+import { applyWrites, datedDescendants, moveWrites, type ParentAnswer } from "../issues/parentOps";
+import { carrySeen } from "../issues/seen";
 import { SavedFilters } from "../issues/SavedFilters";
 import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
@@ -46,27 +52,35 @@ export function Gantt(): React.JSX.Element {
   const [month, setMonth] = useState(thisMonth());
   const [months, setMonths] = useState<Months>(1);
   const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
-  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [chosenGroupBy, setGroupBy] = useState<GroupBy>("none");
   const [includeUndated, setIncludeUndated] = useState(false);
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, toggle] = useCollapsed();
   const [drag, setDrag] = useState<Drag | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const { ask, dialog } = useChoiceDialog();
   const today = ymd(new Date());
   const range = rangeFor(month, months);
   const dayPx = DAY_PX[months];
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const layout = layoutGantt(filterIssues(issues, filter, today, me.username, project.statuses), range, {
+  // A match keeps its ancestors as context rows, as in the issue list.
+  const milestones = project.milestones ?? [];
+  // The マイルストーン option leaves the select once the project holds no milestone.
+  const groupBy: GroupBy = chosenGroupBy === "milestone" && milestones.length === 0 ? "none" : chosenGroupBy;
+  const shown = withAncestors(issues, filterIssues(issues, filter, today, me.username, project.statuses, milestones));
+  const layout = layoutGantt(shown.issues, range, {
     today,
     groupBy,
     collapsed,
+    context: shown.context,
     includeUndated,
     statuses: project.statuses,
-    compare: issueComparator(sort, nameOf, project.statuses),
+    compare: issueComparator(sort, nameOf, project.statuses, milestones),
     groupLabel: nameOf,
+    milestones,
   });
   const dayCount = layout.days.length;
-  const bodyRows = layout.groups.reduce((n, g) => n + g.rows.length + (g.label !== null || groupBy === "assignee" ? 1 : 0), 0);
+  const bodyRows = layout.groups.reduce((n, g) => n + g.rows.length + (g.label !== null || groupBy !== "none" ? 1 : 0), 0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -78,14 +92,6 @@ export function Gantt(): React.JSX.Element {
     return () => window.removeEventListener("keydown", onKey);
   }, [months]);
 
-  const toggle = (key: string): void =>
-    setCollapsed((c) => {
-      const next = new Set(c);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
   const finishDrag = async (d: Drag): Promise<void> => {
     setDrag(null);
     if (d.delta === 0) {
@@ -95,19 +101,27 @@ export function Gantt(): React.JSX.Element {
     const issue = byKey.get(d.key);
     if (!issue) return;
     setMessage(null);
+    let touched = [issue.key];
     try {
+      // An edge drag moves one date of this issue only; a whole-bar move asks about the dated issues under it.
+      const dated = d.mode === "move" ? datedDescendants(issues, issue.key).length : 0;
+      let answer: ParentAnswer = "only";
+      if (dated > 0) answer = await ask(M.datedDescendants(dated), "配下も移動する");
+      if (answer === "cancel") return;
       // Uses the bar position from when the drag started; the stale-write guard catches an edit made meanwhile.
-      await window.api.issues.put({ ...issue, ...datesAfterDrag(issue, d.mode, d.delta, range), updatedAt: new Date().toISOString(), updatedBy: me.username }, issue.updatedAt);
-      await refreshOne(issue.key);
+      const writes = moveWrites(issues, issue, datesAfterDrag(issue, d.mode, d.delta, range), d.delta, answer, { updatedAt: new Date().toISOString(), updatedBy: me.username });
+      touched = writes.map((w) => w.next.key);
+      await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => carrySeen(byKey.get(next.key) ?? issue, next, me.username));
     } catch (e) {
       setMessage(errorMessage(e));
-      await refreshOne(issue.key); // snaps the bar back to the record actually on disk
     }
+    for (const k of touched) await refreshOne(k); // snaps a bar back to the record actually on disk after a failure
   };
 
   const barFor = (r: GanttRow): React.JSX.Element | null => {
     if (r.bar === null) return null;
-    const draggable = r.tone !== "muted" && r.kind !== "bracket";
+    const draggable = r.tone !== "muted" && r.kind !== "bracket" && !r.context;
+    const tone = r.context ? "muted" : r.tone;
     const seg = drag && drag.key === r.key ? dragged(r.bar, drag.mode, drag.delta) : r.bar;
     const tip = `${r.key} ${r.summary}\n開始 ${r.startDate ?? ""} 期限 ${r.dueDate ?? ""}\n${displayNameOf(users, r.assignee)} ${statusName(project.statuses, r.status)}`;
     const onDown = (e: React.PointerEvent<HTMLDivElement>): void => {
@@ -133,7 +147,7 @@ export function Gantt(): React.JSX.Element {
     return (
       <>
         <div
-          className={`gantt__bar gantt__bar--${r.kind}${r.tone !== "normal" ? ` gantt__bar--${r.tone}` : ""}${draggable ? " gantt__bar--draggable" : ""}${drag?.key === r.key ? " gantt__bar--dragging" : ""}`}
+          className={`gantt__bar gantt__bar--${r.kind}${tone !== "normal" ? ` gantt__bar--${tone}` : ""}${draggable ? " gantt__bar--draggable" : ""}${drag?.key === r.key ? " gantt__bar--dragging" : ""}`}
           style={{ left: seg.startCol * dayPx + 2, width: seg.span * dayPx - 4 }}
           title={tip}
           onPointerDown={onDown}
@@ -150,7 +164,10 @@ export function Gantt(): React.JSX.Element {
   const items: ({ kind: "group"; label: string; row: number } | { kind: "row"; r: GanttRow; row: number })[] = [];
   let nextRow = 3;
   for (const g of layout.groups) {
-    if (groupBy === "assignee") items.push({ kind: "group", label: g.label === null ? "未設定" : displayNameOf(users, g.label), row: nextRow++ });
+    if (groupBy !== "none") {
+      const label = g.label === null ? "未設定" : groupBy === "milestone" ? milestoneName(milestones, g.label) : displayNameOf(users, g.label);
+      items.push({ kind: "group", label, row: nextRow++ });
+    }
     for (const r of g.rows) items.push({ kind: "row", r, row: nextRow++ });
   }
 
@@ -158,7 +175,7 @@ export function Gantt(): React.JSX.Element {
     const cell = (i: number, cls: string, content: React.ReactNode): React.JSX.Element => (
       <div
         key={i}
-        className={`gantt__cell ${cls}`}
+        className={`gantt__cell ${cls}${r.context ? " gantt__cell--context" : ""}`}
         style={{
           gridRow: row,
           gridColumn: i + 1,
@@ -237,6 +254,7 @@ export function Gantt(): React.JSX.Element {
           <span className="gantt__range">{rangeText}</span>
         </div>
       </header>
+      {dialog}
       <FilterBar filter={filter} users={users} onChange={setFilter} />
       <SavedFilters filter={filter} onChange={setFilter} />
       <div className="filter-bar gantt__options">
@@ -245,6 +263,7 @@ export function Gantt(): React.JSX.Element {
           <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
             <option value="none">なし</option>
             <option value="assignee">担当者</option>
+            {milestones.length > 0 && <option value="milestone">マイルストーン</option>}
           </select>
         </label>
         <label className="filter-bar__check">

@@ -43,6 +43,7 @@ interface ScopeState {
   statuses: Set<string>;
   assignee: string;
   category: string;
+  milestone: string;
   labels: string[];
   due: DueFilter;
   keyword: string;
@@ -51,10 +52,11 @@ interface ScopeState {
   keys: string;
 }
 
-const scopeStateOf = (b: BlockScope | undefined, statusIds: string[]): ScopeState => ({
+export const scopeStateOf = (b: BlockScope | undefined, statusIds: string[]): ScopeState => ({
   statuses: new Set(b?.statuses ?? statusIds),
   assignee: b?.assignee ?? "",
   category: b?.category ?? "",
+  milestone: b?.milestone ?? "",
   labels: b?.labels ?? [],
   due: b?.due ?? "all",
   keyword: b?.keyword ?? "",
@@ -64,11 +66,13 @@ const scopeStateOf = (b: BlockScope | undefined, statusIds: string[]): ScopeStat
 });
 
 /** Only the fields that differ from "no restriction" go on the block line (see blocks.ts's optional BlockScope fields). */
-const buildScope = (s: ScopeState, statusIds: string[]): BlockScope => {
+export const buildScope = (s: ScopeState, statusIds: string[]): BlockScope => {
   const scope: BlockScope = {};
-  if (s.statuses.size !== statusIds.length) scope.statuses = statusIds.filter((id) => s.statuses.has(id));
+  const chosen = statusIds.filter((id) => s.statuses.has(id)); // a stage deleted since the block was written is dropped here
+  if (chosen.length !== statusIds.length) scope.statuses = chosen;
   if (s.assignee !== "") scope.assignee = s.assignee;
   if (s.category !== "") scope.category = s.category;
+  if (s.milestone !== "") scope.milestone = s.milestone;
   if (s.labels.length > 0) scope.labels = s.labels;
   if (s.due !== "all") scope.due = s.due;
   if (s.keyword.trim() !== "") scope.keyword = s.keyword.trim();
@@ -80,6 +84,9 @@ const buildScope = (s: ScopeState, statusIds: string[]): BlockScope => {
   if (keys.length > 0) scope.keys = keys;
   return scope;
 };
+
+/** A table with no column prints nothing, so an `::issues` block needs at least one. */
+export const canInsertBlock = (kind: BlockKind, columnCount: number): boolean => kind !== "issues" || columnCount > 0;
 
 const toggleIn = <T,>(set: Set<T>, v: T): Set<T> => {
   const next = new Set(set);
@@ -161,6 +168,7 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
   }, []);
 
   const confirm = (): void => {
+    if (!canInsertBlock(kind, columns.size)) return;
     const base = buildScope(scope, statusIds);
     let block: Block;
     if (kind === "issues") {
@@ -244,6 +252,20 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
               ))}
             </select>
           </label>
+          {((project.milestones ?? []).length > 0 || scope.milestone !== "") && (
+            <label className="filter-bar__field">
+              マイルストーン
+              <select value={scope.milestone} onChange={(e) => setScope({ ...scope, milestone: e.target.value })}>
+                <option value="">すべて</option>
+                {(project.milestones ?? []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+                {scope.milestone !== "" && !(project.milestones ?? []).some((m) => m.id === scope.milestone) && <option value={scope.milestone}>{scope.milestone}</option>}
+              </select>
+            </label>
+          )}
           <span className="filter-bar__label">ラベル</span>
           <label className="filter-bar__check">
             <input type="checkbox" checked={scope.labels.length === 0} onChange={() => setScope({ ...scope, labels: [] })} />
@@ -371,7 +393,7 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
         )}
 
         <div className="form-actions">
-          <button type="submit" className="button--primary">
+          <button type="submit" className="button--primary" disabled={!canInsertBlock(kind, columns.size)}>
             {initial ? "本文に反映" : "本文に挿入"}
           </button>
           <button type="button" onClick={cancel}>

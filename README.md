@@ -4,17 +4,22 @@ Request Tracker is a portable Windows desktop app that a small team uses to file
 
 ## Features
 
-- Parent and child issues with a status, a priority, a category, labels, an assignee and dates
+- Issues in a tree up to five levels deep, each with a status, a priority, a category, labels and an assignee
+- Dates, a milestone, and planned and actual hours on each issue
 - Links between issues, each with a link type
 - Custom columns per project
-- Issue list with filters, saved filters, bulk edit and CSV export
+- Issue list as a collapsible tree, with filters, saved filters, bulk edit, and CSV export and import
 - Kanban board and Gantt chart, with drag-and-drop for cards and bars
+- Milestones, with a burndown chart and an .ics export of their due dates
+- Notifications of changes that other people make to open issues you reported, are assigned to or watch
+- A list of recent updates across the project
 - Comments, attachments as files or whole folders, and an edit history from which you can restore earlier versions
 - Markdown wiki pages arranged in a tree, with `[[タイトル]]` links and a diff between versions
 - Search across issues, comments and wiki pages
-- Monthly issue counts
+- Monthly issue counts and totals of planned and actual hours
 - Reports for people outside the team, exported as HTML or Markdown
-- Categories, status stages, labels, members and templates defined per project
+- Categories, status stages, labels, milestones, members and templates defined per project
+- Export and import of these project settings
 
 ## Install
 
@@ -32,7 +37,8 @@ The shared folder is the database: one JSON file per issue, comment, wiki page a
 - Before it overwrites an issue, a wiki page, a report or `project.json`, the app copies the previous version to `history/`. Deleting a record moves its file to `trash/`.
 - If someone else changed an issue or a wiki page after you opened it, the app rejects your save and offers to reload it.
 - Issue keys take the form `YY-NNNN`, where `YY` is the fiscal year and `NNNN` is a sequence number. The app claims each key by creating its file in exclusive mode, so two instances of the app that create an issue at the same moment get different keys.
-- The app reads the shared folder when a screen opens, after each save and when you press 更新 (refresh). It does not watch the folder between these reads.
+- The app stores the keys of the issues each member watches in `watch/<member id>.json`.
+- The app reads the shared folder when a screen opens, after each save and when you press 更新 (refresh). It does not monitor the folder between these reads.
 
 ## Development
 

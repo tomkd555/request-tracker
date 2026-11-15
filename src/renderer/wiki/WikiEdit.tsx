@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fiscalYearOf, fiscalYy } from "../../shared/fiscalYear";
 import type { WikiPage } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
@@ -6,8 +6,8 @@ import { useSession } from "../app/UserContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { MarkdownEditor } from "../issues/FieldEditor";
 import { useWiki } from "./useWiki";
-import { descendantIdsOf, flattenTree, normalizeTitle } from "./wikiTree";
-import { errorMessage, M } from "../messages";
+import { descendantIdsOf, flattenTree, hasDuplicateTitle } from "./wikiTree";
+import { errorMessage, isStale, M } from "../messages";
 
 interface Props {
   id: string | null;
@@ -29,15 +29,19 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [refill, setRefill] = useState(0);
+  const baseUpdatedAt = useRef<string | null>(null); // the stamp the draft was filled from; a re-read of the list mid-edit must not move it
 
-  // On a reload at #/wiki/<id>/edit the page arrives after the first render; take its content then.
+  // On a reload at #/wiki/<id>/edit the page arrives after the first render; take its content then. 再読み込み takes it again.
   useEffect(() => {
     if (existing) {
       setTitle(existing.title);
       setBody(existing.body);
       setParentId(existing.parentId);
+      baseUpdatedAt.current = existing.updatedAt;
     }
-  }, [existing?.id]);
+  }, [existing?.id, refill]);
 
   const dirty = existing ? title !== existing.title || body !== existing.body || parentId !== existing.parentId : title !== presetTitle || body !== "";
   useNavigationGuard(dirty && !busy);
@@ -48,18 +52,31 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
   const excluded = id !== null ? descendantIdsOf(pages, id) : new Set<string>();
   const parentOptions = flattenTree(pages).filter((r) => !excluded.has(r.page.id));
   const titleMissing = title.trim() === "";
-  const duplicate = pages.some((p) => p.id !== id && p.parentId === parentId && normalizeTitle(p.title) === normalizeTitle(title));
+  const duplicate = hasDuplicateTitle(pages, id, title);
+
+  const reloadDraft = async (): Promise<void> => {
+    if (id === null || !window.confirm(M.confirmDiscard)) return;
+    setError(null);
+    setStale(false);
+    try {
+      await refreshOne(id);
+      setRefill((n) => n + 1);
+    } catch (e) {
+      setError(errorMessage(e, "wiki"));
+    }
+  };
 
   const save = async (): Promise<void> => {
     setSubmitted(true);
     setError(null);
+    setStale(false);
     if (titleMissing || duplicate) return;
     setBusy(true);
     const now = new Date().toISOString();
     try {
       if (existing) {
         const page: WikiPage = { ...existing, title: title.trim(), body, parentId, note: note.trim(), updatedAt: now, updatedBy: me.username };
-        await window.api.wiki.put(page, existing.updatedAt);
+        await window.api.wiki.put(page, baseUpdatedAt.current ?? existing.updatedAt);
         await refreshOne(page.id);
         navigate(`/wiki/${page.id}`);
       } else {
@@ -69,6 +86,7 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
       }
     } catch (e) {
       setError(errorMessage(e, "wiki"));
+      setStale(isStale(e));
       setBusy(false);
     }
   };
@@ -117,7 +135,19 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
         変更内容
         <input className="issue-form__control" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
       </label>
-      {error && <p className="text--error">{error}</p>}
+      {error && (
+        <p className="text--error">
+          {error}
+          {stale && (
+            <>
+              {" "}
+              <button type="button" className="button--link" onClick={() => void reloadDraft()}>
+                再読み込み
+              </button>
+            </>
+          )}
+        </p>
+      )}
       <div className="form-actions">
         <button type="submit" className="button--primary" disabled={busy}>
           保存

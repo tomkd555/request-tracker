@@ -6,7 +6,7 @@ import type { Layout } from "./paths";
 
 /** One directory per issue key; one append-only file per comment, so two users never overwrite each other. */
 export const commentsCollection = (l: Layout, key: string): Collection<Comment> =>
-  collection<Comment>({ dir: l.comments(key), guard: isComment });
+  collection<Comment>({ dir: l.comments(key), guard: isComment, idOf: (c) => c.id });
 
 export const commentId = (createdAt: string, author: string): string => `${fileStamp(createdAt)}-${author}`;
 

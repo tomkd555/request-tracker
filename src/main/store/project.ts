@@ -5,10 +5,12 @@ import {
   DEFAULT_STATUSES,
   HEX_COLOR,
   isProject,
+  isYmd,
   STATUS_KINDS,
   type CategoryTemplate,
   type CustomField,
   type Label,
+  type Milestone,
   type Project,
   type StatusDef,
 } from "../../shared/types";
@@ -54,6 +56,8 @@ export async function readProject(l: Layout): Promise<Project | null> {
     categories: p.categories ?? DEFAULT_CATEGORIES,
     categoryTemplates: p.categoryTemplates ?? {},
     fields: p.fields ?? [],
+    // A date edited by hand into another form reads as no date, the form putMilestones would refuse; the .ics export and the burndown read these dates.
+    milestones: (p.milestones ?? []).map((m) => ({ ...m, startDate: isYmd(m.startDate) ? m.startDate : null, dueDate: isYmd(m.dueDate) ? m.dueDate : null })),
   };
 }
 
@@ -70,6 +74,7 @@ export async function initProject(l: Layout, fiscalYearStartMonth: number): Prom
     fields: [],
     labels: [],
     statuses: DEFAULT_STATUSES,
+    milestones: [],
   };
   for (const dir of collectionDirs(l)) await mkdirp(dir);
   await fsp.writeFile(l.projectFile, serialize(project), { encoding: "utf8", flag: "wx" }); // exclusive: a file that appeared meanwhile stays
@@ -89,19 +94,20 @@ export async function putCategories(
   if (current === null) throw new Error("project.json is missing");
   const cleaned = [...new Set(categories.map((c) => c.trim()).filter((c) => c !== ""))];
   if (cleaned.length === 0) throw new Error("categories must not be empty");
-  const colors: Record<string, string> = {};
+  // Built from entries: an assignment to a 種別 named `__proto__` would set the prototype and store nothing.
+  const colors: [string, string][] = [];
   for (const name of cleaned) {
+    if (!Object.hasOwn(categoryColors, name)) continue;
     const color = categoryColors[name];
-    if (color === undefined) continue;
     if (!HEX_COLOR.test(color)) throw new Error(`colour must be #rrggbb: ${color}`);
-    colors[name] = color.toLowerCase();
+    colors.push([name, color.toLowerCase()]);
   }
-  const templates: Record<string, CategoryTemplate> = {};
+  const templates: [string, CategoryTemplate][] = [];
   for (const name of cleaned) {
-    const t = categoryTemplates[name];
-    if (t !== undefined && (t.summary.trim() !== "" || t.body.trim() !== "")) templates[name] = { summary: t.summary, body: t.body };
+    const t = Object.hasOwn(categoryTemplates, name) ? categoryTemplates[name] : undefined;
+    if (t !== undefined && (t.summary.trim() !== "" || t.body.trim() !== "")) templates.push([name, { summary: t.summary, body: t.body }]);
   }
-  return writeProject(l, { ...current, categories: cleaned, categoryColors: colors, categoryTemplates: templates });
+  return writeProject(l, { ...current, categories: cleaned, categoryColors: Object.fromEntries(colors), categoryTemplates: Object.fromEntries(templates) });
 }
 
 /** Replaces the 汎用列 definitions only: a row with an empty name is dropped, a repeated id keeps its first row, options are trimmed and deduplicated. */
@@ -155,8 +161,28 @@ export async function putStatuses(l: Layout, statuses: StatusDef[]): Promise<Pro
   return writeProject(l, { ...current, statuses: cleaned });
 }
 
+// ponytail: removing a milestone leaves its id on existing issues, which the screens read as no milestone; a sweep over issues/ if orphans become a nuisance.
+/** Replaces the マイルストーン list only: a row with an empty name or id is dropped, a repeated id keeps its first row, a date must be YYYY-MM-DD and the due date may not precede the start date. */
+export async function putMilestones(l: Layout, milestones: Milestone[]): Promise<Project> {
+  const current = await readProject(l);
+  if (current === null) throw new Error("project.json is missing");
+  const seen = new Set<string>();
+  const cleaned: Milestone[] = [];
+  for (const m of milestones) {
+    if (typeof m !== "object" || m === null || typeof m.name !== "string" || typeof m.id !== "string") throw new Error("invalid record");
+    const name = m.name.trim();
+    if (name === "" || m.id === "" || seen.has(m.id)) continue;
+    for (const d of [m.startDate, m.dueDate]) if (d !== null && !isYmd(d)) throw new Error(`milestone date must be YYYY-MM-DD: ${String(d)}`);
+    if (m.startDate !== null && m.dueDate !== null && m.dueDate < m.startDate) throw new Error(`milestone due date is before the start date: ${name}`);
+    seen.add(m.id);
+    cleaned.push({ id: m.id, name, startDate: m.startDate, dueDate: m.dueDate, closed: m.closed });
+  }
+  return writeProject(l, { ...current, milestones: cleaned });
+}
+
 /** The previous file goes to history/project/ before the atomic overwrite. */
 async function writeProject(l: Layout, project: Project): Promise<Project> {
+  if (!isProject(project)) throw new Error("invalid record"); // readProject would reject the file this writes
   await mkdirp(l.historyProject);
   await fsp.copyFile(l.projectFile, join(l.historyProject, `${fileStamp(new Date().toISOString())}.json`));
   await writeAtomic(l.projectFile, serialize(project));

@@ -27,6 +27,8 @@ export type CollectionOptions<T> = {
   trashDir?: string;
   /** ISO timestamp that names the history copy of a record; default: updatedAt, then createdAt. */
   stampOf?: (record: T) => string;
+  /** The id a record is stored under; `list` skips a file whose name differs, such as a sync conflict copy `26-0005 (1).json`. */
+  idOf?: (record: T) => string;
 };
 
 /** fs.mkdir with recursive: true never returns when a folder refuses new entries with ENOENT (seen on a cloud-synced folder), so parents are created one level at a time and the refusal surfaces as an error. */
@@ -47,10 +49,12 @@ export async function mkdirp(dir: string): Promise<void> {
 
 // Any name Windows accepts: no path separators, no drive or wildcard characters, no control characters. A login with a space or Japanese is a user id.
 const ID = /^[^\\/:*?"<>|\x00-\x1f]{1,64}$/;
+// Windows opens these names as devices, with or without an extension, and drops a trailing dot or space from a file name.
+const DEVICE_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
 /** Record ids and attachment names come from files other people wrote; they never carry path separators. */
 export function assertId(id: string): string {
-  if (!ID.test(id) || id === "." || id === "..") throw new Error(`invalid id: ${id}`);
+  if (!ID.test(id) || id === "." || id === ".." || DEVICE_NAME.test(id) || /[. ]$/.test(id)) throw new Error(`invalid id: ${id}`);
   return id;
 }
 
@@ -75,7 +79,7 @@ export async function readRecord<T>(path: string, guard: (v: unknown) => v is T)
   return null;
 }
 
-export async function readDir<T>(dir: string, guard: (v: unknown) => v is T): Promise<T[]> {
+export async function readDir<T>(dir: string, guard: (v: unknown) => v is T, idOf?: (record: T) => string): Promise<T[]> {
   let names: string[];
   try {
     names = await fsp.readdir(dir);
@@ -84,7 +88,15 @@ export async function readDir<T>(dir: string, guard: (v: unknown) => v is T): Pr
     throw e;
   }
   const files = names.filter((n) => n.endsWith(".json") && !n.startsWith(".")).sort();
-  const records = await mapLimit(files, (name) => readRecord(join(dir, name), guard));
+  const records = await mapLimit(files, async (name) => {
+    const record = await readRecord(join(dir, name), guard);
+    // Compared as Windows compares file names: a login stored in another letter case is the same member, and a conflict copy still differs.
+    if (record !== null && idOf !== undefined && idOf(record).toLowerCase() !== name.slice(0, -".json".length).toLowerCase()) {
+      console.error(`store: file name differs from the record id, skipped: ${join(dir, name)}`);
+      return null;
+    }
+    return record;
+  });
   return records.filter((r): r is T => r !== null);
 }
 
@@ -152,7 +164,7 @@ export const forgetListing = (dir: string): void => {
 
 /** One stat per call while nothing changed; a full read otherwise. The age bound covers a share that reports directory mtimes late. */
 // ponytail: a file system with coarse mtimes (2 s on exFAT) can hide another client's write for that long; lower LIST_TTL_MS if it bites
-export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is T): Promise<T[]> {
+export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is T, idOf?: (record: T) => string): Promise<T[]> {
   const sig = await dirSig(dir);
   const now = Date.now();
   const hit = listings.get(dir);
@@ -160,7 +172,7 @@ export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is 
   for (const [d, v] of listings) if (now - v.at >= LIST_TTL_MS) listings.delete(d); // expired listings go, so the map holds the directories in use alone
   let p = pending.get(dir);
   if (p === undefined) {
-    const read: Promise<unknown[]> = readDir(dir, guard).then(
+    const read: Promise<unknown[]> = readDir(dir, guard, idOf).then(
       (records) => {
         if (pending.get(dir) === read) {
           listings.set(dir, { sig, at: now, records });
@@ -180,8 +192,13 @@ export async function readDirCached<T>(dir: string, guard: (v: unknown) => v is 
 }
 
 export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
-  const { dir, guard, historyDir, trashDir } = opts;
+  const { dir, guard, historyDir, trashDir, idOf } = opts;
   const stampOf = opts.stampOf ?? defaultStamp;
+
+  /** A writer never produces a file that every reader rejects. */
+  function assertValid(record: T): void {
+    if (!guard(record)) throw new Error("invalid record");
+  }
 
   async function archive(id: string): Promise<void> {
     if (!historyDir) return;
@@ -189,18 +206,26 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
     if (current === null) return;
     const dest = join(historyDir, id);
     await mkdirp(dest);
-    await fsp.copyFile(file(dir, id), join(dest, `${fileStamp(stampOf(current))}.json`));
+    let stamp: string;
+    try {
+      stamp = fileStamp(stampOf(current));
+    } catch {
+      stamp = fileStamp((current as { createdAt: string }).createdAt); // an updatedAt that does not parse must not block the save
+    }
+    await fsp.copyFile(file(dir, id), join(dest, `${stamp}.json`));
   }
 
   return {
-    list: () => readDirCached(dir, guard),
+    list: () => readDirCached(dir, guard, idOf),
     get: (id) => readRecord(file(dir, id), guard),
     async create(id, record) {
+      assertValid(record);
       await mkdirp(dir);
       await fsp.writeFile(file(dir, id), serialize(record), { encoding: "utf8", flag: "wx" });
       forgetListing(dir);
     },
     async put(id, record, expectedUpdatedAt) {
+      assertValid(record);
       // ponytail: check-then-write leaves a window between this read and the rename; a lock file per record if two clients start colliding in practice
       if (expectedUpdatedAt !== undefined) {
         const current = await readRecord(file(dir, id), guard);
@@ -225,7 +250,7 @@ export function collection<T>(opts: CollectionOptions<T>): Collection<T> {
     },
     async history(id) {
       if (!historyDir) return [];
-      return readDir(join(historyDir, id), guard);
+      return readDir(join(historyDir, assertId(id)), guard);
     },
   };
 }

@@ -22,7 +22,7 @@ const TABLE = "| 項目 | 内容 |\n| --- | --- |\n|  |  |\n";
 /** Expands the selection to whole lines and prefixes each one. */
 function prefixLines(sel: Selection, prefix: (lineIndex: number) => string): Selection {
   const { text } = sel;
-  const from = text.lastIndexOf("\n", sel.start - 1) + 1;
+  const from = sel.start === 0 ? 0 : text.lastIndexOf("\n", sel.start - 1) + 1;
   const toBreak = text.indexOf("\n", sel.end);
   const to = toBreak === -1 ? text.length : toBreak;
   const lines = text.slice(from, to).split("\n");

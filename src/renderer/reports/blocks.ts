@@ -2,6 +2,7 @@
 // exporters read one definition.
 import type { DueFilter, Issue, IssueFilter, Project, Report, User } from "../../shared/types";
 import { shiftMonth } from "../gantt/layoutGantt";
+import { compareKeys } from "../issues/compareKeys";
 import { monthOf } from "../issues/countByMonth";
 import { filterIssues } from "../issues/filterIssues";
 import { FIXED_SORT_KEYS, type SortKey } from "../issues/sortIssues";
@@ -31,6 +32,8 @@ export interface BlockScope {
   /** A username. */
   assignee?: string;
   category?: string;
+  /** A Milestone.id. */
+  milestone?: string;
   /** Any of these ラベル names. */
   labels?: string[];
   due?: DueFilter;
@@ -128,6 +131,7 @@ function isScope(v: Record<string, unknown>): boolean {
     optStrArray(v.statuses) &&
     optStr(v.assignee) &&
     optStr(v.category) &&
+    optStr(v.milestone) &&
     optStrArray(v.labels) &&
     optOneOf(v.due, DUE_FILTERS) &&
     optStr(v.keyword) &&
@@ -230,6 +234,7 @@ export function scopeIssues(issues: Issue[], scope: BlockScope, ctx: ReportConte
     awaitingConfirmation: false,
     labels: scope.labels ?? [],
     fields: {},
+    milestone: scope.milestone ?? null,
   };
   const keys = scope.keys === undefined ? null : new Set(scope.keys);
   const createdIn = scope.createdIn === undefined ? null : resolveMonth(scope.createdIn, ctx.today);
@@ -246,7 +251,7 @@ export function reportIssues(body: string, ctx: ReportContext): Issue[] {
     if (seg.kind !== "block" || seg.block.kind === "summary") continue;
     for (const i of scopeIssues(ctx.issues, seg.block, ctx)) seen.set(i.key, i);
   }
-  return [...seen.values()].sort((a, b) => a.key.localeCompare(b.key));
+  return [...seen.values()].sort((a, b) => compareKeys(a.key, b.key));
 }
 
 /** `{{today}}`, `{{month}}`, `{{prevMonth}}` and `{{me}}` in the Markdown, replaced when the report renders. */
@@ -266,6 +271,6 @@ export const EMPTY_ROWS = "該当する課題なし";
 
 /** The word the report uses for a name the screens show (Report.terms), or the name itself. */
 export const termOf = (terms: Record<string, string>, name: string): string => {
-  const t = terms[name];
+  const t = Object.hasOwn(terms, name) ? terms[name] : undefined;
   return t === undefined || t === "" ? name : t;
 };

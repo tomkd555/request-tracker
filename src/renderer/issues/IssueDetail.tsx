@@ -1,32 +1,44 @@
 import { useEffect, useRef, useState } from "react";
-import { ancestorsOf, depthOf, descendantKeysOf, heightOf, MAX_DEPTH } from "../../shared/issueTree";
+import { ancestorsOf, depthOf, descendantCounts, descendantKeysOf, heightOf, MAX_DEPTH } from "../../shared/issueTree";
 import { ISSUE_PRIORITIES, RELATION_TYPES, type Issue, type RelationType } from "../../shared/types";
+import { useChoiceDialog } from "../app/ChoiceDialog";
 import { Markdown } from "../app/Markdown";
 import { categoryOptions, displayNameOf, useSession, withCurrent } from "../app/UserContext";
 import { navigate } from "../app/useHashRoute";
 import { AssigneeSelect } from "./AssigneeSelect";
 import { Attachments } from "./Attachments";
+import { useCollapsed } from "./collapsed";
 import { Comments } from "./Comments";
-import { today } from "./dates";
+import { dateRefusal, today } from "./dates";
 import { dueTone } from "./dueTone";
-import { DateField, MarkdownField, SelectField, TextField } from "./FieldEditor";
+import { DateField, HoursField, MarkdownField, SelectField, TextField } from "./FieldEditor";
+import { treeRows } from "./groupByParent";
 import { HistoryList } from "./HistoryList";
-import { firstOfKind, formatDateTime, INVERSE_LABEL, PRIORITY_LABEL, RELATION_LABEL, statusKind, statusName, statusStyle } from "./labels";
+import { formatHours, subtreeHours } from "./hours";
+import { firstOfKind, formatDateTime, INVERSE_LABEL, isDoneStatus, PRIORITY_LABEL, RELATION_LABEL, statusKind, statusName, statusStyle } from "./labels";
 import { LabelPicker } from "./LabelPicker";
+import { milestoneName, selectableMilestones } from "./milestones";
 import { ParentField } from "./ParentField";
+import { applyWrites, completionWrites, openDescendants, type ParentAnswer } from "./parentOps";
+import { compareKeys } from "./compareKeys";
 import { addRelation, relatedIssues, relationRows } from "./relatedIssues";
+import { restorePatch } from "./restoreIssue";
 import { markSeen } from "./seen";
+import { ProgressCount, TreeKeyCell } from "./TreeCells";
 import { useIssues } from "./useIssues";
 import { errorMessage, M } from "../messages";
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
   const { me, users, project, config } = useSession();
-  const { byKey, loaded, refreshOne } = useIssues();
+  const { byKey, loaded, refreshOne, watched, setWatched } = useIssues();
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [newRelationType, setNewRelationType] = useState<RelationType>("relates");
   const [newRelationKey, setNewRelationKey] = useState<string | null>(null);
   const [newRelationInvalid, setNewRelationInvalid] = useState(false);
+  const [collapsed, toggleCollapsed] = useCollapsed();
+  const { ask, dialog } = useChoiceDialog();
   const issue = byKey.get(issueKey);
   // The record the next save builds on: the last one written here, until the store hands back a newer one.
   const latest = useRef<Issue | undefined>(issue);
@@ -39,15 +51,18 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const all = [...byKey.values()];
   const ancestors = ancestorsOf(byKey, issue.key);
   const depth = ancestors.length + 1;
-  const children = all.filter((i) => i.parentKey === issue.key).sort((a, b) => (a.key < b.key ? -1 : 1));
+  const children = all.filter((i) => i.parentKey === issue.key).sort((a, b) => compareKeys(a.key, b.key));
   const related = relatedIssues(issue, byKey);
   const underThis = descendantKeysOf(all, issue.key);
+  // Everything under this issue, each level indented, with the fold the list and the Gantt chart share.
+  const subtree = treeRows(all.filter((i) => i.key !== issue.key && underThis.has(i.key)), (a, b) => compareKeys(a.key, b.key), collapsed);
+  const counts = descendantCounts(all, (i) => isDoneStatus(project.statuses, i.status));
   const height = heightOf(all, issue.key);
-  const parentCandidates = all.filter((i) => !underThis.has(i.key) && depthOf(byKey, i.key) + height <= MAX_DEPTH).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const parentCandidates = all.filter((i) => !underThis.has(i.key) && depthOf(byKey, i.key) + height <= MAX_DEPTH).sort((a, b) => compareKeys(b.key, a.key));
   const rows = relationRows(issue, byKey);
   const shownKeys = new Set(rows.map((r) => r.key));
   const mentionRows = related.filter((r) => !shownKeys.has(r.key));
-  const relationCandidates = [...byKey.values()].filter((i) => i.key !== issue.key).sort((a, b) => (a.key < b.key ? 1 : -1));
+  const relationCandidates = [...byKey.values()].filter((i) => i.key !== issue.key).sort((a, b) => compareKeys(b.key, a.key));
   const relationBlocked = newRelationKey === null || newRelationInvalid;
 
   const put = async (patch: Partial<Issue>): Promise<void> => {
@@ -58,17 +73,37 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     await refreshOne(issue.key);
     setVersion((v) => v + 1);
   };
-  const save = async (patch: Partial<Issue>): Promise<void> => {
+  /** False when the write failed; the reason shows above the fields. */
+  const save = async (patch: Partial<Issue>): Promise<boolean> => {
     setError(null);
+    setNotice(null);
     try {
       await put(patch);
+      return true;
     } catch (e) {
       setError(errorMessage(e));
+      return false;
     }
+  };
+  const saveDates = async (patch: { startDate?: string | null; dueDate?: string | null }): Promise<void> => {
+    const refusal = dateRefusal(latest.current ?? issue, patch);
+    if (refusal !== null) {
+      setError(refusal);
+      return;
+    }
+    await save(patch);
   };
   const reload = (): void => {
     setError(null);
     void refreshOne(issue.key);
+  };
+  const toggleWatch = async (): Promise<void> => {
+    setError(null);
+    try {
+      setWatched(await window.api.watch.set(issue.key, !watched.has(issue.key)));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
   };
   const addNewRelation = (): void => {
     if (relationBlocked || newRelationKey === null) return;
@@ -80,12 +115,38 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   };
 
   const { statuses } = project;
+  const milestones = project.milestones ?? [];
+  const totals = underThis.size > 1 ? subtreeHours(all, issue.key) : null;
   const pill = (status: string): React.JSX.Element => (
     <span className="pill" style={statusStyle(statuses, status)}>
       {statusName(statuses, status)}
     </span>
   );
   const doneStage = firstOfKind(statuses, "done");
+  /** Sets the stage; a done stage on an issue with open descendants asks first, and 配下も完了にする saves them with it. */
+  const saveStatus = async (status: string): Promise<boolean> => {
+    const open = isDoneStatus(statuses, status) ? openDescendants(all, issue.key, statuses).length : 0;
+    if (open === 0) return save({ status });
+    const answer: ParentAnswer = await ask(M.openDescendants(open), "配下も完了にする");
+    if (answer === "cancel") return false;
+    if (answer === "only") return save({ status });
+    setError(null);
+    setNotice(null);
+    const base = latest.current ?? issue;
+    const writes = completionWrites(all, base, status, "all", statuses, { updatedAt: new Date().toISOString(), updatedBy: me.username });
+    try {
+      await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => {
+        if (next.key === issue.key) latest.current = next;
+      });
+      return true;
+    } catch (e) {
+      setError(errorMessage(e));
+      return false;
+    } finally {
+      for (const w of writes) await refreshOne(w.next.key);
+      setVersion((v) => v + 1);
+    }
+  };
   const tone = dueTone(issue, today(), config.dueSoonDays, statuses);
 
   const remove = async (): Promise<void> => {
@@ -123,10 +184,13 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
         </nav>
         <div className="issue-detail__actions">
           {statusKind(statuses, issue.status) === "review" && issue.reporter === me.username && doneStage !== undefined && (
-            <button type="button" className="button--primary" onClick={() => void save({ status: doneStage.id })}>
+            <button type="button" className="button--primary" onClick={() => void saveStatus(doneStage.id)}>
               確認して完了にする
             </button>
           )}
+          <button type="button" aria-pressed={watched.has(issue.key)} onClick={() => void toggleWatch()}>
+            {watched.has(issue.key) ? "ウォッチ中" : "ウォッチする"}
+          </button>
           <a className="link-button" href={`#/issues/new?copy=${issue.key}`}>
             複製
           </a>
@@ -135,7 +199,8 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           </button>
         </div>
       </div>
-      <TextField className="issue-detail__summary-input" value={issue.summary} onSave={(summary) => save({ summary })} required />
+      {dialog}
+      <TextField className="issue-detail__summary-input" ariaLabel="件名" value={issue.summary} onSave={(summary) => save({ summary })} required />
       {error && (
         <p className="text--error">
           {error}{" "}
@@ -144,13 +209,17 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           </button>
         </p>
       )}
+      {notice && <p className="text--muted">{notice}</p>}
       <div className="issue-detail__body">
         <div className="issue-detail__main">
           <MarkdownField title="詳細" value={issue.description} onSave={(description) => save({ description })} preview={(v) => <Markdown source={v} />} />
           {(children.length > 0 || depth < MAX_DEPTH) && (
             <section>
               <div className="section-head">
-                <h2>子課題</h2>
+                <h2>
+                  子課題
+                  <ProgressCount count={counts.get(issue.key)} />
+                </h2>
                 {depth < MAX_DEPTH && (
                   <a className="button--quiet" href={`#/issues/new?parent=${issue.key}`}>
                     子課題を追加
@@ -160,7 +229,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               {children.length === 0 ? (
                 <p className="text--muted">{M.noChildIssues}</p>
               ) : (
-                <table className="issue-table">
+                <table className="issue-table issue-table--tree">
                   <thead>
                     <tr>
                       <th className="issue-table__header">キー</th>
@@ -171,17 +240,29 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
                     </tr>
                   </thead>
                   <tbody>
-                    {children.map((c) => (
-                      <tr key={c.key} className="issue-table__row" onClick={() => navigate(`/issues/${c.key}`)}>
-                        <td className="issue-table__cell issue-table__cell--key">{c.key}</td>
-                        <td className="issue-table__cell">{c.summary}</td>
+                    {subtree.map((row) => {
+                      const c = row.issue;
+                      return (
+                      <tr key={c.key} className={`issue-table__row${row.depth > 0 ? " issue-table__row--child" : ""}`} onClick={() => navigate(`/issues/${c.key}`)}>
+                        <TreeKeyCell row={row} onToggle={toggleCollapsed}>
+                          {c.key}
+                        </TreeKeyCell>
+                        <td className="issue-table__cell issue-table__cell--summary">
+                          <div className="issue-table__summary">
+                            <span className="issue-table__summary-text" title={c.summary}>
+                              {c.summary}
+                            </span>
+                            <ProgressCount count={counts.get(c.key)} />
+                          </div>
+                        </td>
                         <td className="issue-table__cell">
                           {pill(c.status)}
                         </td>
                         <td className="issue-table__cell">{displayNameOf(users, c.assignee)}</td>
                         <td className="issue-table__cell">{c.dueDate ?? ""}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -237,26 +318,18 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
             </div>
           </section>
           <Attachments owner={{ kind: "issue", id: issue.key }} />
-          <Comments issue={issue} version={version} onStatus={(status) => put({ status })} />
+          <Comments issue={issue} version={version} onStatus={saveStatus} />
           <section>
             <h2>履歴</h2>
             <HistoryList
               issueKey={issue.key}
               version={version}
-              onRestore={(old) =>
-                save({
-                  summary: old.summary,
-                  description: old.description,
-                  category: old.category,
-                  labels: old.labels,
-                  status: old.status,
-                  priority: old.priority,
-                  assignee: old.assignee,
-                  startDate: old.startDate,
-                  dueDate: old.dueDate,
-                  fields: old.fields,
-                })
-              }
+              onRestore={(old) => {
+                const { patch, parentKept } = restorePatch(latest.current ?? issue, old, all);
+                void save(patch).then((ok) => {
+                  if (ok && parentKept) setNotice(M.parentKept);
+                });
+              }}
             />
           </section>
         </div>
@@ -269,7 +342,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
               ariaLabel="状態"
               value={issue.status}
               options={statuses.map((s) => ({ value: s.id, label: s.name }))}
-              onSave={(status) => save({ status })}
+              onSave={(status) => saveStatus(status)}
             />
           </div>
           <div className="issue-detail__prop">
@@ -314,20 +387,54 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
           </div>
           <div className="issue-detail__prop">
             <span className="issue-detail__term">開始日</span>
-            <DateField className="issue-detail__control" ariaLabel="開始日" value={issue.startDate} onSave={(startDate) => save({ startDate })} />
+            <DateField className="issue-detail__control" ariaLabel="開始日" value={issue.startDate} onSave={(startDate) => saveDates({ startDate })} />
           </div>
           <div className={`issue-detail__prop${tone === "none" ? "" : ` issue-detail__prop--${tone}`}`}>
             <span className="issue-detail__term">期限日</span>
-            <DateField className="issue-detail__control" ariaLabel="期限日" value={issue.dueDate} onSave={(dueDate) => save({ dueDate })} />
+            <DateField className="issue-detail__control" ariaLabel="期限日" value={issue.dueDate} onSave={(dueDate) => saveDates({ dueDate })} />
           </div>
+          {milestones.length > 0 && (
+            <div className="issue-detail__prop">
+              <span className="issue-detail__term">マイルストーン</span>
+              <SelectField
+                className="issue-detail__control"
+                ariaLabel="マイルストーン"
+                value={milestoneName(milestones, issue.milestone) === "" ? "" : (issue.milestone ?? "")}
+                options={[{ value: "", label: "未設定" }, ...selectableMilestones(milestones, issue.milestone).map((m) => ({ value: m.id, label: m.name }))]}
+                onSave={(milestone) => save({ milestone: milestone === "" ? null : milestone })}
+              />
+            </div>
+          )}
+          <div className="issue-detail__prop">
+            <span className="issue-detail__term">予定時間</span>
+            <div className="issue-detail__hours">
+              <HoursField className="issue-detail__control" ariaLabel="予定時間" value={issue.estimatedHours} onSave={(estimatedHours) => void save({ estimatedHours })} onRefuse={() => setError(M.hoursInvalid)} />
+              <span className="text--muted">時間</span>
+            </div>
+          </div>
+          <div className="issue-detail__prop">
+            <span className="issue-detail__term">実績時間</span>
+            <div className="issue-detail__hours">
+              <HoursField className="issue-detail__control" ariaLabel="実績時間" value={issue.actualHours} onSave={(actualHours) => void save({ actualHours })} onRefuse={() => setError(M.hoursInvalid)} />
+              <span className="text--muted">時間</span>
+            </div>
+          </div>
+          {totals !== null && (
+            <div className="issue-detail__prop">
+              <span className="issue-detail__term">配下を含む合計</span>
+              <span>
+                予定 {formatHours(totals.estimated)} 時間 / 実績 {formatHours(totals.actual)} 時間
+              </span>
+            </div>
+          )}
           {project.fields.map((f) => {
             const value = issue.fields[f.id] ?? "";
-            const saveField = (v: string): Promise<void> => save({ fields: { ...issue.fields, [f.id]: v } });
+            const saveField = (v: string): Promise<boolean> => save({ fields: { ...issue.fields, [f.id]: v } });
             return (
               <div key={f.id} className="issue-detail__prop">
                 <span className="issue-detail__term">{f.name}</span>
                 {f.options.length === 0 ? (
-                  <TextField className="issue-detail__control" value={value} onSave={saveField} />
+                  <TextField className="issue-detail__control" ariaLabel={f.name} value={value} onSave={saveField} />
                 ) : (
                   <SelectField
                     className="issue-detail__control"

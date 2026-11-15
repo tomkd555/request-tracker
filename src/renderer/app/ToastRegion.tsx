@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { clearToast, useToast } from "./toast";
+import { clearToast, dropToastWhenOff, useToast } from "./toast";
 import { useSession } from "./UserContext";
 
 /** The CSS animation times the toast; this is the ceiling in case it never ends (animations disabled, or paused mid-exit). */
@@ -10,6 +10,7 @@ export function ToastRegion(): React.JSX.Element {
   const { config } = useSession();
   const toast = useToast();
   const id = config.notice === "off" ? undefined : toast?.id;
+  useEffect(() => dropToastWhenOff(config.notice), [config.notice, toast]);
   useEffect(() => {
     if (id === undefined) return;
     // The first click or key press after the message appeared removes it at once; the submit that raised it happened before.

@@ -1,12 +1,13 @@
 import type { Issue } from "../../shared/types";
 import { displayNameOf } from "../app/UserContext";
-import { formatDate, PRIORITY_LABEL, statusName } from "../issues/labels";
+import { formatTimestampDate, PRIORITY_LABEL, statusName } from "../issues/labels";
 import { issueComparator, type IssueSort } from "../issues/sortIssues";
 import { COLUMN_LABEL, DEFAULT_COLUMNS, dateLabel, EMPTY_ROWS, scopeIssues, termOf, type IssueColumn, type IssuesBlock, type IssuesGroupBy, type ReportContent, type ReportContext } from "./blocks";
 
 type Props = { block: IssuesBlock; report: ReportContent; ctx: ReportContext };
 
-export interface IssuesRow { key: string; values: string[] }
+/** `group` is the label of the group the row sits in, null when the block has no grouping. */
+export interface IssuesRow { key: string; group: string | null; values: string[] }
 const NOWRAP: ReadonlySet<IssueColumn> = new Set(["key", "status", "startDate", "dueDate", "updatedAt", "createdAt"]);
 const cellClass = (c: IssueColumn): string | undefined => (NOWRAP.has(c) ? "report-doc__nowrap" : undefined);
 export interface IssuesTableData { columns: IssueColumn[]; rows: IssuesRow[]; total: number }
@@ -39,9 +40,9 @@ function cellValue(col: IssueColumn, issue: Issue, report: ReportContent, ctx: R
     case "dueDate":
       return issue.dueDate === null ? "" : dateLabel(issue.dueDate);
     case "updatedAt":
-      return formatDate(issue.updatedAt);
+      return formatTimestampDate(issue.updatedAt);
     case "createdAt":
-      return formatDate(issue.createdAt);
+      return formatTimestampDate(issue.createdAt);
   }
 }
 
@@ -49,7 +50,7 @@ function cellValue(col: IssueColumn, issue: Issue, report: ReportContent, ctx: R
 function sortedRows(block: IssuesBlock, ctx: ReportContext): { rows: Issue[]; total: number } {
   const scoped = scopeIssues(ctx.issues, block, ctx);
   const sort: IssueSort = { key: block.sort ?? "key", dir: block.desc ? "desc" : "asc" };
-  const sorted = [...scoped].sort(issueComparator(sort, (u) => displayNameOf(ctx.users, u), ctx.project.statuses));
+  const sorted = [...scoped].sort(issueComparator(sort, (u) => displayNameOf(ctx.users, u), ctx.project.statuses, ctx.project.milestones));
   return { rows: block.limit === undefined ? sorted : sorted.slice(0, block.limit), total: sorted.length };
 }
 
@@ -60,7 +61,9 @@ export const cutLine = (shown: number, total: number): string | null => (shown <
 export function issuesTableRows(block: IssuesBlock, report: ReportContent, ctx: ReportContext): IssuesTableData {
   const columns = block.columns ?? DEFAULT_COLUMNS;
   const { rows, total } = sortedRows(block, ctx);
-  return { columns, rows: rows.map((issue) => ({ key: issue.key, values: columns.map((c) => cellValue(c, issue, report, ctx)) })), total };
+  const groups = groupRows(rows, block.groupBy ?? "none", report, ctx);
+  const grouped = groups.flatMap((g) => g.rows.map((issue) => ({ key: issue.key, group: g.label, values: columns.map((c) => cellValue(c, issue, report, ctx)) })));
+  return { columns, rows: grouped, total };
 }
 
 function groupLabelOf(groupBy: Exclude<IssuesGroupBy, "none">, issue: Issue, report: ReportContent, ctx: ReportContext): string {
@@ -75,15 +78,20 @@ function groupLabelOf(groupBy: Exclude<IssuesGroupBy, "none">, issue: Issue, rep
   return termOf(report.terms, raw);
 }
 
-function groupRows(issues: Issue[], groupBy: IssuesGroupBy, report: ReportContent, ctx: ReportContext): Group[] {
+/** Groups in label order; 状態 groups follow the stage order, as the summary tables do, and 未設定 comes last. */
+export function groupRows(issues: Issue[], groupBy: IssuesGroupBy, report: ReportContent, ctx: ReportContext): Group[] {
   if (groupBy === "none") return [{ label: null, rows: issues }];
   const map = new Map<string, Issue[]>();
+  const stage = new Map<string, number>();
   for (const issue of issues) {
     const label = groupLabelOf(groupBy, issue, report, ctx);
     map.set(label, [...(map.get(label) ?? []), issue]);
+    const at = ctx.project.statuses.findIndex((s) => s.id === issue.status);
+    stage.set(label, Math.min(stage.get(label) ?? Infinity, at === -1 ? ctx.project.statuses.length : at));
   }
   const unset = termOf(report.terms, "未設定");
-  const labels = [...map.keys()].sort((a, b) => (a === unset ? 1 : b === unset ? -1 : a.localeCompare(b, "ja")));
+  const byLabel = (a: string, b: string): number => (groupBy === "status" ? (stage.get(a) ?? 0) - (stage.get(b) ?? 0) : 0) || a.localeCompare(b, "ja");
+  const labels = [...map.keys()].sort((a, b) => (a === unset ? 1 : b === unset ? -1 : byLabel(a, b)));
   return labels.map((label) => ({ label, rows: map.get(label) ?? [] }));
 }
 

@@ -116,6 +116,17 @@
   font-weight: 600;
 }
 
+/* An ancestor listed only to place a filter match in its tree. */
+.gantt__cell--context,
+.gantt__cell--context .gantt__key {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.gantt__cell--context .pill {
+  opacity: 0.6;
+}
+
 .gantt__toggle {
   flex: 0 0 18px;
   width: 18px;

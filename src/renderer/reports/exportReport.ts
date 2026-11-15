@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { displayNameOf } from "../app/UserContext";
 import { COLUMN_LABEL, dateLabel, EMPTY_ROWS, expandVariables, monthLabel, parseBody, termOf, type ReportContent, type ReportContext } from "./blocks";
 import { ganttLayout } from "./GanttSvg";
-import { cutLine, issuesTableRows } from "./IssuesTable";
+import { cutLine, issuesTableRows, type IssuesRow } from "./IssuesTable";
 import { REPORT_CSS } from "./reportCss";
 import { ReportDocument } from "./ReportDocument";
 import { summaryData } from "./SummaryTables";
@@ -16,9 +16,26 @@ export function reportToHtml(report: ReportContent, ctx: ReportContext): string 
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>${REPORT_CSS}</style></head><body>${body}</body></html>`;
 }
 
-const mdCell = (s: string): string => s.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+/** A table cell that prints `s` as text: Markdown and HTML punctuation is escaped, a line break becomes a space. */
+export const mdCell = (s: string): string =>
+  s
+    .replace(/\r?\n/g, " ")
+    .replace(/[\\|*_`[\]<>]/g, "\\$&")
+    .replace(/^(\s*)#/, "$1\\#");
 const mdRow = (cells: string[]): string => `| ${cells.map(mdCell).join(" | ")} |`;
 const mdTable = (headers: string[], rows: string[][]): string => [mdRow(headers), mdRow(headers.map(() => "---")), ...rows.map(mdRow)].join("\n");
+
+/** The cell rows of a grouped block: a row holding only the label before the first row of each group. */
+export function withGroupRows(rows: IssuesRow[], columnCount: number): string[][] {
+  const out: string[][] = [];
+  let last: string | null = null;
+  for (const r of rows) {
+    if (r.group !== null && r.group !== last) out.push([r.group, ...Array<string>(columnCount - 1).fill("")]);
+    last = r.group;
+    out.push(r.values);
+  }
+  return out;
+}
 
 /** A GFM Markdown rendering of the same body: each block becomes a table (a picture has no Markdown form, so `::gantt` lists its rows); a line the author has yet to fix is left out. */
 export function reportToMarkdown(report: ReportContent, ctx: ReportContext): string {
@@ -30,7 +47,7 @@ export function reportToMarkdown(report: ReportContent, ctx: ReportContext): str
       if (rows.length === 0) return EMPTY_ROWS;
       const headers = columns.map((c) => termOf(report.terms, COLUMN_LABEL[c]));
       const cut = cutLine(rows.length, total);
-      return mdTable(headers, rows.map((r) => r.values)) + (cut === null ? "" : `\n\n${cut}`);
+      return mdTable(headers, withGroupRows(rows, columns.length)) + (cut === null ? "" : `\n\n${cut}`);
     }
     if (seg.block.kind === "summary") {
       const data = summaryData(seg.block, report, ctx);

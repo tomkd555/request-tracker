@@ -1,5 +1,7 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { linkProps } from "../app/anchorLink";
+import { codeLineFlags } from "../app/markdownCode";
 import { M } from "../messages";
 import { expandVariables, parseBody, type ReportContent, type ReportContext, type Segment } from "./blocks";
 import { GanttSvg } from "./GanttSvg";
@@ -11,7 +13,9 @@ const LEVELS: Level[] = [1, 2, 3, 4, 5, 6];
 
 /** The body's headings shift so its top level renders as h2 under the title, whether the author wrote `#` or `##`. */
 function headingComponents(shift: number): Components {
-  const out: Components = {};
+  const out: Components = {
+    a: ({ node: _node, href, ...props }) => <a href={href} {...linkProps(href)} {...props} />,
+  };
   for (const level of LEVELS) {
     const Tag = `h${Math.min(6, Math.max(2, level + shift))}` as "h2" | "h3" | "h4" | "h5" | "h6";
     out[`h${level}`] = ({ node: _node, ...props }) => <Tag {...props} />;
@@ -21,12 +25,15 @@ function headingComponents(shift: number): Components {
 
 const HEADING_LINE = /^ {0,3}(#{1,6})\s/;
 
-/** The smallest heading rank the Markdown runs use, or null with no heading at all. */
-function topLevel(segments: Segment[]): number | null {
+/** The smallest heading rank the Markdown runs use outside code, or null with no heading at all. */
+export function topLevel(segments: Segment[]): number | null {
   let min: number | null = null;
   for (const seg of segments) {
     if (seg.kind !== "markdown") continue;
-    for (const line of seg.text.split("\n")) {
+    const lines = seg.text.split("\n");
+    const code = codeLineFlags(lines);
+    for (const [i, line] of lines.entries()) {
+      if (code[i]) continue;
       const m = HEADING_LINE.exec(line);
       if (m && (min === null || m[1].length < min)) min = m[1].length;
     }

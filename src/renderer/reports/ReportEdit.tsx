@@ -5,7 +5,7 @@ import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { MarkdownEditor, type EditorTool } from "../issues/FieldEditor";
 import { today } from "../issues/dates";
 import { useIssues } from "../issues/useIssues";
-import { errorMessage, M } from "../messages";
+import { errorMessage, isStale, M } from "../messages";
 import { BLOCK_KINDS, BLOCK_LABEL, parseBlockLine, serializeBlock, type Block, type BlockKind, type ReportContext } from "./blocks";
 import { BlockDialog } from "./BlockDialog";
 import { REPORT_CSS } from "./reportCss";
@@ -44,8 +44,10 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const appliedSource = useRef(false);
   const baseUpdatedAt = useRef<string | null>(null); // the stamp the draft was seeded from; a reload mid-edit must not move it
+  const [stale, setStale] = useState(false);
+  const [refill, setRefill] = useState(0);
 
-  // On a reload at #/reports/<id>/edit the report arrives after the first render; take its content then.
+  // On a reload at #/reports/<id>/edit the report arrives after the first render; take its content then. 再読み込み takes it again.
   useEffect(() => {
     if (existing) {
       setTitle(existing.title);
@@ -55,7 +57,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       setIssueNotes(existing.issueNotes);
       baseUpdatedAt.current = existing.updatedAt;
     }
-  }, [existing?.id]);
+  }, [existing?.id, refill]);
 
   // #/reports/new?from=<id> (複製): the source report may still be loading when this screen first renders.
   useEffect(() => {
@@ -114,9 +116,22 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
     },
   }));
 
+  const reloadDraft = async (): Promise<void> => {
+    if (id === null || !window.confirm(M.confirmDiscard)) return;
+    setError(null);
+    setStale(false);
+    try {
+      await refreshOne(id);
+      setRefill((n) => n + 1);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
   const save = async (): Promise<void> => {
     setSubmitted(true);
     setError(null);
+    setStale(false);
     if (titleMissing) return;
     setBusy(true);
     const now = new Date().toISOString();
@@ -144,6 +159,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       }
     } catch (e) {
       setError(errorMessage(e));
+      setStale(isStale(e));
       setBusy(false);
     }
   };
@@ -201,7 +217,19 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
         ariaLabel="本文"
       />
       <WordingPanel draft={{ body, terms, issueNotes }} ctx={ctx} onChange={(next) => { setTerms(next.terms); setIssueNotes(next.issueNotes); }} />
-      {error && <p className="text--error">{error}</p>}
+      {error && (
+        <p className="text--error">
+          {error}
+          {stale && (
+            <>
+              {" "}
+              <button type="button" className="button--link" onClick={() => void reloadDraft()}>
+                再読み込み
+              </button>
+            </>
+          )}
+        </p>
+      )}
       <div className="form-actions">
         <button type="submit" className="button--primary" disabled={busy}>
           保存

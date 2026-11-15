@@ -14,6 +14,25 @@ export function childrenMap(issues: Issue[]): Map<string | null, Issue[]> {
   return out;
 }
 
+/** childrenMap for drawing a tree: an issue whose parent chain loops back to it (hand-edited data) counts under null, so a walk from the top level reaches every issue. */
+export function rootedChildrenMap(issues: Issue[]): Map<string | null, Issue[]> {
+  const byKey = new Map(issues.map((i) => [i.key, i]));
+  const loops = (i: Issue): boolean => {
+    const seen = new Set<string>();
+    for (let cur = i.parentKey; cur !== null && !seen.has(cur); cur = byKey.get(cur)?.parentKey ?? null) {
+      if (cur === i.key) return true;
+      seen.add(cur);
+    }
+    return false;
+  };
+  const out = new Map<string | null, Issue[]>();
+  for (const i of issues) {
+    const k = i.parentKey !== null && byKey.has(i.parentKey) && !loops(i) ? i.parentKey : null;
+    out.set(k, [...(out.get(k) ?? []), i]);
+  }
+  return out;
+}
+
 /** Root first, down to the issue's parent; empty for a root. Stops at a missing parent or a cycle. */
 export function ancestorsOf(byKey: Map<string, Issue>, key: string): Issue[] {
   const out: Issue[] = [];
@@ -26,6 +45,34 @@ export function ancestorsOf(byKey: Map<string, Issue>, key: string): Issue[] {
     out.unshift(i);
     cur = i.parentKey;
   }
+  return out;
+}
+
+/** `matches` plus every ancestor of a match found in `all`, in the order of `all`; `context` holds the keys that were added, so a filtered tree still shows where each match sits. */
+export function withAncestors(all: Issue[], matches: Issue[]): { issues: Issue[]; context: Set<string> } {
+  const byKey = new Map(all.map((i) => [i.key, i]));
+  const keep = new Set(matches.map((i) => i.key));
+  const context = new Set<string>();
+  for (const m of matches) for (const a of ancestorsOf(byKey, m.key)) if (!keep.has(a.key)) context.add(a.key);
+  return { issues: all.filter((i) => keep.has(i.key) || context.has(i.key)), context };
+}
+
+/** Per issue with descendants: how many there are and how many of them `isDone` accepts. */
+export function descendantCounts(issues: Issue[], isDone: (i: Issue) => boolean): Map<string, { done: number; total: number }> {
+  const children = rootedChildrenMap(issues);
+  const out = new Map<string, { done: number; total: number }>();
+  const walk = (key: string): { done: number; total: number } => {
+    let done = 0;
+    let total = 0;
+    for (const c of children.get(key) ?? []) {
+      const sub = walk(c.key);
+      done += sub.done + (isDone(c) ? 1 : 0);
+      total += sub.total + 1;
+    }
+    if (total > 0) out.set(key, { done, total });
+    return { done, total };
+  };
+  for (const top of children.get(null) ?? []) walk(top.key);
   return out;
 }
 

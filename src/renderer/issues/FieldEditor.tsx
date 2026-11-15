@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { applyCommand, insertBlock, TOOLBAR_LABEL, type Selection, type ToolbarCommand } from "../app/markdownToolbar";
 import { useNavigationGuard } from "../app/useHashRoute";
+import { formatHours, parseHours } from "./hours";
 
-type TextProps = { value: string; onSave(v: string): void; className?: string; required?: boolean };
+type TextProps = { value: string; onSave(v: string): void; className?: string; required?: boolean; ariaLabel?: string };
 
 /** Text field that saves on blur or Enter; Escape restores the saved value. */
-export function TextField({ value, onSave, className, required }: TextProps): React.JSX.Element {
+export function TextField({ value, onSave, className, required, ariaLabel }: TextProps): React.JSX.Element {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const commit = (): void => {
@@ -20,6 +21,7 @@ export function TextField({ value, onSave, className, required }: TextProps): Re
   return (
     <input
       className={className}
+      aria-label={ariaLabel}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
@@ -65,6 +67,39 @@ export function DateField({ value, onSave, className, ariaLabel }: DateProps): R
       aria-label={ariaLabel}
       value={value ?? ""}
       onChange={(e) => onSave(e.target.value || null)}
+    />
+  );
+}
+
+type HoursProps = { value: number | null | undefined; onSave(v: number | null): void; onRefuse(): void; className?: string; ariaLabel?: string };
+
+/** 予定時間 or 実績時間: saves on blur or Enter; text parseHours refuses is dropped and reported through onRefuse. */
+export function HoursField({ value, onSave, onRefuse, className, ariaLabel }: HoursProps): React.JSX.Element {
+  const saved = formatHours(value);
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+  const commit = (): void => {
+    const parsed = parseHours(draft);
+    if (!parsed.ok) {
+      setDraft(saved);
+      onRefuse();
+      return;
+    }
+    if (parsed.value === (value ?? null)) setDraft(saved);
+    else onSave(parsed.value);
+  };
+  return (
+    <input
+      className={className}
+      aria-label={ariaLabel}
+      inputMode="decimal"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") setDraft(saved);
+      }}
     />
   );
 }

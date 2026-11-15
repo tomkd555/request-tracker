@@ -4,7 +4,7 @@ import type { Route } from "../app/useHashRoute";
 import { useWiki } from "./useWiki";
 import { WikiEdit } from "./WikiEdit";
 import { WikiIndex } from "./WikiIndex";
-import { childrenMap, pathIds, searchPages } from "./wikiTree";
+import { childrenMap, newPageKey, pathIds, searchPages } from "./wikiTree";
 import { WikiView } from "./WikiView";
 import "./wiki.css";
 import { M } from "../messages";
@@ -16,7 +16,7 @@ export function WikiScreen({ route }: { route: Route }): React.JSX.Element {
   const isNew = path === "/wiki/new";
   const currentId = m && !isNew ? m[1] : null;
   let screen: React.JSX.Element;
-  if (isNew) screen = <WikiEdit key="new" id={null} presetTitle={query.get("title") ?? ""} presetParent={query.get("parent")} />;
+  if (isNew) screen = <WikiEdit key={newPageKey(query.get("title") ?? "", query.get("parent"))} id={null} presetTitle={query.get("title") ?? ""} presetParent={query.get("parent")} />;
   else if (m) screen = m[2] ? <WikiEdit key={m[1]} id={m[1]} presetTitle="" presetParent={null} /> : <WikiView key={m[1]} id={m[1]} />;
   else screen = <WikiIndex />;
   return (

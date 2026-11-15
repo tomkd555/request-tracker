@@ -1,5 +1,6 @@
 import { displayNameOf } from "../app/UserContext";
 import { layoutGantt, rangeFor, type GanttLayout, type GanttRow, type Months } from "../gantt/layoutGantt";
+import { compareKeys } from "../issues/compareKeys";
 import type { StatusKind } from "../../shared/types";
 import { BLOCK_LABEL, EMPTY_ROWS, resolveMonth, scopeIssues, termOf, type GanttBlock, type ReportContent, type ReportContext } from "./blocks";
 
@@ -36,7 +37,7 @@ export function ganttLayout(block: GanttBlock, ctx: ReportContext): GanttLayout 
     collapsed: new Set(),
     includeUndated: block.includeUndated ?? false,
     statuses: ctx.project.statuses,
-    compare: (a, b) => a.key.localeCompare(b.key), // the issue table above it runs ascending
+    compare: (a, b) => compareKeys(a.key, b.key), // the issue table above it runs ascending
     groupLabel: (u) => displayNameOf(ctx.users, u),
   });
 }
