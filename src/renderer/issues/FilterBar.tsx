@@ -1,13 +1,25 @@
-import type { IssueStatus, User } from "../../shared/types";
-import { categoryOptions, useSession } from "../app/UserContext";
-import { defaultFilter, type DueFilter, type IssueFilter } from "./filterIssues";
+import type { DueFilter, IssueFilter, IssueStatus } from "../../shared/types";
+import { categoryOptions, useSession } from "../app/SessionContext";
+import { defaultFilter } from "./filterIssues";
 import { LabelPicker } from "./LabelPicker";
 
 // A select cannot hold null, so the two conditions that are not a milestone id take these values.
 const ALL_MILESTONES = "__all__";
 const NO_MILESTONE = "__none__";
 
-type Props = { filter: IssueFilter; users: User[]; onChange(f: IssueFilter): void };
+function milestoneToOption(milestone: string | null | undefined): string {
+  if (milestone == null) return ALL_MILESTONES;
+  if (milestone === "") return NO_MILESTONE;
+  return milestone;
+}
+
+function optionToMilestone(option: string): string | null {
+  if (option === ALL_MILESTONES) return null;
+  if (option === NO_MILESTONE) return "";
+  return option;
+}
+
+type Props = { filter: IssueFilter; onChange(f: IssueFilter): void };
 
 const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
   { value: "all", label: "すべて" },
@@ -16,14 +28,15 @@ const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
   { value: "none", label: "期限なし" },
 ];
 
-export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element {
-  const { me, project } = useSession();
+export function FilterBar({ filter, onChange }: Props): React.JSX.Element {
+  const { me, users, project } = useSession();
+  const milestones = project.milestones ?? [];
   const toggleStatus = (s: IssueStatus): void => {
     const statuses = filter.statuses.includes(s) ? filter.statuses.filter((x) => x !== s) : [...filter.statuses, s];
     onChange({ ...filter, statuses });
   };
-  const userSelect = (value: string | null, set: (v: string | null) => void): React.JSX.Element => (
-    <select value={value ?? ""} onChange={(e) => set(e.target.value || null)}>
+  const renderUserSelect = (value: string | null, onSelect: (v: string | null) => void): React.JSX.Element => (
+    <select value={value ?? ""} onChange={(e) => onSelect(e.target.value || null)}>
       <option value="">すべて</option>
       {users.map((u) => (
         <option key={u.username} value={u.username}>
@@ -32,14 +45,14 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
       ))}
     </select>
   );
-  const mine = (field: "assignee" | "reporter", label: string): React.JSX.Element => {
-    const on = filter[field] === me.username;
+  const renderMineToggle = (field: "assignee" | "reporter", label: string): React.JSX.Element => {
+    const isOn = filter[field] === me.username;
     return (
       <button
         type="button"
-        className={`filter-bar__toggle${on ? " filter-bar__toggle--on" : ""}`}
-        aria-pressed={on}
-        onClick={() => onChange({ ...filter, [field]: on ? null : me.username })}
+        className={`filter-bar__toggle${isOn ? " filter-bar__toggle--on" : ""}`}
+        aria-pressed={isOn}
+        onClick={() => onChange({ ...filter, [field]: isOn ? null : me.username })}
       >
         {label}
       </button>
@@ -56,11 +69,11 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
       ))}
       <label className="filter-bar__field">
         担当者
-        {userSelect(filter.assignee, (v) => onChange({ ...filter, assignee: v }))}
+        {renderUserSelect(filter.assignee, (v) => onChange({ ...filter, assignee: v }))}
       </label>
       <label className="filter-bar__field">
         登録者
-        {userSelect(filter.reporter, (v) => onChange({ ...filter, reporter: v }))}
+        {renderUserSelect(filter.reporter, (v) => onChange({ ...filter, reporter: v }))}
       </label>
       <label className="filter-bar__field">
         種別
@@ -87,16 +100,13 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
           ))}
         </select>
       </label>
-      {(project.milestones ?? []).length > 0 && (
+      {milestones.length > 0 && (
         <label className="filter-bar__field">
           マイルストーン
-          <select
-            value={filter.milestone == null ? ALL_MILESTONES : filter.milestone === "" ? NO_MILESTONE : filter.milestone}
-            onChange={(e) => onChange({ ...filter, milestone: e.target.value === ALL_MILESTONES ? null : e.target.value === NO_MILESTONE ? "" : e.target.value })}
-          >
+          <select value={milestoneToOption(filter.milestone)} onChange={(e) => onChange({ ...filter, milestone: optionToMilestone(e.target.value) })}>
             <option value={ALL_MILESTONES}>すべて</option>
             <option value={NO_MILESTONE}>未設定</option>
-            {(project.milestones ?? []).map((m) => (
+            {milestones.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
@@ -125,8 +135,8 @@ export function FilterBar({ filter, users, onChange }: Props): React.JSX.Element
             </select>
           </label>
         ))}
-      {mine("assignee", "自分の担当")}
-      {mine("reporter", "自分が登録")}
+      {renderMineToggle("assignee", "自分の担当")}
+      {renderMineToggle("reporter", "自分が登録")}
       <button
         type="button"
         className={`filter-bar__toggle${filter.awaitingConfirmation ? " filter-bar__toggle--on" : ""}`}

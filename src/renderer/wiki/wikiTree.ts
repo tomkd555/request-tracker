@@ -1,6 +1,6 @@
 import type { WikiPage } from "../../shared/types";
 
-export interface TreeRow { page: WikiPage; depth: number }
+interface PageTreeRow { page: WikiPage; depth: number }
 
 const byTitle = (a: WikiPage, b: WikiPage): number => a.title.localeCompare(b.title, "ja");
 
@@ -14,12 +14,20 @@ export const hasDuplicateTitle = (pages: WikiPage[], selfId: string | null, titl
 /** The key of the new-page form for one title and parent, so a link to another new page starts a fresh draft. */
 export const newPageKey = (title: string, parentId: string | null): string => `new:${parentId ?? ""}:${title}`;
 
-/** Children per parent id, each list sorted by title; a page whose parent is absent counts as a root. */
+/** Children per parent id, each list sorted by title; a page whose parent is absent, or whose parent chain loops back to it, counts as a root. */
 export function childrenMap(pages: WikiPage[]): Map<string | null, WikiPage[]> {
-  const ids = new Set(pages.map((p) => p.id));
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const isOnParentCycle = (page: WikiPage): boolean => {
+    const visitedIds = new Set<string>();
+    for (let ancestorId = page.parentId; ancestorId !== null && !visitedIds.has(ancestorId); ancestorId = byId.get(ancestorId)?.parentId ?? null) {
+      if (ancestorId === page.id) return true;
+      visitedIds.add(ancestorId);
+    }
+    return false;
+  };
   const out = new Map<string | null, WikiPage[]>();
   for (const p of pages) {
-    const key = p.parentId !== null && ids.has(p.parentId) ? p.parentId : null;
+    const key = p.parentId !== null && byId.has(p.parentId) && !isOnParentCycle(p) ? p.parentId : null;
     out.set(key, [...(out.get(key) ?? []), p]);
   }
   for (const list of out.values()) list.sort(byTitle);
@@ -27,9 +35,9 @@ export function childrenMap(pages: WikiPage[]): Map<string | null, WikiPage[]> {
 }
 
 /** Depth-first rows of the whole tree, roots sorted by title. */
-export function flattenTree(pages: WikiPage[]): TreeRow[] {
+export function flattenTree(pages: WikiPage[]): PageTreeRow[] {
   const children = childrenMap(pages);
-  const out: TreeRow[] = [];
+  const out: PageTreeRow[] = [];
   const walk = (parent: string | null, depth: number): void => {
     for (const p of children.get(parent) ?? []) {
       out.push({ page: p, depth });
@@ -44,34 +52,34 @@ export function flattenTree(pages: WikiPage[]): TreeRow[] {
 export function ancestorsOf(pages: WikiPage[], id: string): WikiPage[] {
   const byId = new Map(pages.map((p) => [p.id, p]));
   const out: WikiPage[] = [];
-  let cur = byId.get(id)?.parentId ?? null;
+  let parentId = byId.get(id)?.parentId ?? null;
   const seen = new Set<string>([id]);
-  while (cur !== null && !seen.has(cur)) {
-    const p = byId.get(cur);
+  while (parentId !== null && !seen.has(parentId)) {
+    const p = byId.get(parentId);
     if (!p) break;
-    seen.add(cur);
+    seen.add(parentId);
     out.unshift(p);
-    cur = p.parentId;
+    parentId = p.parentId;
   }
   return out;
 }
 
 /** The page and everything under it. */
-export function descendantIdsOf(pages: WikiPage[], id: string): Set<string> {
+export function subtreeIdsOf(pages: WikiPage[], id: string): Set<string> {
   const children = childrenMap(pages);
   const out = new Set<string>();
-  const walk = (cur: string): void => {
-    out.add(cur);
-    for (const c of children.get(cur) ?? []) if (!out.has(c.id)) walk(c.id);
+  const walk = (pageId: string): void => {
+    out.add(pageId);
+    for (const child of children.get(pageId) ?? []) if (!out.has(child.id)) walk(child.id);
   };
   walk(id);
   return out;
 }
 
 /** Ids of the page's ancestors, so a sidebar can open the path to it. */
-export const pathIds = (pages: WikiPage[], id: string): Set<string> => new Set(ancestorsOf(pages, id).map((p) => p.id));
+export const ancestorIdsOf = (pages: WikiPage[], id: string): Set<string> => new Set(ancestorsOf(pages, id).map((p) => p.id));
 
-/** Lowercased title -> id; on duplicate titles the first page by id (creation order) wins. */
+/** Normalized title (trimmed, case-folded) -> id; on duplicate titles the first page by id (creation order) wins. */
 export function titleIndex(pages: WikiPage[]): Map<string, string> {
   const out = new Map<string, string>();
   for (const p of [...pages].sort((a, b) => (a.id < b.id ? -1 : 1))) {

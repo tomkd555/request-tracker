@@ -163,100 +163,106 @@ export interface Attachment { name: string; kind: "file" | "folder"; size: numbe
 
 export const ISSUE_PRIORITIES: IssuePriority[] = ["high", "normal", "low"];
 
-type Rec = Record<string, unknown>;
-const isRec = (v: unknown): v is Rec => typeof v === "object" && v !== null;
-const str = (v: unknown): v is string => typeof v === "string";
-const strOrNull = (v: unknown): v is string | null => v === null || typeof v === "string";
-const strOrAbsent = (v: unknown): v is string | undefined => v === undefined || typeof v === "string";
-const strArrayOrAbsent = (v: unknown): v is string[] | undefined => v === undefined || (Array.isArray(v) && v.every(str));
-const strMapOrAbsent = (v: unknown): v is Record<string, string> | undefined => v === undefined || (isRec(v) && Object.values(v).every(str));
-const bool = (v: unknown): v is boolean => typeof v === "boolean";
-const strMap = (v: unknown): v is Record<string, string> => isRec(v) && Object.values(v).every(str);
-const DUE_FILTERS: DueFilter[] = ["all", "overdue", "week", "none"];
-export const isTemplate = (v: unknown): v is CategoryTemplate => isRec(v) && str(v.summary) && str(v.body);
-const templateMapOrAbsent = (v: unknown): v is Record<string, CategoryTemplate> | undefined =>
-  v === undefined || (isRec(v) && Object.values(v).every(isTemplate));
-export const isField = (v: unknown): v is CustomField => isRec(v) && str(v.id) && str(v.name) && Array.isArray(v.options) && v.options.every(str);
-const fieldsOrAbsent = (v: unknown): v is CustomField[] | undefined => v === undefined || (Array.isArray(v) && v.every(isField));
-export const isLabel = (v: unknown): v is Label => isRec(v) && str(v.name) && str(v.color);
-const labelsOrAbsent = (v: unknown): v is Label[] | undefined => v === undefined || (Array.isArray(v) && v.every(isLabel));
+// Type guards for values parsed from JSON. The record guards below are built from these.
+type JsonObject = Record<string, unknown>;
+type Guard<T> = (v: unknown) => v is T;
+const isObject = (v: unknown): v is JsonObject => typeof v === "object" && v !== null;
+const isString = (v: unknown): v is string => typeof v === "string";
+const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
+const isStringOrNull = (v: unknown): v is string | null => v === null || isString(v);
+const isIntegerIn = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
+const isArrayOf = <T>(isItem: Guard<T>): Guard<T[]> => (v): v is T[] => Array.isArray(v) && v.every((item) => isItem(item));
+const isMapOf = <T>(isValue: Guard<T>): Guard<Record<string, T>> => (v): v is Record<string, T> => isObject(v) && Object.values(v).every((value) => isValue(value));
+/** For a field added after the first records were written: the guard also accepts a record without the field. */
+const isAbsentOr = <T>(guard: Guard<T>): Guard<T | undefined> => (v): v is T | undefined => v === undefined || guard(v);
+
+const isStringArray = isArrayOf(isString);
+const isStringMap = isMapOf(isString);
+const isStringOrAbsent = isAbsentOr(isString);
+const isStringOrNullOrAbsent = isAbsentOr(isStringOrNull);
+const isStringArrayOrAbsent = isAbsentOr(isStringArray);
+const isStringMapOrAbsent = isAbsentOr(isStringMap);
+
+export const DUE_FILTERS: DueFilter[] = ["all", "overdue", "week", "none"];
+export const isCategoryTemplate = (v: unknown): v is CategoryTemplate => isObject(v) && isString(v.summary) && isString(v.body);
+const isCategoryTemplateMapOrAbsent = isAbsentOr(isMapOf(isCategoryTemplate));
+export const isCustomField = (v: unknown): v is CustomField => isObject(v) && isString(v.id) && isString(v.name) && isStringArray(v.options);
+const isFieldsOrAbsent = isAbsentOr(isArrayOf(isCustomField));
+export const isLabel = (v: unknown): v is Label => isObject(v) && isString(v.name) && isString(v.color);
+const isLabelsOrAbsent = isAbsentOr(isArrayOf(isLabel));
 /** 予定時間 and 実績時間: a finite number, 0 or more, with at most 2 decimal places. */
 export const isHours = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && Math.round(v * 100) / 100 === v;
-const hoursOrNullOrAbsent = (v: unknown): v is number | null | undefined => v === undefined || v === null || isHours(v);
-const strOrNullOrAbsent = (v: unknown): v is string | null | undefined => v === undefined || strOrNull(v);
+const isHoursOrNullOrAbsent = (v: unknown): v is number | null | undefined => v === undefined || v === null || isHours(v);
 /** True for a YYYY-MM-DD that names a real calendar day. */
-export function isYmd(s: unknown): s is string {
-  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
+export function isYmd(v: unknown): v is string {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const date = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(v);
 }
-export const isMilestone = (v: unknown): v is Milestone => isRec(v) && str(v.id) && str(v.name) && strOrNull(v.startDate) && strOrNull(v.dueDate) && bool(v.closed);
-const milestonesOrAbsent = (v: unknown): v is Milestone[] | undefined => v === undefined || (Array.isArray(v) && v.every(isMilestone));
-export const isStatusDef = (v: unknown): v is StatusDef => isRec(v) && str(v.id) && str(v.name) && str(v.color) && STATUS_KINDS.includes(v.kind as StatusKind);
-const statusesOrAbsent = (v: unknown): v is StatusDef[] | undefined => v === undefined || (Array.isArray(v) && v.every(isStatusDef));
+export const isMilestone = (v: unknown): v is Milestone => isObject(v) && isString(v.id) && isString(v.name) && isStringOrNull(v.startDate) && isStringOrNull(v.dueDate) && isBoolean(v.closed);
+const isMilestonesOrAbsent = isAbsentOr(isArrayOf(isMilestone));
+export const isStatusDef = (v: unknown): v is StatusDef => isObject(v) && isString(v.id) && isString(v.name) && isString(v.color) && STATUS_KINDS.includes(v.kind as StatusKind);
+const isStatusesOrAbsent = isAbsentOr(isArrayOf(isStatusDef));
 
 /** Accepts a project.json without `categories`, `categoryColors`, `categoryTemplates`, `fields`, `labels`, `statuses` or `milestones`; `readProject` fills the defaults. */
 export function isProject(v: unknown): v is Project {
   return (
-    isRec(v) &&
-    intIn(v.fiscalYearStartMonth, 1, 12) &&
-    str(v.createdAt) &&
-    strArrayOrAbsent(v.categories) &&
-    strMapOrAbsent(v.categoryColors) &&
-    templateMapOrAbsent(v.categoryTemplates) &&
-    fieldsOrAbsent(v.fields) &&
-    labelsOrAbsent(v.labels) &&
-    statusesOrAbsent(v.statuses) &&
-    milestonesOrAbsent(v.milestones)
+    isObject(v) &&
+    isIntegerIn(v.fiscalYearStartMonth, 1, 12) &&
+    isString(v.createdAt) &&
+    isStringArrayOrAbsent(v.categories) &&
+    isStringMapOrAbsent(v.categoryColors) &&
+    isCategoryTemplateMapOrAbsent(v.categoryTemplates) &&
+    isFieldsOrAbsent(v.fields) &&
+    isLabelsOrAbsent(v.labels) &&
+    isStatusesOrAbsent(v.statuses) &&
+    isMilestonesOrAbsent(v.milestones)
   );
 }
 
 export function isIssueFilter(v: unknown): v is IssueFilter {
   return (
-    isRec(v) &&
-    Array.isArray(v.statuses) &&
-    v.statuses.every(str) &&
-    strOrNull(v.assignee) &&
-    strOrNull(v.reporter) &&
-    str(v.keyword) &&
+    isObject(v) &&
+    isStringArray(v.statuses) &&
+    isStringOrNull(v.assignee) &&
+    isStringOrNull(v.reporter) &&
+    isString(v.keyword) &&
     DUE_FILTERS.includes(v.due as DueFilter) &&
-    strOrNull(v.category) &&
-    bool(v.awaitingConfirmation) &&
-    strArrayOrAbsent(v.labels) &&
-    strMap(v.fields) &&
-    strOrNullOrAbsent(v.milestone)
+    isStringOrNull(v.category) &&
+    isBoolean(v.awaitingConfirmation) &&
+    isStringArrayOrAbsent(v.labels) &&
+    isStringMap(v.fields) &&
+    isStringOrNullOrAbsent(v.milestone)
   );
 }
 
 export function isSavedFilter(v: unknown): v is SavedFilter {
-  return isRec(v) && str(v.name) && isIssueFilter(v.filter);
+  return isObject(v) && isString(v.name) && isIssueFilter(v.filter);
 }
-
-const intIn = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
 
 /** Throws on a value outside the documented ranges; the settings screen shows the message. */
 export function assertLocalSettings(s: LocalSettings): void {
   if (!THEME_NAMES.includes(s.theme)) throw new Error(`unknown theme: ${String(s.theme)}`);
-  if (s.accent !== null && !(str(s.accent) && HEX_COLOR.test(s.accent))) throw new Error(`accent must be #rrggbb: ${String(s.accent)}`);
+  if (s.accent !== null && !(isString(s.accent) && HEX_COLOR.test(s.accent))) throw new Error(`accent must be #rrggbb: ${String(s.accent)}`);
   if (!NOTICE_MODES.includes(s.notice)) throw new Error(`unknown notice: ${String(s.notice)}`);
-  if (!intIn(s.dueSoonDays, 0, 30)) throw new Error(`dueSoonDays out of range: ${String(s.dueSoonDays)}`);
+  if (!isIntegerIn(s.dueSoonDays, 0, 30)) throw new Error(`dueSoonDays out of range: ${String(s.dueSoonDays)}`);
   if (!Array.isArray(s.savedFilters) || !s.savedFilters.every(isSavedFilter)) throw new Error("savedFilters is malformed");
 }
 
 /** Each optional field of config.json is taken when valid and otherwise falls back to its default, so an old or hand-edited file still loads. */
 export function localSettingsFrom(v: Record<string, unknown>): LocalSettings {
-  const d = DEFAULT_LOCAL_SETTINGS;
+  const defaults = DEFAULT_LOCAL_SETTINGS;
   return {
-    theme: THEME_NAMES.includes(v.theme as ThemeName) ? (v.theme as ThemeName) : d.theme,
-    accent: str(v.accent) && HEX_COLOR.test(v.accent) ? v.accent : d.accent,
-    notice: NOTICE_MODES.includes(v.notice as NoticeMode) ? (v.notice as NoticeMode) : d.notice,
-    dueSoonDays: intIn(v.dueSoonDays, 0, 30) ? v.dueSoonDays : d.dueSoonDays,
-    savedFilters: Array.isArray(v.savedFilters) ? v.savedFilters.filter(isSavedFilter) : d.savedFilters,
+    theme: THEME_NAMES.includes(v.theme as ThemeName) ? (v.theme as ThemeName) : defaults.theme,
+    accent: isString(v.accent) && HEX_COLOR.test(v.accent) ? v.accent : defaults.accent,
+    notice: NOTICE_MODES.includes(v.notice as NoticeMode) ? (v.notice as NoticeMode) : defaults.notice,
+    dueSoonDays: isIntegerIn(v.dueSoonDays, 0, 30) ? v.dueSoonDays : defaults.dueSoonDays,
+    savedFilters: Array.isArray(v.savedFilters) ? v.savedFilters.filter(isSavedFilter) : defaults.savedFilters,
   };
 }
 
 export function isUser(v: unknown): v is User {
-  return isRec(v) && str(v.username) && str(v.displayName) && str(v.createdAt) && strOrAbsent(v.login);
+  return isObject(v) && isString(v.username) && isString(v.displayName) && isString(v.createdAt) && isStringOrAbsent(v.login);
 }
 
 export const ISSUE_KEY = /^\d{2}-\d{4,}$/;
@@ -265,69 +271,68 @@ export const STAMP_ID = /^\d{8}T\d{9}Z$/;
 /** Accepts a record without `category`, `fields`, `labels`, `relations`, `milestone`, `estimatedHours` or `actualHours` (written before those fields existed); the store fills "", {}, [] and null on read. */
 export function isIssue(v: unknown): v is Issue {
   return (
-    isRec(v) &&
-    str(v.key) &&
+    isObject(v) &&
+    isString(v.key) &&
     ISSUE_KEY.test(v.key) &&
-    str(v.summary) &&
-    str(v.description) &&
-    strOrAbsent(v.category) &&
-    strMapOrAbsent(v.fields) &&
-    strArrayOrAbsent(v.labels) &&
-    str(v.status) &&
+    isString(v.summary) &&
+    isString(v.description) &&
+    isStringOrAbsent(v.category) &&
+    isStringMapOrAbsent(v.fields) &&
+    isStringArrayOrAbsent(v.labels) &&
+    isString(v.status) &&
     ISSUE_PRIORITIES.includes(v.priority as IssuePriority) &&
-    strOrNull(v.assignee) &&
-    str(v.reporter) &&
-    strOrNull(v.parentKey) &&
-    strOrNull(v.startDate) &&
-    strOrNull(v.dueDate) &&
-    str(v.createdAt) &&
-    str(v.updatedAt) &&
-    str(v.updatedBy) &&
-    relationsOrAbsent(v.relations) &&
-    strOrNullOrAbsent(v.milestone) &&
-    hoursOrNullOrAbsent(v.estimatedHours) &&
-    hoursOrNullOrAbsent(v.actualHours)
+    isStringOrNull(v.assignee) &&
+    isString(v.reporter) &&
+    isStringOrNull(v.parentKey) &&
+    isStringOrNull(v.startDate) &&
+    isStringOrNull(v.dueDate) &&
+    isString(v.createdAt) &&
+    isString(v.updatedAt) &&
+    isString(v.updatedBy) &&
+    isRelationsOrAbsent(v.relations) &&
+    isStringOrNullOrAbsent(v.milestone) &&
+    isHoursOrNullOrAbsent(v.estimatedHours) &&
+    isHoursOrNullOrAbsent(v.actualHours)
   );
 }
 
 export function isComment(v: unknown): v is Comment {
-  return isRec(v) && str(v.id) && str(v.issueKey) && str(v.author) && str(v.body) && str(v.createdAt);
+  return isObject(v) && isString(v.id) && isString(v.issueKey) && isString(v.author) && isString(v.body) && isString(v.createdAt);
 }
 
 /** Accepts a page without `parentId` or `note` (written before the fields existed); the store fills null and "" on read. */
 export function isWikiPage(v: unknown): v is WikiPage {
   return (
-    isRec(v) &&
-    str(v.id) &&
+    isObject(v) &&
+    isString(v.id) &&
     STAMP_ID.test(v.id) &&
-    str(v.title) &&
-    str(v.body) &&
-    (v.parentId === undefined || strOrNull(v.parentId)) &&
-    strOrAbsent(v.note) &&
-    str(v.createdAt) &&
-    str(v.createdBy) &&
-    str(v.updatedAt) &&
-    str(v.updatedBy)
+    isString(v.title) &&
+    isString(v.body) &&
+    isStringOrNullOrAbsent(v.parentId) &&
+    isStringOrAbsent(v.note) &&
+    isString(v.createdAt) &&
+    isString(v.createdBy) &&
+    isString(v.updatedAt) &&
+    isString(v.updatedBy)
   );
 }
 
-const isIssueNote = (v: unknown): v is IssueNote => isRec(v) && str(v.summary) && str(v.note);
+const isIssueNote = (v: unknown): v is IssueNote => isObject(v) && isString(v.summary) && isString(v.note);
 
 export function isReport(v: unknown): v is Report {
   return (
-    isRec(v) &&
-    str(v.id) &&
+    isObject(v) &&
+    isString(v.id) &&
     STAMP_ID.test(v.id) &&
-    str(v.title) &&
-    str(v.body) &&
-    bool(v.isTemplate) &&
-    strMap(v.terms) &&
-    isRec(v.issueNotes) &&
-    Object.values(v.issueNotes).every(isIssueNote) &&
-    str(v.createdAt) &&
-    str(v.createdBy) &&
-    str(v.updatedAt) &&
-    str(v.updatedBy)
+    isString(v.title) &&
+    isString(v.body) &&
+    isBoolean(v.isTemplate) &&
+    isStringMap(v.terms) &&
+    isMapOf(isIssueNote)(v.issueNotes) &&
+    isString(v.createdAt) &&
+    isString(v.createdBy) &&
+    isString(v.updatedAt) &&
+    isString(v.updatedBy)
   );
 }
 
@@ -337,9 +342,9 @@ export const RELATION_TYPES: RelationType[] = ["relates", "duplicates", "precede
 /** One side of a link between issues; the store writes only this side and derives the inverse on read. */
 export interface Relation { type: RelationType; key: string }
 
-export function isRelation(v: unknown): v is Relation {
-  return isRec(v) && RELATION_TYPES.includes(v.type as RelationType) && str(v.key) && ISSUE_KEY.test(v.key);
+function isRelation(v: unknown): v is Relation {
+  return isObject(v) && RELATION_TYPES.includes(v.type as RelationType) && isString(v.key) && ISSUE_KEY.test(v.key);
 }
 
 /** Accepts a record without `relations` (written before the field existed); the store fills [] on read. */
-export const relationsOrAbsent = (v: unknown): v is Relation[] | undefined => v === undefined || (Array.isArray(v) && v.every(isRelation));
+const isRelationsOrAbsent = isAbsentOr(isArrayOf(isRelation));

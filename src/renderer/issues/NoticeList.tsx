@@ -1,5 +1,5 @@
 import { navigate } from "../app/useHashRoute";
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { M } from "../messages";
 import { formatDateTime } from "./labels";
 import { noticesOf } from "./notices";
@@ -8,12 +8,12 @@ import { useIssues } from "./useIssues";
 
 export function NoticeList(): React.JSX.Element {
   const { me, users, project } = useSession();
-  const { issues, watched, bumpSeen } = useIssues();
-  const list = noticesOf(issues, watched, me.username, project.statuses, seenStamp);
+  const { issues, watched, notifySeenChanged } = useIssues();
+  const notices = noticesOf(issues, watched, me.username, project.statuses, seenStamp);
 
-  const markAll = (): void => {
-    list.forEach(markSeen);
-    bumpSeen();
+  const markAllSeen = (): void => {
+    notices.forEach(markSeen);
+    notifySeenChanged();
   };
 
   return (
@@ -21,12 +21,12 @@ export function NoticeList(): React.JSX.Element {
       <header className="toolbar">
         <h1 className="toolbar__heading">お知らせ</h1>
         <div className="form-actions">
-          <button type="button" disabled={list.length === 0} onClick={markAll}>
+          <button type="button" disabled={notices.length === 0} onClick={markAllSeen}>
             すべて既読にする
           </button>
         </div>
       </header>
-      {list.length === 0 ? (
+      {notices.length === 0 ? (
         <p className="text--muted">{M.noNotices}</p>
       ) : (
         <table className="issue-table" aria-label="お知らせ">
@@ -39,7 +39,7 @@ export function NoticeList(): React.JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {list.map((i) => (
+            {notices.map((i) => (
               <tr key={i.key} className="issue-table__row" onClick={() => navigate(`/issues/${i.key}`)}>
                 <td className="issue-table__cell issue-table__cell--key">
                   <a href={`#/issues/${i.key}`}>{i.key}</a>

@@ -5,9 +5,9 @@ import { useIssues } from "../issues/useIssues";
 import { errorMessage, M } from "../messages";
 import { useWiki } from "../wiki/useWiki";
 import { recentUpdates, type RecentKind } from "./recent";
-import { displayNameOf, useSession } from "./UserContext";
+import { displayNameOf, useSession } from "./SessionContext";
 
-const KIND_LABEL: Record<RecentKind, string> = { created: "登録", updated: "更新", comment: "コメント", wiki: "Wiki" };
+const RECENT_KIND_LABEL: Record<RecentKind, string> = { created: "登録", updated: "更新", comment: "コメント", wiki: "Wiki" };
 
 export function RecentList(): React.JSX.Element {
   const { users } = useSession();
@@ -17,22 +17,22 @@ export function RecentList(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   // The shell re-reads the issues as the screen opens and on 更新; the comments follow each of those reads, so they are read once per read of the share and never on a timer.
-  const atMount = useRef(issues);
+  const issuesAtMount = useRef(issues);
   useEffect(() => {
-    if (issues === atMount.current) return;
-    let current = true;
+    if (issues === issuesAtMount.current) return;
+    let isCurrent = true;
     window.api.comments
       .listAll()
       .then((list) => {
-        if (!current) return;
+        if (!isCurrent) return;
         setComments(list);
         setError(null);
       })
       .catch((e: unknown) => {
-        if (current) setError(errorMessage(e));
+        if (isCurrent) setError(errorMessage(e));
       });
     return () => {
-      current = false;
+      isCurrent = false;
     };
   }, [issues]);
 
@@ -57,17 +57,17 @@ export function RecentList(): React.JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => (
-              <tr key={`${e.kind}-${e.id}`} className="issue-table__row">
-                <td className="issue-table__cell">{formatDateTime(e.at)}</td>
-                <td className="issue-table__cell">{displayNameOf(users, e.by)}</td>
-                <td className="issue-table__cell">{KIND_LABEL[e.kind]}</td>
+            {entries.map((entry) => (
+              <tr key={`${entry.kind}-${entry.id}`} className="issue-table__row">
+                <td className="issue-table__cell">{formatDateTime(entry.at)}</td>
+                <td className="issue-table__cell">{displayNameOf(users, entry.by)}</td>
+                <td className="issue-table__cell">{RECENT_KIND_LABEL[entry.kind]}</td>
                 <td className="issue-table__cell">
-                  {e.kind === "wiki" ? (
-                    <a href={`#/wiki/${e.id}`}>{e.title}</a>
+                  {entry.kind === "wiki" ? (
+                    <a href={`#/wiki/${entry.id}`}>{entry.title}</a>
                   ) : (
-                    <a href={`#/issues/${e.key}`}>
-                      {e.key} {e.summary}
+                    <a href={`#/issues/${entry.key}`}>
+                      {entry.key} {entry.summary}
                     </a>
                   )}
                 </td>

@@ -2,13 +2,13 @@ import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import type { SaveFilter, StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalConfig, type LocalSettings } from "../../shared/types";
-import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment, SHARE_UNREACHABLE } from "./attachments";
+import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
 import { addComment, commentsCollection, listAllComments } from "./comments";
 import { loadConfig, saveConfig } from "./config";
 import { createIssue, issuesCollection, putIssue, removeIssue } from "./issues";
-import { layout, type Layout } from "./paths";
-import { initProject, putCategories, putFields, putLabels, putMilestones, putStatuses, readProject } from "./project";
+import { assertShareReachable, layoutOf, type Layout } from "./paths";
+import { initProject, putCategories, putFields, putLabels, putMilestones, putStatuses, readProject, requireProject } from "./project";
 import { createReport, putReport, removeReport, reportsCollection } from "./reports";
 import { addUser, claimUser, findUser, putDisplayName, removeUser, usersCollection } from "./users";
 import { readWatch, setWatch } from "./watch";
@@ -32,194 +32,192 @@ export interface StoreDeps {
 }
 
 /** Records written before `category`, `fields`, `labels`, `relations`, `milestone` or the hours existed come back with "", {}, [] and null so the renderer always sees them. */
-const withDefaults = (i: Issue): Issue => ({
-  ...i,
-  category: i.category ?? "",
-  fields: i.fields ?? {},
-  labels: i.labels ?? [],
-  relations: i.relations ?? [],
-  milestone: i.milestone ?? null,
-  estimatedHours: i.estimatedHours ?? null,
-  actualHours: i.actualHours ?? null,
+const withIssueDefaults = (issue: Issue): Issue => ({
+  ...issue,
+  category: issue.category ?? "",
+  fields: issue.fields ?? {},
+  labels: issue.labels ?? [],
+  relations: issue.relations ?? [],
+  milestone: issue.milestone ?? null,
+  estimatedHours: issue.estimatedHours ?? null,
+  actualHours: issue.actualHours ?? null,
 });
 
+/** Excel reads a UTF-8 CSV as UTF-8 only when the file starts with this mark. */
+const UTF8_BOM = "\uFEFF";
+
 /** The store behind the IPC surface. Every file-system access of the app goes through here. */
-export function createStore(deps: StoreDeps): StoreApi & { current(): Layout | null; settings(): LocalSettings; warm(): Promise<void> } {
-  let l: Layout | null = null;
+export function createStore(deps: StoreDeps): StoreApi & { settings(): LocalSettings; warm(): Promise<void> } {
+  let currentLayout: Layout | null = null;
   let settings: LocalSettings = DEFAULT_LOCAL_SETTINGS;
 
-  const need = (): Layout => {
-    if (l === null) throw new Error("shared folder is not configured");
-    return l;
-  };
-
-  const assertReachable = async (root: string): Promise<void> => {
-    await fsp.access(root).catch(() => {
-      throw new Error(SHARE_UNREACHABLE);
-    });
+  const requireLayout = (): Layout => {
+    if (currentLayout === null) throw new Error("shared folder is not configured");
+    return currentLayout;
   };
 
   /** The layout for a write: a share root that is gone (drive offline, folder renamed) rejects before mkdirp could recreate it as an empty tree. */
-  const needRoot = async (): Promise<Layout> => {
-    const current = need();
-    await assertReachable(current.root);
-    return current;
+  const requireReachableLayout = async (): Promise<Layout> => {
+    const layout = requireLayout();
+    await assertShareReachable(layout.root);
+    return layout;
   };
 
   /** A read that found nothing rejects when the share root is gone, so a dropped drive never shows as an empty project. */
-  const read = async <T>(get: (l: Layout) => Promise<T>): Promise<T> => {
-    const current = need();
-    const value = await get(current);
-    if (value === null || (Array.isArray(value) && value.length === 0)) await assertReachable(current.root);
+  const readFromShare = async <T>(read: (layout: Layout) => Promise<T>): Promise<T> => {
+    const layout = requireLayout();
+    const value = await read(layout);
+    const foundNothing = value === null || (Array.isArray(value) && value.length === 0);
+    if (foundNothing) await assertShareReachable(layout.root);
     return value;
   };
 
   /** The id the current member's records are stored under: the member who bound this OS login, else the login itself. */
-  const memberId = async (at: Layout): Promise<string> => (await findUser(at, deps.username))?.username ?? deps.username;
+  const currentMemberId = async (layout: Layout): Promise<string> => (await findUser(layout, deps.username))?.username ?? deps.username;
 
   /** The one place that turns config.json into the layout. */
   const loadLayout = async (): Promise<LocalConfig | null> => {
-    const c = await loadConfig(deps.userDataDir);
-    if (c !== null) {
-      const { rootDir, ...rest } = c;
-      l = layout(rootDir);
-      settings = rest;
+    const config = await loadConfig(deps.userDataDir);
+    if (config !== null) {
+      const { rootDir, ...localSettings } = config;
+      currentLayout = layoutOf(rootDir);
+      settings = localSettings;
     }
-    return c;
+    return config;
+  };
+
+  /** Save dialog, then `text` as UTF-8; false when the dialog was cancelled. */
+  const saveTextAs = async (text: string, defaultName: string, filter: SaveFilter): Promise<boolean> => {
+    const path = await deps.chooseSavePath(defaultName, filter);
+    if (path === null) return false;
+    await fsp.writeFile(path, text, "utf8");
+    return true;
+  };
+
+  const openWithOs = async (path: string): Promise<void> => {
+    const errorMessage = await deps.openPath(path);
+    if (errorMessage !== "") throw new Error(`open-failed: ${errorMessage}`);
   };
 
   return {
-    current: () => l,
     settings: () => settings,
     /** One read of the share at launch, so the first screen finds the listings in memory or joins the read under way. No timer, no repeat; errors are the renderer's to report. */
     async warm() {
-      const swallow = (): undefined => undefined;
-      if ((await loadLayout().catch(swallow)) == null) return;
-      await Promise.all([usersCollection(need()).list().catch(swallow), issuesCollection(need()).list().catch(swallow), wikiCollection(need()).list().catch(swallow), reportsCollection(need()).list().catch(swallow)]);
+      const ignoreError = (): undefined => undefined;
+      if ((await loadLayout().catch(ignoreError)) == null) return;
+      const layout = requireLayout();
+      await Promise.all([usersCollection(layout), issuesCollection(layout), wikiCollection(layout), reportsCollection(layout)].map((records) => records.list().catch(ignoreError)));
     },
     config: {
       get: loadLayout,
       async chooseRoot() {
-        const dir = await deps.chooseDirectory();
-        if (dir === null) return null;
-        const { rootDir: _previous, ...saved } = (await loadConfig(deps.userDataDir)) ?? { rootDir: dir, ...settings };
-        await saveConfig(deps.userDataDir, { ...saved, rootDir: dir });
-        settings = saved;
-        l = layout(dir);
-        return dir;
+        const rootDir = await deps.chooseDirectory();
+        if (rootDir === null) return null;
+        const { rootDir: _previousRootDir, ...savedSettings } = (await loadConfig(deps.userDataDir)) ?? { rootDir, ...settings };
+        await saveConfig(deps.userDataDir, { ...savedSettings, rootDir });
+        settings = savedSettings;
+        currentLayout = layoutOf(rootDir);
+        return rootDir;
       },
-      async put(next) {
+      async put(nextSettings) {
         const current = await loadConfig(deps.userDataDir);
         if (current === null) throw new Error("shared folder is not configured");
-        assertLocalSettings(next);
-        const config = { ...next, rootDir: current.rootDir };
+        assertLocalSettings(nextSettings);
+        const config = { ...nextSettings, rootDir: current.rootDir };
         await saveConfig(deps.userDataDir, config);
-        settings = next;
+        settings = nextSettings;
         return config;
       },
     },
     project: {
-      get: async () => readProject(need()),
-      init: async (month) => initProject(await needRoot(), month),
-      put: async (categories, categoryColors, categoryTemplates) => putCategories(await needRoot(), categories, categoryColors, categoryTemplates),
-      putFields: async (fields) => putFields(await needRoot(), fields),
-      putLabels: async (labels) => putLabels(await needRoot(), labels),
-      putStatuses: async (statuses) => putStatuses(await needRoot(), statuses),
-      putMilestones: async (milestones) => putMilestones(await needRoot(), milestones),
+      get: async () => readProject(requireLayout()),
+      init: async (fiscalYearStartMonth) => initProject(await requireReachableLayout(), fiscalYearStartMonth),
+      put: async (categories, categoryColors, categoryTemplates) => putCategories(await requireReachableLayout(), categories, categoryColors, categoryTemplates),
+      putFields: async (fields) => putFields(await requireReachableLayout(), fields),
+      putLabels: async (labels) => putLabels(await requireReachableLayout(), labels),
+      putStatuses: async (statuses) => putStatuses(await requireReachableLayout(), statuses),
+      putMilestones: async (milestones) => putMilestones(await requireReachableLayout(), milestones),
     },
     users: {
-      me: async () => read((l) => findUser(l, deps.username)),
-      register: async (displayName) => putDisplayName(await needRoot(), deps.username, displayName),
-      list: async () => read((l) => usersCollection(l).list()),
-      add: async (displayName) => addUser(await needRoot(), displayName),
+      me: async () => readFromShare((layout) => findUser(layout, deps.username)),
+      register: async (displayName) => putDisplayName(await requireReachableLayout(), deps.username, displayName),
+      list: async () => readFromShare((layout) => usersCollection(layout).list()),
+      add: async (displayName) => addUser(await requireReachableLayout(), displayName),
       async rename(username, displayName) {
-        const current = await needRoot();
-        if ((await usersCollection(current).get(username)) === null) throw new Error(`no such member: ${username}`); // removed on another machine: a rename never brings the member back
-        return putDisplayName(current, username, displayName);
+        const layout = await requireReachableLayout();
+        if ((await usersCollection(layout).get(username)) === null) throw new Error(`no such member: ${username}`); // removed on another machine: a rename never brings the member back
+        return putDisplayName(layout, username, displayName);
       },
-      claim: async (username) => claimUser(await needRoot(), username, deps.username),
-      remove: async (username) => removeUser(await needRoot(), username),
+      claim: async (username) => claimUser(await requireReachableLayout(), username, deps.username),
+      remove: async (username) => removeUser(await requireReachableLayout(), username),
     },
     issues: {
-      list: async () => (await read((l) => issuesCollection(l).list())).map(withDefaults),
+      list: async () => (await readFromShare((layout) => issuesCollection(layout).list())).map(withIssueDefaults),
       get: async (key) => {
-        const i = await read((l) => issuesCollection(l).get(key));
-        return i === null ? null : withDefaults(i);
+        const issue = await readFromShare((layout) => issuesCollection(layout).get(key));
+        return issue === null ? null : withIssueDefaults(issue);
       },
       async create(draft) {
-        const project = await readProject(need());
-        if (project === null) throw new Error("project.json is missing");
-        return createIssue(await needRoot(), project, draft);
+        const project = await requireProject(requireLayout());
+        return createIssue(await requireReachableLayout(), project, draft);
       },
-      put: async (issue, expectedUpdatedAt) => putIssue(await needRoot(), issue, expectedUpdatedAt),
-      remove: async (key) => removeIssue(await needRoot(), key),
-      history: async (key) => (await read((l) => issuesCollection(l).history(key))).map(withDefaults),
+      put: async (issue, expectedUpdatedAt) => putIssue(await requireReachableLayout(), issue, expectedUpdatedAt),
+      remove: async (key) => removeIssue(await requireReachableLayout(), key),
+      history: async (key) => (await readFromShare((layout) => issuesCollection(layout).history(key))).map(withIssueDefaults),
     },
     summary: {
-      async exportCsv(csv, defaultName) {
-        const path = await deps.chooseSavePath(defaultName, { name: "CSV", extensions: ["csv"] });
-        if (path === null) return false;
-        await fsp.writeFile(path, "﻿" + csv, "utf8");
-        return true;
-      },
+      exportCsv: async (csv, defaultName) => saveTextAs(UTF8_BOM + csv, defaultName, { name: "CSV", extensions: ["csv"] }),
     },
     comments: {
-      list: async (key) => read((l) => commentsCollection(l, key).list()),
-      add: async (c) => addComment(await needRoot(), c),
-      listAll: async () => read(listAllComments),
+      list: async (key) => readFromShare((layout) => commentsCollection(layout, key).list()),
+      add: async (comment) => addComment(await requireReachableLayout(), comment),
+      listAll: async () => readFromShare(listAllComments),
     },
     attachments: {
-      list: async (owner) => read((l) => listAttachments(l, owner)),
+      list: async (owner) => readFromShare((layout) => listAttachments(layout, owner)),
       async add(owner, paths) {
-        const chosen = paths ?? (await deps.chooseFiles());
-        if (chosen === null || chosen.length === 0) return { added: [], refused: [] };
-        return addAttachments(need(), owner, chosen);
+        const chosenPaths = paths ?? (await deps.chooseFiles());
+        if (chosenPaths === null || chosenPaths.length === 0) return { added: [], refused: [] };
+        return addAttachments(requireLayout(), owner, chosenPaths); // addAttachments itself rejects when the share is gone
       },
       choose: () => deps.chooseFiles(),
       async open(owner, name) {
         assertName(name);
         if (isRefusedExtension(name)) throw new Error("refused-extension"); // a file placed in the folder by hand
-        const err = await deps.openPath(join(attachmentDir(need(), owner), name));
-        if (err !== "") throw new Error(`open-failed: ${err}`);
+        await openWithOs(join(attachmentDir(requireLayout(), owner), name));
       },
       async openFolder(owner) {
-        const dir = attachmentDir(await needRoot(), owner);
+        const dir = attachmentDir(await requireReachableLayout(), owner);
         await mkdirp(dir);
-        const err = await deps.openPath(dir);
-        if (err !== "") throw new Error(`open-failed: ${err}`);
+        await openWithOs(dir);
       },
-      remove: async (owner, name) => removeAttachment(await needRoot(), owner, name),
+      remove: async (owner, name) => removeAttachment(await requireReachableLayout(), owner, name),
     },
     wiki: {
-      list: async () => (await read((l) => wikiCollection(l).list())).map(withWikiDefaults),
+      list: async () => (await readFromShare((layout) => wikiCollection(layout).list())).map(withWikiDefaults),
       get: async (id) => {
-        const p = await read((l) => wikiCollection(l).get(id));
-        return p === null ? null : withWikiDefaults(p);
+        const page = await readFromShare((layout) => wikiCollection(layout).get(id));
+        return page === null ? null : withWikiDefaults(page);
       },
-      create: async (p) => createPage(await needRoot(), p),
-      put: async (p, expectedUpdatedAt) => putPage(await needRoot(), p, expectedUpdatedAt),
-      remove: async (id) => removePage(await needRoot(), id),
-      history: async (id) => (await read((l) => wikiCollection(l).history(id))).map(withWikiDefaults),
+      create: async (page) => createPage(await requireReachableLayout(), page),
+      put: async (page, expectedUpdatedAt) => putPage(await requireReachableLayout(), page, expectedUpdatedAt),
+      remove: async (id) => removePage(await requireReachableLayout(), id),
+      history: async (id) => (await readFromShare((layout) => wikiCollection(layout).history(id))).map(withWikiDefaults),
     },
     reports: {
-      list: async () => read((l) => reportsCollection(l).list()),
-      get: async (id) => read((l) => reportsCollection(l).get(id)),
-      create: async (r) => createReport(await needRoot(), r),
-      put: async (r, expectedUpdatedAt) => putReport(await needRoot(), r, expectedUpdatedAt),
-      remove: async (id) => removeReport(await needRoot(), id),
-      async save(text, defaultName, filter) {
-        const path = await deps.chooseSavePath(defaultName, filter);
-        if (path === null) return false;
-        await fsp.writeFile(path, text, "utf8");
-        return true;
-      },
+      list: async () => readFromShare((layout) => reportsCollection(layout).list()),
+      get: async (id) => readFromShare((layout) => reportsCollection(layout).get(id)),
+      create: async (report) => createReport(await requireReachableLayout(), report),
+      put: async (report, expectedUpdatedAt) => putReport(await requireReachableLayout(), report, expectedUpdatedAt),
+      remove: async (id) => removeReport(await requireReachableLayout(), id),
+      save: saveTextAs,
       copy: async (html, text) => deps.writeClipboard(html, text),
     },
     watch: {
-      list: async () => read(async (l) => readWatch(l, await memberId(l))),
-      async set(key, on) {
-        const current = await needRoot();
-        return setWatch(current, await memberId(current), key, on);
+      list: async () => readFromShare(async (layout) => readWatch(layout, await currentMemberId(layout))),
+      async set(key, shouldWatch) {
+        const layout = await requireReachableLayout();
+        return setWatch(layout, await currentMemberId(layout), key, shouldWatch);
       },
     },
     files: {

@@ -2,7 +2,13 @@ import type { Project } from "../../shared/types";
 import { textOn } from "../app/theme";
 import { labelColor, labelOptions, toggleLabel } from "./labels";
 
-type Props = { project: Project; value: string[]; onChange(labels: string[]): void; /** Shown while no label is chosen; a filter says すべて, a record 未設定. */ emptyLabel?: string };
+type Props = {
+  project: Project;
+  value: string[];
+  onChange(labels: string[]): void;
+  /** Shown while no label is chosen; a filter says すべて, a record 未設定. */
+  emptyLabel?: string;
+};
 
 /** Checkbox popover of the project's ラベル, shared by the detail sidebar, the create form and FilterBar. */
 export function LabelPicker({ project, value, onChange, emptyLabel = "未設定" }: Props): React.JSX.Element {

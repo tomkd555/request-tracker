@@ -3,15 +3,15 @@ import { mentionedKeys } from "../app/linkIssueKeys";
 
 /** Issues this one mentions in its description, then issues whose description mentions this one; parent and children excluded. */
 export function relatedIssues(issue: Issue, byKey: Map<string, Issue>): Issue[] {
-  const family = new Set([issue.key, issue.parentKey ?? ""]);
+  const isFamily = (k: string): boolean => k === issue.key || k === issue.parentKey;
   const out: Issue[] = [];
   for (const k of mentionedKeys(issue.description)) {
-    const i = byKey.get(k);
-    if (i && !family.has(k) && i.parentKey !== issue.key) out.push(i);
+    const other = byKey.get(k);
+    if (other && !isFamily(k) && other.parentKey !== issue.key) out.push(other);
   }
-  for (const i of byKey.values()) {
-    if (family.has(i.key) || i.parentKey === issue.key || out.includes(i)) continue;
-    if (mentionedKeys(i.description).includes(issue.key)) out.push(i);
+  for (const other of byKey.values()) {
+    if (isFamily(other.key) || other.parentKey === issue.key || out.includes(other)) continue;
+    if (mentionedKeys(other.description).includes(issue.key)) out.push(other);
   }
   return out;
 }
@@ -27,20 +27,20 @@ export interface RelationRow {
 
 /** This issue's own relations, in written order, then the relations other issues wrote naming this one; a key with no record, or naming the issue itself, is dropped. */
 export function relationRows(issue: Issue, byKey: Map<string, Issue>): RelationRow[] {
-  const out: RelationRow[] = [];
+  const outRows: RelationRow[] = [];
   for (const rel of issue.relations) {
     if (rel.key === issue.key) continue;
-    const i = byKey.get(rel.key);
-    if (i) out.push({ direction: "out", type: rel.type, key: i.key, summary: i.summary, status: i.status });
+    const other = byKey.get(rel.key);
+    if (other) outRows.push({ direction: "out", type: rel.type, key: other.key, summary: other.summary, status: other.status });
   }
   const inRows: RelationRow[] = [];
-  for (const i of byKey.values()) {
-    if (i.key === issue.key) continue;
-    for (const rel of i.relations) {
-      if (rel.key === issue.key) inRows.push({ direction: "in", type: rel.type, key: i.key, summary: i.summary, status: i.status });
+  for (const other of byKey.values()) {
+    if (other.key === issue.key) continue;
+    for (const rel of other.relations) {
+      if (rel.key === issue.key) inRows.push({ direction: "in", type: rel.type, key: other.key, summary: other.summary, status: other.status });
     }
   }
-  return [...out, ...inRows];
+  return [...outRows, ...inRows];
 }
 
 /** Appends `rel` unless an identical {type, key} pair is already present. */

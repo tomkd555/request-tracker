@@ -2,19 +2,22 @@ import { promises as fsp } from "node:fs";
 import type { IssueDraft } from "../../shared/api";
 import { isIssue, type Issue, type Project } from "../../shared/types";
 import { allocateKey, keyOfFileName } from "./allocateKey";
-import { collection, mkdirp, readDir, type Collection } from "./collection";
+import { collection, errorCode, mkdirp, readRecords, type Collection } from "./collection";
 import { fiscalYearOf, fiscalYy } from "../../shared/fiscalYear";
 import { parentRefusal } from "../../shared/issueTree";
 import type { Layout } from "./paths";
 
-export const issuesCollection = (l: Layout): Collection<Issue> =>
-  collection<Issue>({ dir: l.issues, guard: isIssue, historyDir: l.historyIssues, trashDir: l.trashIssues, idOf: (i) => i.key });
+export const issuesCollection = (layout: Layout): Collection<Issue> =>
+  collection<Issue>({ dir: layout.issues, guard: isIssue, historyDir: layout.historyIssues, trashDir: layout.trashIssues, idOf: (issue) => issue.key });
 
-async function keysIn(dir: string): Promise<string[]> {
+/** The issues as the share holds them now, past the listing cache: a check that guards a write must see the latest files. */
+export const readIssuesUncached = (layout: Layout): Promise<Issue[]> => readRecords(layout.issues, isIssue, (issue) => issue.key);
+
+async function issueKeysIn(dir: string): Promise<string[]> {
   try {
-    return (await fsp.readdir(dir)).map(keyOfFileName).filter((k): k is string => k !== null);
+    return (await fsp.readdir(dir)).map(keyOfFileName).filter((key): key is string => key !== null);
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if (errorCode(e) === "ENOENT") return [];
     throw e;
   }
 }
@@ -22,43 +25,45 @@ async function keysIn(dir: string): Promise<string[]> {
 export const HAS_CHILDREN = "has-children";
 
 /** Rejects with "cycle" or "too-deep" (see parentRefusal) when the parent named would break the tree; a parent that no longer exists is kept. */
-async function assertParent(l: Layout, key: string | null, parentKey: string | null): Promise<void> {
+async function assertParent(layout: Layout, key: string | null, parentKey: string | null): Promise<void> {
   if (parentKey === null) return;
-  const issues = await readDir(l.issues, isIssue, (i) => i.key); // uncached: the guard must see the share as it is
-  if (!issues.some((i) => i.key === parentKey)) return;
+  const issues = await readIssuesUncached(layout);
+  if (!issues.some((issue) => issue.key === parentKey)) return;
   const refusal = parentRefusal(issues, key, parentKey);
   if (refusal !== null) throw new Error(refusal);
 }
 
-export async function putIssue(l: Layout, issue: Issue, expectedUpdatedAt?: string): Promise<void> {
-  await assertParent(l, issue.key, issue.parentKey);
-  await issuesCollection(l).put(issue.key, issue, expectedUpdatedAt);
+export async function putIssue(layout: Layout, issue: Issue, expectedUpdatedAt?: string): Promise<void> {
+  await assertParent(layout, issue.key, issue.parentKey);
+  await issuesCollection(layout).put(issue.key, issue, expectedUpdatedAt);
 }
 
 /** Moves the record to trash; refused while any issue still names it as parent. The attachments folder stays. */
-export async function removeIssue(l: Layout, key: string): Promise<void> {
-  const c = issuesCollection(l);
-  if ((await readDir(l.issues, isIssue, (i) => i.key)).some((i) => i.parentKey === key)) throw new Error(HAS_CHILDREN); // uncached: the guard must see the share as it is
-  await c.remove(key);
+export async function removeIssue(layout: Layout, key: string): Promise<void> {
+  const hasChildren = (await readIssuesUncached(layout)).some((issue) => issue.parentKey === key);
+  if (hasChildren) throw new Error(HAS_CHILDREN);
+  await issuesCollection(layout).remove(key);
 }
 
+const MAX_KEY_ATTEMPTS = 100;
+
 /** Allocates the key from issues/ and trash/issues/, creates the record exclusively, and makes the attachments folder. */
-export async function createIssue(l: Layout, project: Project, draft: IssueDraft): Promise<Issue> {
+export async function createIssue(layout: Layout, project: Project, draft: IssueDraft): Promise<Issue> {
   const yy = fiscalYy(fiscalYearOf(draft.createdAt, project.fiscalYearStartMonth));
-  await assertParent(l, null, draft.parentKey);
-  const c = issuesCollection(l);
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const used = [...(await keysIn(l.issues)), ...(await keysIn(l.trashIssues))];
-    const key = allocateKey(used, yy);
+  await assertParent(layout, null, draft.parentKey);
+  const issues = issuesCollection(layout);
+  for (let attempt = 0; attempt < MAX_KEY_ATTEMPTS; attempt++) {
+    const usedKeys = [...(await issueKeysIn(layout.issues)), ...(await issueKeysIn(layout.trashIssues))];
+    const key = allocateKey(usedKeys, yy);
     const issue: Issue = { ...draft, key }; // key last: IPC arguments arrive untyped
     try {
-      await c.create(key, issue);
+      await issues.create(key, issue);
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === "EEXIST") continue;
+      if (errorCode(e) === "EEXIST") continue; // another client took the key between the listing and the create
       throw e;
     }
     // The record is saved; a rejection here would make the caller retry a create that already succeeded.
-    await mkdirp(l.attachments(key)).catch((e: unknown) => console.error(`store: attachments folder not created: ${l.attachments(key)}`, e));
+    await mkdirp(layout.attachments(key)).catch((e: unknown) => console.error(`store: attachments folder not created: ${layout.attachments(key)}`, e));
     return issue;
   }
   throw new Error("could not allocate an issue key");

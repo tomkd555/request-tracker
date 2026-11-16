@@ -1,7 +1,7 @@
 import { noticesOf } from "../issues/notices";
 import { seenStamp } from "../issues/seen";
 import { useIssues } from "../issues/useIssues";
-import { useSession } from "./UserContext";
+import { useSession } from "./SessionContext";
 
 const ITEMS: { path: string; label: string }[] = [
   { path: "/issues", label: "課題" },
@@ -20,16 +20,16 @@ const ITEMS: { path: string; label: string }[] = [
 export function Nav({ current, onRefresh }: { current: string; onRefresh(): Promise<void> }): React.JSX.Element {
   const { me, project } = useSession();
   const { issues, watched } = useIssues();
-  const unseen = noticesOf(issues, watched, me.username, project.statuses, seenStamp).length;
+  const unseenCount = noticesOf(issues, watched, me.username, project.statuses, seenStamp).length;
   return (
     <nav className="nav" aria-label="主メニュー">
       <div className="nav__title">Request Tracker</div>
       <ul className="nav__list">
-        {ITEMS.map((it) => (
-          <li key={it.path}>
-            <a href={`#${it.path}`} className={`nav__link${current.startsWith(it.path) ? " nav__link--active" : ""}`}>
-              {it.label}
-              {it.path === "/notices" && unseen > 0 && <span className="nav__badge">{unseen}</span>}
+        {ITEMS.map((item) => (
+          <li key={item.path}>
+            <a href={`#${item.path}`} className={`nav__link${current.startsWith(item.path) ? " nav__link--active" : ""}`}>
+              {item.label}
+              {item.path === "/notices" && unseenCount > 0 && <span className="nav__badge">{unseenCount}</span>}
             </a>
           </li>
         ))}

@@ -1,4 +1,4 @@
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { navigate } from "../app/useHashRoute";
 import { formatDateTime } from "../issues/labels";
 import { useWiki } from "./useWiki";
@@ -8,7 +8,7 @@ import { M } from "../messages";
 /** Every page as a tree, with who touched it last. */
 export function WikiIndex(): React.JSX.Element {
   const { users } = useSession();
-  const { pages, loaded } = useWiki();
+  const { pages, isLoaded } = useWiki();
   const rows = flattenTree(pages);
   return (
     <div>
@@ -33,7 +33,7 @@ export function WikiIndex(): React.JSX.Element {
               <td className="issue-table__cell">{displayNameOf(users, p.updatedBy)}</td>
             </tr>
           ))}
-          {loaded && rows.length === 0 && (
+          {isLoaded && rows.length === 0 && (
             <tr className="issue-table__row">
               <td colSpan={3} className="issue-table__cell text--muted">
                 {M.noPages}

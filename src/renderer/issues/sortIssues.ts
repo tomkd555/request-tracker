@@ -1,18 +1,22 @@
 import { ISSUE_PRIORITIES, type Issue, type Milestone, type StatusDef } from "../../shared/types";
-import { compareKeys } from "./compareKeys";
+import { compareKeys, compareText } from "./compareKeys";
 import { orderMilestones } from "./milestones";
 
 export const FIXED_SORT_KEYS = ["key", "summary", "category", "assignee", "status", "priority", "dueDate", "updatedAt", "milestone"] as const;
 type FixedKey = (typeof FIXED_SORT_KEYS)[number];
+/** The prefix of a sort key that names a 汎用列. */
+export const FIELD_SORT_PREFIX = "field:";
 /** A fixed column, or a 汎用列 as "field:<CustomField id>". */
-export type SortKey = FixedKey | `field:${string}`;
+export type SortKey = FixedKey | `${typeof FIELD_SORT_PREFIX}${string}`;
 export interface IssueSort { key: SortKey; dir: "asc" | "desc" }
 
 export const DEFAULT_SORT: IssueSort = { key: "key", dir: "desc" };
 
-export const fieldSortKey = (id: string): SortKey => `field:${id}`;
+export const fieldSortKey = (id: string): SortKey => `${FIELD_SORT_PREFIX}${id}`;
 
-const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+/** A missing value after a present one in either direction; `compared` decides between two present values. */
+const missingLast = (isMissingA: boolean, isMissingB: boolean, compared: () => number): number =>
+  isMissingA && !isMissingB ? 1 : isMissingB && !isMissingA ? -1 : compared();
 
 /**
  * Comparator for top-level rows. An empty assignee, 汎用列, due date or milestone sorts last in either direction; ties fall back to key descending.
@@ -23,16 +27,16 @@ export function issueComparator(sort: IssueSort, nameOf: (username: string | nul
   const milestoneOrder = orderMilestones(milestones).map((m) => m.id);
   const milestoneRank = (i: Issue): number => milestoneOrder.indexOf(i.milestone ?? "");
   const statusIndex = (id: string): number => statuses.findIndex((s) => s.id === id);
-  const emptyLast = (va: string, vb: string): number => (va === "" && vb !== "" ? 1 : vb === "" && va !== "" ? -1 : cmpStr(va, vb) * sign);
-  return (a, b) => primary(a, b) || compareKeys(b.key, a.key);
+  const emptyLast = (va: string, vb: string): number => missingLast(va === "", vb === "", () => compareText(va, vb) * sign);
+  return (a, b) => comparePrimary(a, b) || compareKeys(b.key, a.key);
 
-  function primary(a: Issue, b: Issue): number {
+  function comparePrimary(a: Issue, b: Issue): number {
     switch (sort.key) {
       case "key":
         return compareKeys(a.key, b.key) * sign;
       case "summary":
       case "updatedAt":
-        return cmpStr(a[sort.key], b[sort.key]) * sign;
+        return compareText(a[sort.key], b[sort.key]) * sign;
       case "assignee":
         return emptyLast(nameOf(a.assignee), nameOf(b.assignee));
       case "category":
@@ -42,14 +46,14 @@ export function issueComparator(sort: IssueSort, nameOf: (username: string | nul
       case "milestone": {
         const ra = milestoneRank(a);
         const rb = milestoneRank(b);
-        return ra === -1 && rb !== -1 ? 1 : rb === -1 && ra !== -1 ? -1 : (ra - rb) * sign;
+        return missingLast(ra === -1, rb === -1, () => (ra - rb) * sign);
       }
       case "status":
         return (statusIndex(a.status) - statusIndex(b.status)) * sign;
       case "priority":
         return (ISSUE_PRIORITIES.indexOf(a.priority) - ISSUE_PRIORITIES.indexOf(b.priority)) * sign;
       default: {
-        const id = sort.key.slice("field:".length);
+        const id = sort.key.slice(FIELD_SORT_PREFIX.length);
         return emptyLast(a.fields[id] ?? "", b.fields[id] ?? "");
       }
     }

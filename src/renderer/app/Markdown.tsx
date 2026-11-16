@@ -1,26 +1,16 @@
-import { createElement, isValidElement, useContext, useMemo } from "react";
+import { createElement, useContext, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { WikiContext } from "../wiki/useWiki";
 import { normalizeTitle } from "../wiki/wikiTree";
-import { linkProps, makeIdAllocator } from "./anchorLink";
+import { headingIdOf, linkProps, makeIdAllocator } from "./anchorLink";
 import { linkIssueKeys } from "./linkIssueKeys";
 import { linkWikiPages, MISSING_PAGE_PATH } from "./wikiLinks";
 
 type Level = 1 | 2 | 3 | 4 | 5 | 6;
 
-/** The id a heading gets, so a table of contents can point at it: its text with spaces as hyphens. */
-export const headingId = (text: string): string => text.trim().replace(/\s+/g, "-");
-
-const textOf = (node: React.ReactNode): string => {
-  if (Array.isArray(node)) return node.map(textOf).join("");
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (isValidElement<{ children?: React.ReactNode }>(node)) return textOf(node.props.children);
-  return "";
-};
-
 /** Headings written in Markdown render `demote` ranks lower, so a screen's own h1/h2 stay above the content. */
-function components(demote: number): Components {
+function markdownComponents(demote: number): Components {
   const nextId = makeIdAllocator();
   const out: Components = {
     // A link out of the app opens as a new window, which main hands to the browser; the app's own document never unloads, so a draft's beforeunload stays out of it.
@@ -30,7 +20,7 @@ function components(demote: number): Components {
   };
   for (const level of [1, 2, 3, 4, 5, 6] as Level[]) {
     const tag = `h${Math.min(6, level + demote)}`;
-    out[`h${level}`] = ({ node, ...props }) => createElement(tag, { ...props, id: nextId(headingId(textOf(props.children)), node?.position?.start.offset) });
+    out[`h${level}`] = ({ node, ...props }) => createElement(tag, { ...props, id: nextId(headingIdOf(props.children), node?.position?.start.offset) });
   }
   return out;
 }
@@ -49,13 +39,13 @@ type Props = {
  */
 export function Markdown({ source, demote = 2, wikiParentId = null }: Props): React.JSX.Element {
   const wiki = useContext(WikiContext);
-  const resolve = (title: string): string | null => wiki?.titles.get(normalizeTitle(title)) ?? null;
+  const resolve = (title: string): string | null => wiki?.idByTitle.get(normalizeTitle(title)) ?? null;
   const text = linkWikiPages(linkIssueKeys(source), resolve, wikiParentId);
   // Heading ids are handed out per rendering of one text, so repeats get their suffixes in document order.
-  const comps = useMemo(() => components(demote), [demote, text]);
+  const components = useMemo(() => markdownComponents(demote), [demote, text]);
   return (
     <div className="markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={comps}>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{text}</ReactMarkdown>
     </div>
   );
 }

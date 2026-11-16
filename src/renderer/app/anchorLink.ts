@@ -1,3 +1,5 @@
+import { isValidElement, type ReactNode } from "react";
+
 // A link to `#something` that is not a route of the app (routes start with `#/`) points at an element of the document.
 
 /** The element id an in-document link points at, or null for any other href. */
@@ -10,13 +12,23 @@ export function anchorTarget(href: string | undefined): string | null {
   }
 }
 
+const textOf = (node: ReactNode): string => {
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children);
+  return "";
+};
+
+/** The id a rendered heading gets, so a link or a table of contents can point at it: its text with spaces as hyphens. */
+export const headingIdOf = (children: ReactNode): string => textOf(children).trim().replace(/\s+/g, "-");
+
 /**
  * Hands out element ids for one rendering: the first heading with an id keeps it, a repeat gets `-1`, `-2` and so on.
- * `key` (the heading's offset in the source) makes a second render of the same heading return the same id.
+ * `key` (the heading's place in the source) makes a second render of the same heading return the same id.
  */
-export function makeIdAllocator(): (id: string, key?: number) => string {
+export function makeIdAllocator(): (id: string, key?: number | string) => string {
   const used = new Set<string>();
-  const byKey = new Map<number, string>();
+  const byKey = new Map<number | string, string>();
   return (id, key) => {
     const known = key === undefined ? undefined : byKey.get(key);
     if (known !== undefined) return known;

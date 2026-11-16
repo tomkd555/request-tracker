@@ -1,5 +1,10 @@
-import type { AddAttachmentsResult } from "../shared/api";
+import type { AddAttachmentsResult, AttachmentRefusal } from "../shared/api";
 import { MAX_DEPTH } from "../shared/issueTree";
+import type { SettingsPart } from "./app/projectSettingsFile";
+import type { CellProblem } from "./issues/importPlan";
+
+/** The shared folder as a message names it: with its path once one is chosen. */
+const shareName = (rootDir: string | null): string => (rootDir === null ? "共有フォルダ" : `共有フォルダ（${rootDir}）`);
 
 /**
  * Every message the screens show — errors, confirmations, status, validation, empty states — by ID.
@@ -11,7 +16,7 @@ export const M = {
   htmlSaved: "HTMLを保存しました",
   settingsExported: "設定を保存しました",
   settingsImported: "設定をインポートしました",
-  settingsFileInvalid: (part: string): string => `設定ファイルの${part}を読めません`,
+  settingsFileInvalid: (part: SettingsPart): string => `設定ファイルの${part}を読めません`,
   confirmReplaceSettings: "現在のプロジェクト設定を置き換えますか",
   icsSaved: "ICSを保存しました",
   icsNoDueDate: "期限日のあるマイルストーンがありません",
@@ -41,7 +46,7 @@ export const M = {
   importGuide: (max: number): string => `1行目に列名を書いたCSVを選んでください。件名の列が必要です。列名は「CSVに出力」のファイルと同じで、1ファイルにつき${max}行まで登録できます`,
   importRetry: "登録済みの行をCSVから削除して、もう一度選んでください",
   importFailedAt: (row: number, detail: string): string => `${row}行目を登録できませんでした：${detail}`,
-  importError: (e: { code: string; column: string; value: string }): string => {
+  importError: (e: CellProblem): string => {
     switch (e.code) {
       case "summary": return "件名がありません";
       case "date": return `${e.column}の形式が違います：${e.value}`;
@@ -78,8 +83,9 @@ export const M = {
   issueHasChildren: "子課題があるため削除できません",
   pageHasChildren: "子ページがあるため削除できません",
   shareUnreadable: (detail: string): string => `共有フォルダを読めません（${detail}）。ネットワークドライブやVPNを確認してください`,
-  shareUnreachableAt: (where: string): string => `${where}に接続できません。ネットワークドライブやVPNを確認してください`,
-  projectInvalidAt: (where: string): string => `${where}のproject.jsonを読めません`,
+  shareUnreachableAt: (rootDir: string | null): string => `${shareName(rootDir)}に接続できません。ネットワークドライブやVPNを確認してください`,
+  projectInvalidAt: (rootDir: string | null): string => `${shareName(rootDir)}のproject.jsonを読めません`,
+  openFailed: (detail: string): string => `開けません：${detail}`,
 
   attachTooLarge: (names: string[]): string => `50MBを超えるファイルは添付できません：${names.join("、")}`,
   attachExecutable: (names: string[]): string => `実行ファイルは添付できません：${names.join("、")}`,
@@ -89,7 +95,7 @@ export const M = {
 } as const;
 
 /** Main-process rejection codes and the message each one shows. */
-const ERROR: Record<string, string> = {
+const ERROR_BY_CODE: Record<string, string> = {
   stale: "他の人が先に保存しました。再読み込みしてください",
   cycle: "この課題の下の課題は親課題に選べません",
   "too-deep": `課題は${MAX_DEPTH}階層までです`,
@@ -100,40 +106,48 @@ const ERROR: Record<string, string> = {
   "refused-extension": "実行ファイルは開けません",
 };
 /** The wiki names pages where issues name issues. */
-const WIKI_ERROR: Record<string, string> = { ...ERROR, cycle: "このページの下のページは親ページに選べません", "has-children": M.pageHasChildren };
+const WIKI_ERROR_BY_CODE: Record<string, string> = { ...ERROR_BY_CODE, cycle: "このページの下のページは親ページに選べません", "has-children": M.pageHasChildren };
+
+const OPEN_FAILED = "open-failed:";
+
+const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+// Across the IPC boundary "stale" arrives as "Error invoking remote method 'issues:put': Error: stale".
+const hasCode = (message: string, code: string): boolean => message === code || message.endsWith(`: ${code}`);
+
+/** True when a rejection from the main process carries `code`, direct or wrapped by IPC. */
+export const hasErrorCode = (e: unknown, code: string): boolean => hasCode(messageOf(e), code);
 
 /** Turns a rejection from the main process into the message shown; text carrying no known code passes through. */
 export function errorMessage(e: unknown, scope: "issue" | "wiki" = "issue"): string {
-  const m = e instanceof Error ? e.message : String(e);
-  // Across the IPC boundary "stale" arrives as "Error invoking remote method 'issues:put': Error: stale".
-  const table = scope === "wiki" ? WIKI_ERROR : ERROR;
-  const code = Object.keys(table).find((c) => m === c || m.endsWith(`: ${c}`));
+  const message = messageOf(e);
+  const table = scope === "wiki" ? WIKI_ERROR_BY_CODE : ERROR_BY_CODE;
+  const code = Object.keys(table).find((c) => hasCode(message, c));
   if (code !== undefined) return table[code];
-  if (m.includes("open-failed:")) return `開けません：${m.slice(m.indexOf("open-failed:") + 12).trim()}`;
-  return m;
+  if (message.includes(OPEN_FAILED)) return M.openFailed(message.slice(message.indexOf(OPEN_FAILED) + OPEN_FAILED.length).trim());
+  return message;
 }
 
 /** True for the stale-write rejection, direct or wrapped by IPC as in errorMessage. */
 export function isStale(e: unknown): boolean {
-  const m = e instanceof Error ? e.message : String(e);
-  return m === "stale" || m.endsWith(": stale");
+  return hasErrorCode(e, "stale");
 }
 
-const fileName = (path: string): string => path.split(/[\\/]/).pop() || path; // a drive root ends in a separator: show the path itself
+export const fileName = (path: string): string => path.split(/[\\/]/).pop() || path; // a drive root ends in a separator: show the path itself
+
+/** The refusal reasons in the order their messages show, each with its message. */
+const REFUSAL_MESSAGES: [AttachmentRefusal["reason"], (names: string[]) => string][] = [
+  ["size", M.attachTooLarge],
+  ["extension", M.attachExecutable],
+  ["link", M.attachLink],
+  ["name", M.attachDotName],
+  ["failed", M.attachFailed],
+];
 
 /** One message per refusal reason, naming the files. */
 export function refusalMessages(r: AddAttachmentsResult): string[] {
-  const names = (reason: string): string[] => r.refused.filter((x) => x.reason === reason).map((x) => fileName(x.path));
-  const out: string[] = [];
-  const size = names("size");
-  const ext = names("extension");
-  const links = names("link");
-  if (size.length) out.push(M.attachTooLarge(size));
-  if (ext.length) out.push(M.attachExecutable(ext));
-  if (links.length) out.push(M.attachLink(links));
-  const dotNames = names("name");
-  if (dotNames.length) out.push(M.attachDotName(dotNames));
-  const failed = names("failed");
-  if (failed.length) out.push(M.attachFailed(failed));
-  return out;
+  return REFUSAL_MESSAGES.flatMap(([reason, messageFor]) => {
+    const names = r.refused.filter((x) => x.reason === reason).map((x) => fileName(x.path));
+    return names.length > 0 ? [messageFor(names)] : [];
+  });
 }

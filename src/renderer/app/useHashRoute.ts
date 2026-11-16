@@ -14,16 +14,16 @@ export function navigate(to: string): void {
 }
 
 // Forms with unsaved changes, counted so two dirty sections on one screen keep the guard until both are saved.
-let activeGuards = 0;
-let restoring = false;
-let discarding = false;
+let activeGuardCount = 0;
+let isRestoringHash = false;
+let isDiscarding = false;
 
 /** True while a form on the screen holds unsaved changes. */
-export const hasUnsavedChanges = (): boolean => activeGuards > 0;
+export const hasUnsavedChanges = (): boolean => activeGuardCount > 0;
 
 /** Reloads the window past the guards, for a caller that has asked 「編集内容を破棄しますか」 itself. */
 export function reloadDiscarding(): void {
-  discarding = true;
+  isDiscarding = true;
   window.location.reload();
 }
 
@@ -31,13 +31,13 @@ export function reloadDiscarding(): void {
 export function useNavigationGuard(active: boolean): void {
   useEffect(() => {
     if (!active) return;
-    activeGuards++;
+    activeGuardCount++;
     const onUnload = (e: BeforeUnloadEvent): void => {
-      if (!discarding) e.preventDefault();
+      if (!isDiscarding) e.preventDefault();
     };
     window.addEventListener("beforeunload", onUnload);
     return () => {
-      activeGuards--;
+      activeGuardCount--;
       window.removeEventListener("beforeunload", onUnload);
     };
   }, [active]);
@@ -45,20 +45,20 @@ export function useNavigationGuard(active: boolean): void {
 
 export function useHashRoute(): Route {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
-  const accepted = useRef(window.location.hash);
+  const acceptedHash = useRef(window.location.hash);
   useEffect(() => {
     // A refused change puts the hash back without touching the route, so the screen with the draft never unmounts.
     const onChange = (): void => {
-      if (restoring) {
-        restoring = false;
+      if (isRestoringHash) {
+        isRestoringHash = false;
         return;
       }
-      if (activeGuards > 0 && !window.confirm(M.confirmDiscard)) {
-        restoring = true;
-        window.location.hash = accepted.current;
+      if (activeGuardCount > 0 && !window.confirm(M.confirmDiscard)) {
+        isRestoringHash = true;
+        window.location.hash = acceptedHash.current;
         return;
       }
-      accepted.current = window.location.hash;
+      acceptedHash.current = window.location.hash;
       setRoute(parseHash(window.location.hash));
     };
     window.addEventListener("hashchange", onChange);

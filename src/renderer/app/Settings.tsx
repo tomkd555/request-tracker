@@ -3,27 +3,19 @@ import { NOTICE_MODES, THEME_NAMES, type LocalSettings, type NoticeMode, type Th
 import { accentOf, applyAppearance, THEMES } from "./theme";
 import { isNameEdited } from "./nameEdit";
 import { hasUnsavedChanges, reloadDiscarding, useNavigationGuard } from "./useHashRoute";
-import { useSession } from "./UserContext";
+import { FormMessageLine, useSaveMessage } from "./useSaveMessage";
+import { useSession } from "./SessionContext";
 import { errorMessage, M } from "../messages";
-
-/** Result line under a form: the saved message, or the store's error. Shared with the project settings screen. */
-export function useSaveMessage(): [string | null, (action: () => Promise<void>) => Promise<void>] {
-  const [message, setMessage] = useState<string | null>(null);
-  const run = async (action: () => Promise<void>): Promise<void> => {
-    setMessage(null);
-    try {
-      await action();
-      setMessage(M.saved);
-    } catch (e) {
-      setMessage(errorMessage(e));
-    }
-  };
-  return [message, run];
-}
 
 const NOTICE_LABEL: Record<NoticeMode, string> = { motion: "動きつきで表示", still: "動きなしで表示", off: "表示しない" };
 
-/** Per-machine settings: name, appearance and timing, the shared folder. Team settings live on ProjectSettings. */
+/** The config fields the appearance form edits. */
+const EDITED = ["theme", "accent", "notice", "dueSoonDays"] as const;
+
+/**
+ * Settings of this member and this machine: the display name (users/ on the share), appearance and timing, and the shared folder (config.json).
+ * Team settings live on ProjectSettings.
+ */
 export function Settings(): React.JSX.Element {
   return (
     <div>
@@ -47,15 +39,13 @@ function AppearanceSection(): React.JSX.Element {
     run(async () => {
       // The payload starts from the live session config, not the draft snapshot taken at mount, so a view saved
       // elsewhere in the meantime (savedFilters) is not reverted; only the fields this form edits come from draft.
-      const next = { ...config, theme: draft.theme, accent: draft.accent, notice: draft.notice, dueSoonDays: draft.dueSoonDays };
+      const next = { ...config, ...Object.fromEntries(EDITED.map((field) => [field, draft[field]])) };
       const saved = await window.api.config.put(next);
       applyAppearance(saved);
       await refreshConfig();
     });
   const patch = (p: Partial<LocalSettings>): void => setDraft((d) => ({ ...d, ...p }));
-  useNavigationGuard(
-    draft.theme !== config.theme || draft.accent !== config.accent || draft.notice !== config.notice || draft.dueSoonDays !== config.dueSoonDays,
-  );
+  useNavigationGuard(EDITED.some((field) => draft[field] !== config[field]));
 
   return (
     <section className="issue-form settings__section">
@@ -108,7 +98,7 @@ function AppearanceSection(): React.JSX.Element {
             />
           </label>
         </div>
-        {message && <p className="text--muted">{message}</p>}
+        <FormMessageLine message={message} />
         <div className="form-actions">
           <button type="submit">保存</button>
         </div>
@@ -139,7 +129,7 @@ function DisplayNameSection(): React.JSX.Element {
           名前
           <input className="issue-form__control" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        {message && <p className="text--muted">{message}</p>}
+        <FormMessageLine message={message} />
         <div className="form-actions">
           <button type="submit" disabled={name.trim() === ""}>
             保存
@@ -152,23 +142,27 @@ function DisplayNameSection(): React.JSX.Element {
 
 function FolderSection(): React.JSX.Element {
   const { config } = useSession();
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   // Asked before the folder dialog: once the folder is chosen the store has switched, so the reload must not be cancellable.
   const change = async (): Promise<void> => {
     if (hasUnsavedChanges() && !window.confirm(M.confirmDiscard)) return;
-    setMessage(null);
+    setError(null);
     try {
       // The boot sequence runs again against the new folder.
       if ((await window.api.config.chooseRoot()) !== null) reloadDiscarding();
     } catch (e) {
-      setMessage(errorMessage(e));
+      setError(errorMessage(e));
     }
   };
   return (
     <section className="issue-form settings__section">
       <h3 className="settings__heading">共有フォルダ</h3>
       <p className="settings__path">{config.rootDir}</p>
-      {message && <p className="text--muted">{message}</p>}
+      {error && (
+        <p className="text--error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="form-actions">
         <button type="button" onClick={() => void change()}>
           変更

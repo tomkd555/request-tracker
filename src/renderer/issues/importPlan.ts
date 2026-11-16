@@ -1,7 +1,7 @@
 import type { IssueDraft } from "../../shared/api";
 import { depthOf, MAX_DEPTH } from "../../shared/issueTree";
 import { ISSUE_PRIORITIES, type Issue, type IssuePriority, type Project, type User } from "../../shared/types";
-import { uncell } from "./csv";
+import { stripFormulaGuard } from "./csv";
 import { parseHours } from "./hours";
 import { firstOfKind, PRIORITY_LABEL } from "./labels";
 
@@ -19,14 +19,14 @@ export interface ImportContext {
   now: string;
 }
 
-export type ImportErrorCode = "summary" | "category" | "label" | "assignee" | "status" | "priority" | "milestone" | "date" | "dateOrder" | "hours" | "parent" | "depth" | "field";
-export interface ImportError { code: ImportErrorCode; column: string; value: string }
+type ImportErrorCode = "summary" | "category" | "label" | "assignee" | "status" | "priority" | "milestone" | "date" | "dateOrder" | "hours" | "parent" | "depth" | "field";
+export interface CellProblem { code: ImportErrorCode; column: string; value: string }
 
 /** An existing issue by key, or the draft of an earlier row by its index among the data rows. */
-export type ParentRef = { key: string } | { row: number };
+type ParentRef = { key: string } | { row: number };
 
 /** A row that can be created (the draft has parentKey null; `parent` says what to set once the key is known) or the errors that stop it. */
-export type PlannedRow = { ok: true; draft: IssueDraft; parent: ParentRef | null } | { ok: false; summary: string; errors: ImportError[] };
+export type PlannedRow = { ok: true; draft: IssueDraft; parent: ParentRef | null } | { ok: false; summary: string; errors: CellProblem[] };
 
 export interface ImportPlan { refused: "no-summary-column" | "no-rows" | "too-many" | null; rows: PlannedRow[] }
 
@@ -41,40 +41,58 @@ function parseDate(text: string): string | null {
   return day.getUTCFullYear() === y && day.getUTCMonth() === mo - 1 && day.getUTCDate() === d ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
-const PRIORITY_OF = new Map<string, IssuePriority>(ISSUE_PRIORITIES.map((p) => [PRIORITY_LABEL[p], p]));
+const PRIORITY_BY_LABEL = new Map<string, IssuePriority>(ISSUE_PRIORITIES.map((p) => [PRIORITY_LABEL[p], p]));
+
+/**
+ * The names in a ラベル cell, in order. At each word the longest project label that starts there and ends at a space or the cell's end
+ * is read whole, since the export joins names with spaces and a name may hold one; otherwise the word up to the next space is one name.
+ */
+function labelNamesIn(text: string, projectNames: string[]): string[] {
+  const longestFirst = [...projectNames].sort((a, b) => b.length - a.length);
+  const names: string[] = [];
+  let rest = text.trim();
+  while (rest !== "") {
+    const known = longestFirst.find((n) => rest.startsWith(n) && (rest.length === n.length || /\s/.test(rest[n.length])));
+    const name = known ?? rest.split(/\s/, 1)[0];
+    names.push(name);
+    rest = rest.slice(name.length).trimStart();
+  }
+  return names;
+}
 
 /** Turns parsed CSV rows (the first is the header) into one planned row per data row. */
 export function planImport(csv: string[][], ctx: ImportContext): ImportPlan {
   const { project, users, issues } = ctx;
   if (csv.length === 0) return { refused: "no-rows", rows: [] };
-  const header = (csv[0] ?? []).map((h) => uncell(h).trim());
-  const col = new Map<string, number>();
+  const header = csv[0].map((h) => stripFormulaGuard(h).trim());
+  const columnIndex = new Map<string, number>();
   header.forEach((h, i) => {
-    if (!col.has(h)) col.set(h, i);
+    if (!columnIndex.has(h)) columnIndex.set(h, i);
   });
-  if (!col.has("件名")) return { refused: "no-summary-column", rows: [] };
-  const data = csv.slice(1).filter((r) => r.some((c) => c !== ""));
-  if (data.length === 0) return { refused: "no-rows", rows: [] };
-  if (data.length > MAX_IMPORT_ROWS) return { refused: "too-many", rows: [] };
+  if (!columnIndex.has("件名")) return { refused: "no-summary-column", rows: [] };
+  const dataRows = csv.slice(1).filter((r) => r.some((c) => c !== ""));
+  if (dataRows.length === 0) return { refused: "no-rows", rows: [] };
+  if (dataRows.length > MAX_IMPORT_ROWS) return { refused: "too-many", rows: [] };
 
   const byKey = new Map(issues.map((i) => [i.key, i]));
   const milestones = project.milestones ?? [];
+  const labelNames = project.labels.map((l) => l.name);
   const defaultStatus = (firstOfKind(project.statuses, "active") ?? project.statuses[0]).id;
   const depths: number[] = [];
-  const get = (r: string[], name: string): string => {
-    const i = col.get(name);
-    return i === undefined ? "" : uncell(r[i] ?? "").trim();
+  const cellText = (r: string[], column: string): string => {
+    const i = columnIndex.get(column);
+    return i === undefined ? "" : stripFormulaGuard(r[i] ?? "").trim();
   };
-  const keys = data.map((r) => get(r, "キー"));
-  const summaries = data.map((r) => get(r, "件名"));
+  const keys = dataRows.map((r) => cellText(r, "キー"));
+  const summaries = dataRows.map((r) => cellText(r, "件名"));
 
-  const rows = data.map((r, index): PlannedRow => {
-    const errors: ImportError[] = [];
+  const rows = dataRows.map((r, index): PlannedRow => {
+    const errors: CellProblem[] = [];
     const fail = (code: ImportErrorCode, column: string, value: string): void => void errors.push({ code, column, value });
     const summary = summaries[index];
     if (summary === "") fail("summary", "件名", "");
 
-    const categoryText = get(r, "種別");
+    const categoryText = cellText(r, "種別");
     let category = project.categories[0] ?? "";
     if (categoryText !== "") {
       if (project.categories.includes(categoryText)) category = categoryText;
@@ -82,19 +100,19 @@ export function planImport(csv: string[][], ctx: ImportContext): ImportPlan {
     }
 
     const labels: string[] = [];
-    for (const name of get(r, "ラベル").split(/\s+/).filter((n) => n !== "")) {
-      if (!project.labels.some((l) => l.name === name)) fail("label", "ラベル", name);
+    for (const name of labelNamesIn(cellText(r, "ラベル"), labelNames)) {
+      if (!labelNames.includes(name)) fail("label", "ラベル", name);
       else if (!labels.includes(name)) labels.push(name);
     }
 
-    const assigneeText = get(r, "担当者");
+    const assigneeText = cellText(r, "担当者");
     let assignee: string | null = null;
     if (assigneeText !== "") {
       assignee = users.find((u) => u.displayName === assigneeText)?.username ?? null;
       if (assignee === null) fail("assignee", "担当者", assigneeText);
     }
 
-    const statusText = get(r, "状態");
+    const statusText = cellText(r, "状態");
     let status = defaultStatus;
     if (statusText !== "") {
       const s = project.statuses.find((x) => x.name === statusText);
@@ -102,40 +120,42 @@ export function planImport(csv: string[][], ctx: ImportContext): ImportPlan {
       else fail("status", "状態", statusText);
     }
 
-    const priorityText = get(r, "優先度");
+    const priorityText = cellText(r, "優先度");
     let priority: IssuePriority = "normal";
     if (priorityText !== "") {
-      const p = PRIORITY_OF.get(priorityText);
+      const p = PRIORITY_BY_LABEL.get(priorityText);
       if (p) priority = p;
       else fail("priority", "優先度", priorityText);
     }
 
-    const milestoneText = get(r, "マイルストーン");
+    const milestoneText = cellText(r, "マイルストーン");
     let milestone: string | null = null;
     if (milestoneText !== "") {
       milestone = milestones.find((m) => m.name === milestoneText)?.id ?? null;
       if (milestone === null) fail("milestone", "マイルストーン", milestoneText);
     }
 
+    const dateTexts = { 開始日: cellText(r, "開始日"), 期限日: cellText(r, "期限日") };
     const dates: Record<"開始日" | "期限日", string | null> = { 開始日: null, 期限日: null };
     for (const name of ["開始日", "期限日"] as const) {
-      const text = get(r, name);
+      const text = dateTexts[name];
       if (text === "") continue;
       dates[name] = parseDate(text);
       if (dates[name] === null) fail("date", name, text);
     }
-    if (dates.開始日 !== null && dates.期限日 !== null && dates.期限日 < dates.開始日) fail("dateOrder", "期限日", get(r, "期限日"));
+    if (dates.開始日 !== null && dates.期限日 !== null && dates.期限日 < dates.開始日) fail("dateOrder", "期限日", dateTexts.期限日);
 
     const hours: Record<"予定時間" | "実績時間", number | null> = { 予定時間: null, 実績時間: null };
     for (const name of ["予定時間", "実績時間"] as const) {
-      const parsed = parseHours(get(r, name));
+      const text = cellText(r, name);
+      const parsed = parseHours(text);
       if (parsed.ok) hours[name] = parsed.value;
-      else fail("hours", name, get(r, name));
+      else fail("hours", name, text);
     }
 
     const fields: Record<string, string> = {};
     for (const f of project.fields) {
-      const value = get(r, f.name);
+      const value = cellText(r, f.name);
       if (value === "") continue;
       if (f.options.length > 0 && !f.options.includes(value)) fail("field", f.name, value);
       else fields[f.id] = value;
@@ -143,7 +163,7 @@ export function planImport(csv: string[][], ctx: ImportContext): ImportPlan {
 
     // A parent names a row above by that row's キー (an export read back keeps its own tree, whatever keys the project already holds),
     // else an existing issue by key, else the first row above with that 件名.
-    const parentText = get(r, "親課題");
+    const parentText = cellText(r, "親課題");
     let parent: ParentRef | null = null;
     depths[index] = 1;
     if (parentText !== "") {
@@ -161,7 +181,7 @@ export function planImport(csv: string[][], ctx: ImportContext): ImportPlan {
     }
 
     if (errors.length > 0) return { ok: false, summary, errors };
-    const description = get(r, "詳細") || (project.categoryTemplates[category]?.body ?? "");
+    const description = cellText(r, "詳細") || (project.categoryTemplates[category]?.body ?? "");
     return {
       ok: true,
       parent,
@@ -200,11 +220,11 @@ export interface ImportResult {
 
 /** Creates the rows from the top, parents first, setting each parentKey to the key the store allocated; stops at the first failure. Creates nothing while a row has errors. */
 export async function runImport(rows: PlannedRow[], create: (draft: IssueDraft) => Promise<{ key: string }>): Promise<ImportResult> {
-  if (rows.some((r) => !r.ok)) return { created: 0, failedRow: null, error: null };
+  const okRows = rows.filter((r): r is Extract<PlannedRow, { ok: true }> => r.ok);
+  if (okRows.length !== rows.length) return { created: 0, failedRow: null, error: null };
   const keys: string[] = [];
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row.ok) continue;
+  for (let i = 0; i < okRows.length; i++) {
+    const row = okRows[i];
     const parentKey = row.parent === null ? null : "key" in row.parent ? row.parent.key : keys[row.parent.row];
     try {
       keys.push((await create({ ...row.draft, parentKey })).key);
@@ -212,5 +232,5 @@ export async function runImport(rows: PlannedRow[], create: (draft: IssueDraft) 
       return { created: i, failedRow: i + 1, error: e instanceof Error ? e.message : String(e) };
     }
   }
-  return { created: rows.length, failedRow: null, error: null };
+  return { created: okRows.length, failedRow: null, error: null };
 }

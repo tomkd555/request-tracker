@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { applyCommand, insertBlock, TOOLBAR_LABEL, type Selection, type ToolbarCommand } from "../app/markdownToolbar";
+import { applyCommand, insertBlock, TOOLBAR_LABEL, type TextSelection, type ToolbarCommand } from "../app/markdownToolbar";
 import { useNavigationGuard } from "../app/useHashRoute";
 import { formatHours, parseHours } from "./hours";
 
@@ -26,10 +26,7 @@ export function TextField({ value, onSave, className, required, ariaLabel }: Tex
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          commit();
-          (e.target as HTMLInputElement).blur();
-        }
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur(); // onBlur commits; a commit here as well would save twice
         if (e.key === "Escape") setDraft(value);
       }}
     />
@@ -106,6 +103,9 @@ export function HoursField({ value, onSave, onRefuse, className, ariaLabel }: Ho
 
 const BASE_COMMANDS: ToolbarCommand[] = ["heading", "bold", "ul", "ol", "check", "code", "link", "table"];
 
+/** Textarea rows of an issue's 詳細, on the detail screen and the create form. */
+export const DESCRIPTION_ROWS = 12;
+
 type EditorProps = {
   value: string;
   onChange(v: string): void;
@@ -123,39 +123,39 @@ type EditorProps = {
 
 export interface EditorTool {
   label: string;
-  onClick(sel: Selection, insert: (block: string) => void): void;
+  onClick(sel: TextSelection, insert: (block: string) => void): void;
 }
 
 /** Markdown textarea with a toolbar and 編集 / プレビュー tabs. Controlled; the owner decides when to save. */
 export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extraCommands = [], issuePrefix = "", ariaLabel, tools = [] }: EditorProps): React.JSX.Element {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
-  const area = useRef<HTMLTextAreaElement>(null);
-  const pending = useRef<{ start: number; end: number } | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pendingSelection = useRef<{ start: number; end: number } | null>(null);
 
   // The selection a command produced is applied after React has written the new value.
   useEffect(() => {
-    if (pending.current && area.current) {
-      area.current.focus();
-      area.current.setSelectionRange(pending.current.start, pending.current.end);
-      pending.current = null;
+    if (pendingSelection.current && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(pendingSelection.current.start, pendingSelection.current.end);
+      pendingSelection.current = null;
     }
   }, [value]);
 
-  const run = (cmd: ToolbarCommand): void => {
-    const el = area.current;
+  const runCommand = (cmd: ToolbarCommand): void => {
+    const el = textareaRef.current;
     if (!el) return;
     const next = applyCommand(cmd, { text: value, start: el.selectionStart, end: el.selectionEnd }, issuePrefix);
-    pending.current = { start: next.start, end: next.end };
+    pendingSelection.current = { start: next.start, end: next.end };
     onChange(next.text);
   };
 
   const runTool = (t: EditorTool): void => {
-    const el = area.current;
+    const el = textareaRef.current;
     if (!el) return;
-    const sel: Selection = { text: value, start: el.selectionStart, end: el.selectionEnd };
+    const sel: TextSelection = { text: value, start: el.selectionStart, end: el.selectionEnd };
     t.onClick(sel, (block) => {
       const next = insertBlock(sel, block.endsWith("\n") ? block : `${block}\n`);
-      pending.current = { start: next.start, end: next.end };
+      pendingSelection.current = { start: next.start, end: next.end };
       onChange(next.text);
     });
   };
@@ -174,7 +174,7 @@ export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extr
         {tab === "edit" && (
           <div className="markdown-editor__tools" role="toolbar" aria-label="書式">
             {[...BASE_COMMANDS, ...extraCommands].map((c) => (
-              <button key={c} type="button" className="markdown-editor__tool" onMouseDown={(e) => e.preventDefault()} onClick={() => run(c)}>
+              <button key={c} type="button" className="markdown-editor__tool" onMouseDown={(e) => e.preventDefault()} onClick={() => runCommand(c)}>
                 {TOOLBAR_LABEL[c]}
               </button>
             ))}
@@ -188,7 +188,7 @@ export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extr
       </div>
       {tab === "edit" ? (
         <textarea
-          ref={area}
+          ref={textareaRef}
           className="markdown-editor__textarea"
           aria-label={ariaLabel}
           value={value}
@@ -203,26 +203,34 @@ export function MarkdownEditor({ value, onChange, preview, rows, autoFocus, extr
   );
 }
 
-type FieldProps = { title: string; value: string; onSave(v: string): void; preview(v: string): React.ReactNode };
+/** `onSave` resolves false when the write failed; the editor then stays open with the draft. */
+type MarkdownFieldProps = { title: string; value: string; onSave(v: string): Promise<boolean>; preview(v: string): React.ReactNode };
 
 /** A titled section showing rendered Markdown, with 編集 at the section head; 保存 writes, キャンセル restores. */
-export function MarkdownField({ title, value, onSave, preview }: FieldProps): React.JSX.Element {
+export function MarkdownField({ title, value, onSave, preview }: MarkdownFieldProps): React.JSX.Element {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!editing) setDraft(value);
   }, [value, editing]);
   useNavigationGuard(editing && draft !== value);
 
-  const save = (): void => {
-    if (draft !== value) onSave(draft);
+  const save = async (): Promise<void> => {
+    if (saving) return;
+    if (draft !== value) {
+      setSaving(true);
+      const saved = await onSave(draft);
+      setSaving(false);
+      if (!saved) return;
+    }
     setEditing(false);
   };
 
   return (
     <section
       onKeyDown={(e) => {
-        if (editing && (e.ctrlKey || e.metaKey) && e.key === "Enter") save();
+        if (editing && (e.ctrlKey || e.metaKey) && e.key === "Enter") void save();
       }}
     >
       <div className="section-head">
@@ -235,9 +243,9 @@ export function MarkdownField({ title, value, onSave, preview }: FieldProps): Re
       </div>
       {editing ? (
         <>
-          <MarkdownEditor value={draft} onChange={setDraft} preview={preview} rows={12} autoFocus ariaLabel={title} />
+          <MarkdownEditor value={draft} onChange={setDraft} preview={preview} rows={DESCRIPTION_ROWS} autoFocus ariaLabel={title} />
           <div className="form-actions">
-            <button type="button" className="button--primary" onClick={save}>
+            <button type="button" className="button--primary" disabled={saving} onClick={() => void save()}>
               保存
             </button>
             <button

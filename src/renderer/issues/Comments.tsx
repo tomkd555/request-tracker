@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Comment, Issue, IssueStatus } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { useNavigationGuard } from "../app/useHashRoute";
 import { changeEntries, type ChangeEntry } from "./diffVersions";
 import { formatDateTime } from "./labels";
@@ -10,16 +10,19 @@ import { errorMessage, M } from "../messages";
 interface Props {
   issue: Issue;
   /** Bumped by the detail after each save, so the change feed reloads. */
-  version: number;
+  saveCount: number;
   /** Saves the stage; false when it was not saved (the owner shows why, or the user cancelled). */
-  onStatus(status: IssueStatus): Promise<boolean>;
+  saveStatus(status: IssueStatus): Promise<boolean>;
 }
 
 type FeedItem = { kind: "comment"; at: string; comment: Comment } | { kind: "change"; at: string; change: ChangeEntry };
 
-export function Comments({ issue, version, onStatus }: Props): React.JSX.Element {
+/** Oldest first; ISO timestamps order correctly as text. */
+const byTime = (a: FeedItem, b: FeedItem): number => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+
+export function Comments({ issue, saveCount, saveStatus }: Props): React.JSX.Element {
   const { me, users, project } = useSession();
-  const [items, setItems] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [changes, setChanges] = useState<ChangeEntry[]>([]);
   const [showChanges, setShowChanges] = useState(true);
   const [draft, setDraft] = useState("");
@@ -29,7 +32,7 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   const issueKey = issue.key;
   const nameOf = useCallback((u: string | null) => displayNameOf(users, u), [users]);
 
-  const load = useCallback(async () => setItems(await window.api.comments.list(issueKey)), [issueKey]);
+  const loadComments = useCallback(async () => setComments(await window.api.comments.list(issueKey)), [issueKey]);
   const loadChanges = useCallback(async () => {
     const history = await window.api.issues.history(issueKey);
     // The record as stored: `issue` shows a deleted stage as the first stage, which would read as a status change.
@@ -38,11 +41,11 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   }, [issueKey, issue, nameOf, project.fields, project.statuses, project.milestones]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadComments();
+  }, [loadComments]);
   useEffect(() => {
     void loadChanges();
-  }, [loadChanges, version]);
+  }, [loadChanges, saveCount]);
   useEffect(() => setStatus(issue.status), [issue.status]);
 
   const statusChanged = status !== issue.status;
@@ -54,13 +57,13 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
     setPosting(true);
     setError(null);
     try {
-      if (statusChanged && !(await onStatus(status))) return;
+      if (statusChanged && !(await saveStatus(status))) return;
       if (body === "") return;
       const createdAt = new Date().toISOString();
       try {
         await window.api.comments.add({ id: "", issueKey, author: me.username, body, createdAt });
         setDraft("");
-        await load();
+        await loadComments();
       } catch (e) {
         setError(errorMessage(e));
       }
@@ -70,9 +73,9 @@ export function Comments({ issue, version, onStatus }: Props): React.JSX.Element
   };
 
   const feed: FeedItem[] = [
-    ...items.map((c): FeedItem => ({ kind: "comment", at: c.createdAt, comment: c })),
+    ...comments.map((c): FeedItem => ({ kind: "comment", at: c.createdAt, comment: c })),
     ...(showChanges ? changes.map((c): FeedItem => ({ kind: "change", at: c.at, change: c })) : []),
-  ].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  ].sort(byTime);
 
   return (
     <section>

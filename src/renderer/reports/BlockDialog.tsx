@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { DueFilter, Project, User } from "../../shared/types";
-import { toggleLabel } from "../issues/labels";
+import { categoryOptions, displayNameOf } from "../app/SessionContext";
+import { labelOptions, toggleLabel } from "../issues/labels";
 import type { SortKey } from "../issues/sortIssues";
 import {
   BLOCK_LABEL,
   COLUMN_LABEL,
   DEFAULT_COLUMNS,
+  DEFAULT_GANTT_MONTHS,
+  DEFAULT_GROUP_BY,
+  DEFAULT_MONTH,
+  DEFAULT_SORT_KEY,
+  DEFAULT_SUMMARY_MODE,
+  DEFAULT_SUMMARY_TABLES,
+  GANTT_GROUP_BY,
   GANTT_MONTHS,
   ISSUES_GROUP_BY,
   ISSUE_COLUMNS,
@@ -15,12 +23,14 @@ import {
   type BlockKind,
   type BlockScope,
   type GanttBlock,
+  type GanttGroupBy,
   type GanttMonths,
   type IssueColumn,
   type IssuesBlock,
   type IssuesGroupBy,
   type MonthRef,
   type SummaryBlock,
+  type SummaryMode,
   type SummaryTable,
 } from "./blocks";
 
@@ -38,6 +48,11 @@ interface MonthState { choice: MonthChoice; value: string }
 const monthStateOf = (v: MonthRef | undefined): MonthState =>
   v === undefined ? { choice: "none", value: "" } : v === "current" || v === "previous" ? { choice: v, value: "" } : { choice: "month", value: v };
 const monthRefOf = (m: MonthState): MonthRef | undefined => (m.choice === "none" ? undefined : m.choice === "month" ? m.value || undefined : m.choice);
+/** The 対象月 to write: left off while it is the default and the block had none, so an untouched line stays as it was. */
+const targetMonthOf = (m: MonthState, initialRef: MonthRef | undefined): MonthRef | undefined => {
+  const ref = monthRefOf(m);
+  return ref === DEFAULT_MONTH && initialRef === undefined ? undefined : ref;
+};
 
 interface ScopeState {
   statuses: Set<string>;
@@ -49,44 +64,48 @@ interface ScopeState {
   keyword: string;
   createdIn: MonthState;
   updatedIn: MonthState;
-  keys: string;
+  keysText: string;
 }
 
-export const scopeStateOf = (b: BlockScope | undefined, statusIds: string[]): ScopeState => ({
-  statuses: new Set(b?.statuses ?? statusIds),
-  assignee: b?.assignee ?? "",
-  category: b?.category ?? "",
-  milestone: b?.milestone ?? "",
-  labels: b?.labels ?? [],
-  due: b?.due ?? "all",
-  keyword: b?.keyword ?? "",
-  createdIn: monthStateOf(b?.createdIn),
-  updatedIn: monthStateOf(b?.updatedIn),
-  keys: (b?.keys ?? []).join(" "),
+export const scopeStateOf = (scope: BlockScope | undefined, statusIds: string[]): ScopeState => ({
+  statuses: new Set(scope?.statuses ?? statusIds),
+  assignee: scope?.assignee ?? "",
+  category: scope?.category ?? "",
+  milestone: scope?.milestone ?? "",
+  labels: scope?.labels ?? [],
+  due: scope?.due ?? "all",
+  keyword: scope?.keyword ?? "",
+  createdIn: monthStateOf(scope?.createdIn),
+  updatedIn: monthStateOf(scope?.updatedIn),
+  keysText: (scope?.keys ?? []).join(" "),
 });
 
 /** Only the fields that differ from "no restriction" go on the block line (see blocks.ts's optional BlockScope fields). */
-export const buildScope = (s: ScopeState, statusIds: string[]): BlockScope => {
+export const buildScope = (state: ScopeState, statusIds: string[]): BlockScope => {
   const scope: BlockScope = {};
-  const chosen = statusIds.filter((id) => s.statuses.has(id)); // a stage deleted since the block was written is dropped here
+  const chosen = statusIds.filter((id) => state.statuses.has(id)); // a stage deleted since the block was written is dropped here
   if (chosen.length !== statusIds.length) scope.statuses = chosen;
-  if (s.assignee !== "") scope.assignee = s.assignee;
-  if (s.category !== "") scope.category = s.category;
-  if (s.milestone !== "") scope.milestone = s.milestone;
-  if (s.labels.length > 0) scope.labels = s.labels;
-  if (s.due !== "all") scope.due = s.due;
-  if (s.keyword.trim() !== "") scope.keyword = s.keyword.trim();
-  const createdIn = monthRefOf(s.createdIn);
+  if (state.assignee !== "") scope.assignee = state.assignee;
+  if (state.category !== "") scope.category = state.category;
+  if (state.milestone !== "") scope.milestone = state.milestone;
+  if (state.labels.length > 0) scope.labels = state.labels;
+  if (state.due !== "all") scope.due = state.due;
+  if (state.keyword.trim() !== "") scope.keyword = state.keyword.trim();
+  const createdIn = monthRefOf(state.createdIn);
   if (createdIn !== undefined) scope.createdIn = createdIn;
-  const updatedIn = monthRefOf(s.updatedIn);
+  const updatedIn = monthRefOf(state.updatedIn);
   if (updatedIn !== undefined) scope.updatedIn = updatedIn;
-  const keys = s.keys.split(/[\s,、]+/).filter((k) => k !== "");
+  const keys = state.keysText.split(/[\s,、]+/).filter((k) => k !== "");
   if (keys.length > 0) scope.keys = keys;
   return scope;
 };
 
-/** A table with no column prints nothing, so an `::issues` block needs at least one. */
-export const canInsertBlock = (kind: BlockKind, columnCount: number): boolean => kind !== "issues" || columnCount > 0;
+/** A table with no column prints nothing, and a summary with no table prints its month label alone: an `::issues` block needs a column, a `::summary` block a table. */
+export function canInsertBlock(kind: BlockKind, columnCount: number, tableCount: number): boolean {
+  if (kind === "issues") return columnCount > 0;
+  if (kind === "summary") return tableCount > 0;
+  return true;
+}
 
 const toggleIn = <T,>(set: Set<T>, v: T): Set<T> => {
   const next = new Set(set);
@@ -102,7 +121,8 @@ const DUE_OPTIONS: { value: DueFilter; label: string }[] = [
   { value: "week", label: "7日以内" },
   { value: "none", label: "期限なし" },
 ];
-// The fixed sort keys, labelled as src/renderer/issues/IssueList.tsx's own column headers.
+// The fixed column headers of src/renderer/issues/IssueList.tsx with their labels. マイルストーン and 汎用列 keys are
+// left out; a block line that names one keeps it and shows it as an extra option.
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "key", label: "キー" },
   { key: "summary", label: "件名" },
@@ -113,14 +133,14 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "dueDate", label: "期限日" },
   { key: "updatedAt", label: "更新日" },
 ];
-const ISSUES_GROUP_LABEL: Record<IssuesGroupBy, string> = { none: "なし", assignee: "担当者", status: "状態", category: "種別" };
+const GROUP_BY_LABEL: Record<IssuesGroupBy, string> = { none: "なし", assignee: "担当者", status: "状態", category: "種別" };
 
-function MonthField({ label, value, onChange }: { label: string; value: MonthState; onChange(v: MonthState): void }): React.JSX.Element {
+function MonthField({ label, value, hasAllOption = true, onChange }: { label: string; value: MonthState; hasAllOption?: boolean; onChange(v: MonthState): void }): React.JSX.Element {
   return (
     <span className="filter-bar__field">
       {label}
       <select aria-label={label} value={value.choice} onChange={(e) => onChange({ choice: e.target.value as MonthChoice, value: value.value })}>
-        <option value="none">すべて</option>
+        {hasAllOption && <option value="none">すべて</option>}
         <option value="current">今月</option>
         <option value="previous">先月</option>
         <option value="month">指定月</option>
@@ -134,90 +154,97 @@ function MonthField({ label, value, onChange }: { label: string; value: MonthSta
 
 /** One block's fields in a native modal; the caller mounts a fresh instance per open, so `initial` only ever applies at mount. */
 export function BlockDialog({ kind, initial, project, users, onClose }: Props): React.JSX.Element {
-  const ref = useRef<HTMLDialogElement>(null);
-  const resolved = useRef(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const isResolved = useRef(false);
   const statusIds = project.statuses.map((s) => s.id);
+  const issuesInit = initial?.kind === "issues" ? initial : undefined;
+  const summaryInit = initial?.kind === "summary" ? initial : undefined;
+  const ganttInit = initial?.kind === "gantt" ? initial : undefined;
 
   const [scope, setScope] = useState<ScopeState>(() => scopeStateOf(initial ?? undefined, statusIds));
-  const [columns, setColumns] = useState<Set<IssueColumn>>(() => new Set(initial?.kind === "issues" ? (initial.columns ?? DEFAULT_COLUMNS) : DEFAULT_COLUMNS));
-  const [sort, setSort] = useState<SortKey>(() => (initial?.kind === "issues" ? (initial.sort ?? "key") : "key"));
-  const [desc, setDesc] = useState(() => (initial?.kind === "issues" ? (initial.desc ?? false) : false));
-  const [issuesGroupBy, setIssuesGroupBy] = useState<IssuesGroupBy>(() => (initial?.kind === "issues" ? (initial.groupBy ?? "none") : "none"));
-  const [limit, setLimit] = useState(() => (initial?.kind === "issues" && initial.limit !== undefined ? String(initial.limit) : ""));
+  const [columns, setColumns] = useState<Set<IssueColumn>>(() => new Set(issuesInit?.columns ?? DEFAULT_COLUMNS));
+  const [sort, setSort] = useState<SortKey>(() => issuesInit?.sort ?? DEFAULT_SORT_KEY);
+  const [isDescending, setIsDescending] = useState(() => issuesInit?.desc ?? false);
+  const [issuesGroupBy, setIssuesGroupBy] = useState<IssuesGroupBy>(() => issuesInit?.groupBy ?? DEFAULT_GROUP_BY);
+  const [limitText, setLimitText] = useState(() => (issuesInit?.limit === undefined ? "" : String(issuesInit.limit)));
 
-  const [mode, setMode] = useState<"month" | "now">(() => (initial?.kind === "summary" ? (initial.mode ?? "month") : "month"));
-  const [summaryMonth, setSummaryMonth] = useState<MonthState>(() => monthStateOf(initial?.kind === "summary" ? initial.month : undefined));
-  const [tables, setTables] = useState<Set<SummaryTable>>(() => new Set(initial?.kind === "summary" ? (initial.tables ?? ["status"]) : ["status"]));
+  const [summaryMode, setSummaryMode] = useState<SummaryMode>(() => summaryInit?.mode ?? DEFAULT_SUMMARY_MODE);
+  const [summaryMonth, setSummaryMonth] = useState<MonthState>(() => monthStateOf(summaryInit?.month ?? DEFAULT_MONTH));
+  const [summaryTables, setSummaryTables] = useState<Set<SummaryTable>>(() => new Set(summaryInit?.tables ?? DEFAULT_SUMMARY_TABLES));
 
-  const [ganttMonth, setGanttMonth] = useState<MonthState>(() => monthStateOf(initial?.kind === "gantt" ? initial.month : undefined));
-  const [months, setMonths] = useState<GanttMonths>(() => (initial?.kind === "gantt" ? (initial.months ?? 1) : 1));
-  const [ganttGroupBy, setGanttGroupBy] = useState<"none" | "assignee">(() => (initial?.kind === "gantt" ? (initial.groupBy ?? "none") : "none"));
-  const [includeUndated, setIncludeUndated] = useState(() => (initial?.kind === "gantt" ? (initial.includeUndated ?? false) : false));
+  const [ganttMonth, setGanttMonth] = useState<MonthState>(() => monthStateOf(ganttInit?.month ?? DEFAULT_MONTH));
+  const [monthCount, setMonthCount] = useState<GanttMonths>(() => ganttInit?.months ?? DEFAULT_GANTT_MONTHS);
+  const [ganttGroupBy, setGanttGroupBy] = useState<GanttGroupBy>(() => ganttInit?.groupBy ?? DEFAULT_GROUP_BY);
+  const [includeUndated, setIncludeUndated] = useState(() => ganttInit?.includeUndated ?? false);
 
   useEffect(() => {
-    const dlg = ref.current;
+    const dlg = dialogRef.current;
     if (!dlg) return;
     dlg.showModal();
-    // Escape fires "cancel" then "close" natively with no submit; a confirmed close already set `resolved`.
+    // Escape fires "cancel" then "close" natively with no submit; a confirmed close already set `isResolved`.
     const onNativeClose = (): void => {
-      if (!resolved.current) onClose(null);
+      if (!isResolved.current) onClose(null);
     };
     dlg.addEventListener("close", onNativeClose);
     return () => dlg.removeEventListener("close", onNativeClose);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Runs once at mount: the caller mounts a fresh dialog per open, so the mount-time `onClose` is the current one.
   }, []);
 
-  const confirm = (): void => {
-    if (!canInsertBlock(kind, columns.size)) return;
+  const finish = (block: Block | null): void => {
+    isResolved.current = true;
+    onClose(block);
+    dialogRef.current?.close();
+  };
+
+  const submitBlock = (): void => {
+    if (!canInsertBlock(kind, columns.size, summaryTables.size)) return;
     const base = buildScope(scope, statusIds);
     let block: Block;
     if (kind === "issues") {
-      const b: IssuesBlock = { kind, ...base };
-      const cols = ISSUE_COLUMNS.filter((c) => columns.has(c));
-      if (!sameArray(cols, DEFAULT_COLUMNS)) b.columns = cols;
-      if (sort !== "key") b.sort = sort;
-      if (desc) b.desc = true;
-      if (issuesGroupBy !== "none") b.groupBy = issuesGroupBy;
-      const n = Number(limit);
-      if (limit.trim() !== "" && Number.isInteger(n) && n > 0) b.limit = n;
-      block = b;
+      const issuesBlock: IssuesBlock = { kind, ...base };
+      const columnList = ISSUE_COLUMNS.filter((c) => columns.has(c));
+      if (!sameArray(columnList, DEFAULT_COLUMNS)) issuesBlock.columns = columnList;
+      if (sort !== DEFAULT_SORT_KEY) issuesBlock.sort = sort;
+      if (isDescending) issuesBlock.desc = true;
+      if (issuesGroupBy !== DEFAULT_GROUP_BY) issuesBlock.groupBy = issuesGroupBy;
+      const limitValue = Number(limitText);
+      if (limitText.trim() !== "" && Number.isInteger(limitValue) && limitValue > 0) issuesBlock.limit = limitValue;
+      block = issuesBlock;
     } else if (kind === "summary") {
-      const b: SummaryBlock = { kind, ...base };
-      if (mode !== "month") b.mode = mode;
-      if (mode === "month") {
-        const month = monthRefOf(summaryMonth);
-        if (month !== undefined) b.month = month;
+      const summaryBlock: SummaryBlock = { kind, ...base };
+      if (summaryMode !== DEFAULT_SUMMARY_MODE) summaryBlock.mode = summaryMode;
+      if (summaryMode === "month") {
+        const month = targetMonthOf(summaryMonth, summaryInit?.month);
+        if (month !== undefined) summaryBlock.month = month;
       }
-      const tbls = SUMMARY_TABLES.filter((t) => tables.has(t));
-      if (!sameArray(tbls, ["status"])) b.tables = tbls;
-      block = b;
+      const tableList = SUMMARY_TABLES.filter((t) => summaryTables.has(t));
+      if (!sameArray(tableList, DEFAULT_SUMMARY_TABLES)) summaryBlock.tables = tableList;
+      block = summaryBlock;
     } else {
-      const b: GanttBlock = { kind, ...base };
-      const month = monthRefOf(ganttMonth);
-      if (month !== undefined) b.month = month;
-      if (months !== 1) b.months = months;
-      if (ganttGroupBy !== "none") b.groupBy = ganttGroupBy;
-      if (includeUndated) b.includeUndated = true;
-      block = b;
+      const ganttBlock: GanttBlock = { kind, ...base };
+      const month = targetMonthOf(ganttMonth, ganttInit?.month);
+      if (month !== undefined) ganttBlock.month = month;
+      if (monthCount !== DEFAULT_GANTT_MONTHS) ganttBlock.months = monthCount;
+      if (ganttGroupBy !== DEFAULT_GROUP_BY) ganttBlock.groupBy = ganttGroupBy;
+      if (includeUndated) ganttBlock.includeUndated = true;
+      block = ganttBlock;
     }
-    resolved.current = true;
-    onClose(block);
-    ref.current?.close();
+    finish(block);
   };
 
-  const cancel = (): void => {
-    resolved.current = true;
-    onClose(null);
-    ref.current?.close();
-  };
+  // A value the block names that the project no longer lists keeps an option of its own, so the select shows what the line holds.
+  const isUnlistedAssignee = scope.assignee !== "" && !users.some((u) => u.username === scope.assignee);
+  const milestones = project.milestones ?? [];
+  const isUnlistedMilestone = scope.milestone !== "" && !milestones.some((m) => m.id === scope.milestone);
+  const isUnlistedSort = !SORT_OPTIONS.some((o) => o.key === sort);
 
   return (
-    <dialog ref={ref} className="block-dialog" aria-label={BLOCK_LABEL[kind]}>
+    <dialog ref={dialogRef} className="block-dialog" aria-label={BLOCK_LABEL[kind]}>
       <form
         method="dialog"
         onSubmit={(e) => {
           e.preventDefault();
-          confirm();
+          submitBlock();
         }}
       >
         <h2>{BLOCK_LABEL[kind]}</h2>
@@ -239,30 +266,31 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
                   {u.displayName}
                 </option>
               ))}
+              {isUnlistedAssignee && <option value={scope.assignee}>{displayNameOf(users, scope.assignee)}</option>}
             </select>
           </label>
           <label className="filter-bar__field">
             種別
             <select value={scope.category} onChange={(e) => setScope({ ...scope, category: e.target.value })}>
               <option value="">すべて</option>
-              {project.categories.map((c) => (
+              {categoryOptions(project, scope.category).map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
             </select>
           </label>
-          {((project.milestones ?? []).length > 0 || scope.milestone !== "") && (
+          {(milestones.length > 0 || scope.milestone !== "") && (
             <label className="filter-bar__field">
               マイルストーン
               <select value={scope.milestone} onChange={(e) => setScope({ ...scope, milestone: e.target.value })}>
                 <option value="">すべて</option>
-                {(project.milestones ?? []).map((m) => (
+                {milestones.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
                   </option>
                 ))}
-                {scope.milestone !== "" && !(project.milestones ?? []).some((m) => m.id === scope.milestone) && <option value={scope.milestone}>{scope.milestone}</option>}
+                {isUnlistedMilestone && <option value={scope.milestone}>{scope.milestone}</option>}
               </select>
             </label>
           )}
@@ -271,10 +299,10 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
             <input type="checkbox" checked={scope.labels.length === 0} onChange={() => setScope({ ...scope, labels: [] })} />
             すべて
           </label>
-          {project.labels.map((l) => (
-            <label key={l.name} className="filter-bar__check">
-              <input type="checkbox" checked={scope.labels.includes(l.name)} onChange={() => setScope({ ...scope, labels: toggleLabel(scope.labels, l.name) })} />
-              {l.name}
+          {labelOptions(project, scope.labels).map((name) => (
+            <label key={name} className="filter-bar__check">
+              <input type="checkbox" checked={scope.labels.includes(name)} onChange={() => setScope({ ...scope, labels: toggleLabel(scope.labels, name) })} />
+              {name}
             </label>
           ))}
           <label className="filter-bar__field">
@@ -295,7 +323,7 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
           <MonthField label="更新月" value={scope.updatedIn} onChange={(v) => setScope({ ...scope, updatedIn: v })} />
           <label className="filter-bar__field">
             キー
-            <input type="text" value={scope.keys} onChange={(e) => setScope({ ...scope, keys: e.target.value })} />
+            <input type="text" value={scope.keysText} onChange={(e) => setScope({ ...scope, keysText: e.target.value })} />
             <span className="block-dialog__format">複数は空白で区切る</span>
           </label>
         </fieldset>
@@ -318,10 +346,11 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
                     {o.label}
                   </option>
                 ))}
+                {isUnlistedSort && <option value={sort}>{sort}</option>}
               </select>
             </label>
             <label className="filter-bar__check">
-              <input type="checkbox" checked={desc} onChange={(e) => setDesc(e.target.checked)} />
+              <input type="checkbox" checked={isDescending} onChange={(e) => setIsDescending(e.target.checked)} />
               降順
             </label>
             <label className="filter-bar__field">
@@ -329,14 +358,14 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
               <select value={issuesGroupBy} onChange={(e) => setIssuesGroupBy(e.target.value as IssuesGroupBy)}>
                 {ISSUES_GROUP_BY.map((g) => (
                   <option key={g} value={g}>
-                    {ISSUES_GROUP_LABEL[g]}
+                    {GROUP_BY_LABEL[g]}
                   </option>
                 ))}
               </select>
             </label>
             <label className="filter-bar__field">
               行数の上限
-              <input type="number" min={1} className="block-dialog__number" value={limit} onChange={(e) => setLimit(e.target.value)} />
+              <input type="number" min={1} className="block-dialog__number" value={limitText} onChange={(e) => setLimitText(e.target.value)} />
             </label>
           </fieldset>
         )}
@@ -346,18 +375,18 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
             <legend className="block-dialog__legend">集計する表</legend>
             <span className="filter-bar__label">集計</span>
             <label className="settings__inline">
-              <input type="radio" name="summary-mode" checked={mode === "month"} onChange={() => setMode("month")} />
+              <input type="radio" name="summary-mode" checked={summaryMode === "month"} onChange={() => setSummaryMode("month")} />
               月次
             </label>
             <label className="settings__inline">
-              <input type="radio" name="summary-mode" checked={mode === "now"} onChange={() => setMode("now")} />
+              <input type="radio" name="summary-mode" checked={summaryMode === "now"} onChange={() => setSummaryMode("now")} />
               現在
             </label>
-            {mode === "month" && <MonthField label="対象月" value={summaryMonth} onChange={setSummaryMonth} />}
+            {summaryMode === "month" && <MonthField label="対象月" value={summaryMonth} hasAllOption={false} onChange={setSummaryMonth} />}
             <span className="filter-bar__label">表</span>
             {SUMMARY_TABLES.map((t) => (
               <label key={t} className="filter-bar__check">
-                <input type="checkbox" checked={tables.has(t)} onChange={() => setTables(toggleIn(tables, t))} />
+                <input type="checkbox" checked={summaryTables.has(t)} onChange={() => setSummaryTables(toggleIn(summaryTables, t))} />
                 {SUMMARY_TABLE_LABEL[t]}
               </label>
             ))}
@@ -367,10 +396,10 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
         {kind === "gantt" && (
           <fieldset className="settings__fieldset block-dialog__fieldset">
             <legend className="block-dialog__legend">期間とグループ</legend>
-            <MonthField label="対象月" value={ganttMonth} onChange={setGanttMonth} />
+            <MonthField label="対象月" value={ganttMonth} hasAllOption={false} onChange={setGanttMonth} />
             <label className="filter-bar__field">
               期間
-              <select value={months} onChange={(e) => setMonths(Number(e.target.value) as GanttMonths)}>
+              <select value={monthCount} onChange={(e) => setMonthCount(Number(e.target.value) as GanttMonths)}>
                 {GANTT_MONTHS.map((m) => (
                   <option key={m} value={m}>
                     {m}か月
@@ -380,9 +409,12 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
             </label>
             <label className="filter-bar__field">
               グループ
-              <select value={ganttGroupBy} onChange={(e) => setGanttGroupBy(e.target.value as "none" | "assignee")}>
-                <option value="none">なし</option>
-                <option value="assignee">担当者</option>
+              <select value={ganttGroupBy} onChange={(e) => setGanttGroupBy(e.target.value as GanttGroupBy)}>
+                {GANTT_GROUP_BY.map((g) => (
+                  <option key={g} value={g}>
+                    {GROUP_BY_LABEL[g]}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="filter-bar__check">
@@ -393,10 +425,10 @@ export function BlockDialog({ kind, initial, project, users, onClose }: Props): 
         )}
 
         <div className="form-actions">
-          <button type="submit" className="button--primary" disabled={!canInsertBlock(kind, columns.size)}>
+          <button type="submit" className="button--primary" disabled={!canInsertBlock(kind, columns.size, summaryTables.size)}>
             {initial ? "本文に反映" : "本文に挿入"}
           </button>
-          <button type="button" onClick={cancel}>
+          <button type="button" onClick={() => finish(null)}>
             キャンセル
           </button>
         </div>

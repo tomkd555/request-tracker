@@ -2,7 +2,7 @@
 
 export type ToolbarCommand = "heading" | "bold" | "ul" | "ol" | "check" | "code" | "link" | "table" | "wikiLink" | "issueKey";
 
-export interface Selection { text: string; start: number; end: number }
+export interface TextSelection { text: string; start: number; end: number }
 
 export const TOOLBAR_LABEL: Record<ToolbarCommand, string> = {
   heading: "見出し",
@@ -18,9 +18,10 @@ export const TOOLBAR_LABEL: Record<ToolbarCommand, string> = {
 };
 
 const TABLE = "| 項目 | 内容 |\n| --- | --- |\n|  |  |\n";
+const URL_PLACEHOLDER = "url";
 
 /** Expands the selection to whole lines and prefixes each one. */
-function prefixLines(sel: Selection, prefix: (lineIndex: number) => string): Selection {
+function prefixLines(sel: TextSelection, prefix: (lineIndex: number) => string): TextSelection {
   const { text } = sel;
   const from = sel.start === 0 ? 0 : text.lastIndexOf("\n", sel.start - 1) + 1;
   const toBreak = text.indexOf("\n", sel.end);
@@ -31,14 +32,14 @@ function prefixLines(sel: Selection, prefix: (lineIndex: number) => string): Sel
 }
 
 /** Wraps the selection, or inserts a placeholder and selects it. */
-function wrap(sel: Selection, before: string, after: string, placeholder: string): Selection {
+function wrap(sel: TextSelection, before: string, after: string, placeholder: string): TextSelection {
   const inner = sel.start === sel.end ? placeholder : sel.text.slice(sel.start, sel.end);
   const text = sel.text.slice(0, sel.start) + before + inner + after + sel.text.slice(sel.end);
   return { text, start: sel.start + before.length, end: sel.start + before.length + inner.length };
 }
 
 /** Inserts a block on its own line at the selection and puts the cursor after it. */
-export function insertBlock(sel: Selection, block: string): Selection {
+export function insertBlock(sel: TextSelection, block: string): TextSelection {
   const head = sel.text.slice(0, sel.start);
   const lead = head === "" || head.endsWith("\n") ? "" : "\n";
   const text = head + lead + block + sel.text.slice(sel.end);
@@ -47,7 +48,7 @@ export function insertBlock(sel: Selection, block: string): Selection {
 }
 
 /** `issuePrefix` is the current fiscal year's "YY-", inserted by the 課題キー command. */
-export function applyCommand(cmd: ToolbarCommand, sel: Selection, issuePrefix = ""): Selection {
+export function applyCommand(cmd: ToolbarCommand, sel: TextSelection, issuePrefix = ""): TextSelection {
   switch (cmd) {
     case "heading":
       return prefixLines(sel, () => "## ");
@@ -63,9 +64,9 @@ export function applyCommand(cmd: ToolbarCommand, sel: Selection, issuePrefix = 
       return sel.text.slice(sel.start, sel.end).includes("\n") ? wrap(sel, "```\n", "\n```", "") : wrap(sel, "`", "`", "コード");
     case "link": {
       const label = sel.start === sel.end ? "リンク" : sel.text.slice(sel.start, sel.end);
-      const text = sel.text.slice(0, sel.start) + `[${label}](url)` + sel.text.slice(sel.end);
-      const urlStart = sel.start + label.length + 3;
-      return { text, start: urlStart, end: urlStart + 3 };
+      const text = sel.text.slice(0, sel.start) + `[${label}](${URL_PLACEHOLDER})` + sel.text.slice(sel.end);
+      const urlStart = sel.start + "[".length + label.length + "](".length;
+      return { text, start: urlStart, end: urlStart + URL_PLACEHOLDER.length };
     }
     case "table":
       return insertBlock(sel, TABLE);

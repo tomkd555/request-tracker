@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useSession } from "../app/UserContext";
+import { useRef, useState } from "react";
+import { useSession } from "../app/SessionContext";
 import { useIssues } from "../issues/useIssues";
 import { useWiki } from "../wiki/useWiki";
 import { searchOutcome, type Hit } from "./searchAll";
@@ -20,20 +20,25 @@ export function Search(): React.JSX.Element {
   const { issues } = useIssues();
   const { pages } = useWiki();
   const [keyword, setKeyword] = useState("");
-  const [query, setQuery] = useState<string | null>(null);
+  const [searchedKeyword, setSearchedKeyword] = useState<string | null>(null);
   const [hits, setHits] = useState<Hit[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Counts the submits, so a slow comment read that ends after a later submit leaves that submit's result alone.
+  const latestSearch = useRef(0);
 
-  const run = async (e: React.FormEvent): Promise<void> => {
+  const submitSearch = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    const kw = keyword.trim();
-    setQuery(kw);
-    if (kw === "") {
+    const searchId = ++latestSearch.current;
+    const trimmedKeyword = keyword.trim();
+    setSearchedKeyword(trimmedKeyword);
+    if (trimmedKeyword === "") {
       setHits([]);
+      setError(null);
       return;
     }
     // ponytail: one full pass over comments/ per search; cache it in the renderer and drop it on 更新 if a search starts to feel slow
-    const outcome = await searchOutcome(kw, issues, () => window.api.comments.listAll(), pages, project.statuses);
+    const outcome = await searchOutcome(trimmedKeyword, issues, () => window.api.comments.listAll(), pages, project.statuses);
+    if (searchId !== latestSearch.current) return;
     setHits(outcome.hits);
     setError(outcome.error);
   };
@@ -43,7 +48,7 @@ export function Search(): React.JSX.Element {
       <header className="toolbar">
         <h1 className="toolbar__heading">検索</h1>
       </header>
-      <form className="search-form" onSubmit={(e) => void run(e)}>
+      <form className="search-form" onSubmit={(e) => void submitSearch(e)}>
         <input
           type="search"
           className="search-form__input"
@@ -54,18 +59,18 @@ export function Search(): React.JSX.Element {
         <button type="submit">検索</button>
       </form>
       {error && <p className="text--error">{error}</p>}
-      {query === "" && <p className="text--muted">{M.keywordPrompt}</p>}
-      {query !== null && query !== "" && hits.length === 0 && <p className="text--muted">{M.noHits}</p>}
+      {searchedKeyword === "" && <p className="text--muted">{M.keywordPrompt}</p>}
+      {searchedKeyword !== null && searchedKeyword !== "" && error === null && hits.length === 0 && <p className="text--muted">{M.noHits}</p>}
       {SECTIONS.map(({ kind, label }) => {
-        const rows = hits.filter((h) => h.kind === kind);
-        if (rows.length === 0) return null;
+        const sectionHits = hits.filter((h) => h.kind === kind);
+        if (sectionHits.length === 0) return null;
         return (
           <section key={kind} className="search-section">
             <h2 className="search-section__heading">
-              {label}（{rows.length}）
+              {label}（{sectionHits.length}）
             </h2>
             <ul className="search-section__list">
-              {rows.map((h, i) => (
+              {sectionHits.map((h, i) => (
                 <li key={`${h.kind}-${h.id}-${i}`} className="search-section__row">
                   <a className="search-section__link" href={hrefFor(h)}>
                     {h.title}

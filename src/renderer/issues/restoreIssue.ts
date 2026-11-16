@@ -23,7 +23,7 @@ export function restorePatch(current: Issue, old: Issue, issues: Issue[]): { pat
     actualHours: old.actualHours ?? null,
   };
   if (old.parentKey === current.parentKey) return { patch, parentKept: false };
-  const allowed = old.parentKey === null || (issues.some((i) => i.key === old.parentKey) && parentRefusal(issues, current.key, old.parentKey) === null);
-  if (allowed) patch.parentKey = old.parentKey;
-  return { patch, parentKept: !allowed };
+  const canRestoreParent = old.parentKey === null || (issues.some((i) => i.key === old.parentKey) && parentRefusal(issues, current.key, old.parentKey) === null);
+  if (canRestoreParent) patch.parentKey = old.parentKey;
+  return { patch, parentKept: !canRestoreParent };
 }

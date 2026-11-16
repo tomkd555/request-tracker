@@ -8,40 +8,40 @@ interface Props {
 }
 
 /** Modal question with three buttons; Escape answers キャンセル. */
-export function ChoiceDialog({ message, allLabel, onAnswer }: Props): React.JSX.Element {
-  const ref = useRef<HTMLDialogElement>(null);
-  const first = useRef<HTMLButtonElement>(null);
-  const answered = useRef(false);
+function ChoiceDialog({ message, allLabel, onAnswer }: Props): React.JSX.Element {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const allButtonRef = useRef<HTMLButtonElement>(null);
+  const isAnswered = useRef(false);
 
+  // Runs once per mount: useChoiceDialog remounts the dialog for each question (key={message}), so `onAnswer` is this question's.
   useEffect(() => {
-    const dlg = ref.current;
-    if (!dlg) return;
-    dlg.showModal();
-    first.current?.focus();
-    // Escape fires "cancel" then "close" natively; a button press already set `answered`.
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.showModal();
+    allButtonRef.current?.focus();
+    // Escape fires "cancel" then "close" natively; a button press already set `isAnswered`.
     const onNativeClose = (): void => {
-      if (!answered.current) {
-        answered.current = true;
+      if (!isAnswered.current) {
+        isAnswered.current = true;
         onAnswer("cancel");
       }
     };
-    dlg.addEventListener("close", onNativeClose);
-    return () => dlg.removeEventListener("close", onNativeClose);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    dialog.addEventListener("close", onNativeClose);
+    return () => dialog.removeEventListener("close", onNativeClose);
   }, []);
 
   const answer = (a: ParentAnswer): void => {
-    if (answered.current) return;
-    answered.current = true;
+    if (isAnswered.current) return;
+    isAnswered.current = true;
     onAnswer(a);
-    ref.current?.close();
+    dialogRef.current?.close();
   };
 
   return (
-    <dialog ref={ref} className="choice-dialog" aria-label={message}>
+    <dialog ref={dialogRef} className="choice-dialog" aria-label={message}>
       <p className="choice-dialog__message">{message}</p>
       <div className="form-actions">
-        <button ref={first} type="button" className="button--primary" onClick={() => answer("all")}>
+        <button ref={allButtonRef} type="button" className="button--primary" onClick={() => answer("all")}>
           {allLabel}
         </button>
         <button type="button" onClick={() => answer("only")}>
@@ -57,20 +57,20 @@ export function ChoiceDialog({ message, allLabel, onAnswer }: Props): React.JSX.
 
 /** `ask` opens the dialog and resolves with the answer; render `dialog` once in the screen. */
 export function useChoiceDialog(): { ask(message: string, allLabel: string): Promise<ParentAnswer>; dialog: React.JSX.Element | null } {
-  const [open, setOpen] = useState<{ message: string; allLabel: string; resolve(a: ParentAnswer): void } | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<{ message: string; allLabel: string; resolve(a: ParentAnswer): void } | null>(null);
   const ask = useCallback(
-    (message: string, allLabel: string): Promise<ParentAnswer> => new Promise((resolve) => setOpen({ message, allLabel, resolve })),
+    (message: string, allLabel: string): Promise<ParentAnswer> => new Promise((resolve) => setPendingQuestion({ message, allLabel, resolve })),
     [],
   );
   const dialog =
-    open === null ? null : (
+    pendingQuestion === null ? null : (
       <ChoiceDialog
-        key={open.message}
-        message={open.message}
-        allLabel={open.allLabel}
+        key={pendingQuestion.message}
+        message={pendingQuestion.message}
+        allLabel={pendingQuestion.allLabel}
         onAnswer={(a) => {
-          setOpen(null);
-          open.resolve(a);
+          setPendingQuestion(null);
+          pendingQuestion.resolve(a);
         }}
       />
     );

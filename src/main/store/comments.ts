@@ -1,32 +1,32 @@
 import { promises as fsp } from "node:fs";
 import { ISSUE_KEY, isComment, type Comment } from "../../shared/types";
-import { collection, mapLimit, type Collection } from "./collection";
+import { collection, errorCode, mapLimit, type Collection } from "./collection";
 import { fileStamp } from "./fileStamp";
 import type { Layout } from "./paths";
 
 /** One directory per issue key; one append-only file per comment, so two users never overwrite each other. */
-export const commentsCollection = (l: Layout, key: string): Collection<Comment> =>
-  collection<Comment>({ dir: l.comments(key), guard: isComment, idOf: (c) => c.id });
+export const commentsCollection = (layout: Layout, issueKey: string): Collection<Comment> =>
+  collection<Comment>({ dir: layout.comments(issueKey), guard: isComment, idOf: (comment) => comment.id });
 
-export const commentId = (createdAt: string, author: string): string => `${fileStamp(createdAt)}-${author}`;
+const commentId = (createdAt: string, author: string): string => `${fileStamp(createdAt)}-${author}`;
 
-export async function addComment(l: Layout, c: Comment): Promise<void> {
-  const body = c.body.trim();
+export async function addComment(layout: Layout, comment: Comment): Promise<void> {
+  const body = comment.body.trim();
   if (body === "") throw new Error("comment is empty");
-  const id = commentId(c.createdAt, c.author);
-  await commentsCollection(l, c.issueKey).create(id, { ...c, id, body });
+  const id = commentId(comment.createdAt, comment.author);
+  await commentsCollection(layout, comment.issueKey).create(id, { ...comment, id, body });
 }
 
 /** Every comment of every issue, for the search screen. Only a directory whose name passes `ISSUE_KEY` is read: `commentsCollection` throws on any other name, and a file would fail the readdir. */
-export async function listAllComments(l: Layout): Promise<Comment[]> {
+export async function listAllComments(layout: Layout): Promise<Comment[]> {
   let entries: { name: string; isDirectory(): boolean }[];
   try {
-    entries = await fsp.readdir(l.commentsRoot, { withFileTypes: true });
+    entries = await fsp.readdir(layout.commentsRoot, { withFileTypes: true });
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if (errorCode(e) === "ENOENT") return [];
     throw e;
   }
-  const keys = entries.filter((e) => e.isDirectory() && ISSUE_KEY.test(e.name)).map((e) => e.name).sort();
-  const lists = await mapLimit(keys, (key) => commentsCollection(l, key).list()); // each list is itself bounded, so at most limit² files are open
-  return lists.flat();
+  const issueKeys = entries.filter((entry) => entry.isDirectory() && ISSUE_KEY.test(entry.name)).map((entry) => entry.name).sort();
+  const commentsPerIssue = await mapLimit(issueKeys, (issueKey) => commentsCollection(layout, issueKey).list()); // each list is itself bounded, so at most limit² files are open
+  return commentsPerIssue.flat();
 }

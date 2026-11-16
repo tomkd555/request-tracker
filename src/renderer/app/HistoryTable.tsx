@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { formatDateTime } from "../issues/labels";
-import { displayNameOf, useSession } from "./UserContext";
+import { displayNameOf, useSession } from "./SessionContext";
 import { errorMessage, M } from "../messages";
 
-interface Props<T extends { updatedAt: string; updatedBy: string }> {
+type Versioned = { updatedAt: string; updatedBy: string };
+
+interface Props<T extends Versioned> {
   /** Loads the previous versions, oldest first. */
   load(): Promise<T[]>;
   /** Changes whenever the current record is saved, which reloads the list. */
-  version: string | number;
+  saveCount: number;
   labelOf(item: T): string;
   onRestore(old: T): void;
 }
@@ -21,24 +23,25 @@ export async function readHistory<T>(load: () => Promise<T[]>): Promise<{ items:
   }
 }
 
-/** Previous versions of a record, newest first, each with 戻す. Shared by issues and wiki pages. */
-export function HistoryTable<T extends { updatedAt: string; updatedBy: string }>({ load, version, labelOf, onRestore }: Props<T>): React.JSX.Element {
+/** Previous versions of an issue, newest first, each with 戻す. Nothing shows until the first read returns. */
+export function HistoryTable<T extends Versioned>({ load, saveCount, labelOf, onRestore }: Props<T>): React.JSX.Element | null {
   const { users } = useSession();
-  const [items, setItems] = useState<T[]>([]);
+  const [items, setItems] = useState<T[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    let alive = true;
+    let isCurrent = true;
     void readHistory(load).then((r) => {
-      if (!alive) return;
+      if (!isCurrent) return;
       setItems([...r.items].reverse());
       setError(r.error);
     });
     return () => {
-      alive = false;
+      isCurrent = false;
     };
-  }, [load, version]);
+  }, [load, saveCount]);
 
   if (error !== null) return <p className="text--error">{error}</p>;
+  if (items === null) return null;
   if (items.length === 0) return <p className="text--muted">{M.noHistory}</p>;
   return (
     <table className="history">

@@ -4,33 +4,40 @@ import type { Attachment } from "../../shared/types";
 import { formatDateTime } from "./labels";
 import { errorMessage, M, refusalMessages } from "../messages";
 
-const formatSize = (bytes: number): string =>
-  bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+const KIB = 1024;
+const MIB = KIB * 1024;
+
+function formatSize(bytes: number): string {
+  if (bytes < KIB) return `${bytes} B`;
+  if (bytes < MIB) return `${(bytes / KIB).toFixed(0)} KB`;
+  return `${(bytes / MIB).toFixed(1)} MB`;
+}
 
 /** Files of an issue or a wiki page: list, add by drop or picker, open, remove. */
 export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.Element {
-  const [items, setItems] = useState<Attachment[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [messages, setMessages] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const { kind, id } = owner;
 
-  const load = useCallback(async () => setItems(await window.api.attachments.list({ kind, id })), [kind, id]);
+  const load = useCallback(async () => setAttachments(await window.api.attachments.list({ kind, id })), [kind, id]);
   useEffect(() => {
     void load();
   }, [load]);
 
+  /** `paths` null lets the main process show the file picker. */
   const add = async (paths: string[] | null): Promise<void> => {
     setMessages([]);
     try {
-      const r = await window.api.attachments.add(owner, paths);
-      setMessages(refusalMessages(r));
+      const result = await window.api.attachments.add(owner, paths);
+      setMessages(refusalMessages(result));
       await load();
     } catch (e) {
       setMessages([errorMessage(e)]);
     }
   };
 
-  const open = async (name: string): Promise<void> => {
+  const openAttachment = async (name: string): Promise<void> => {
     try {
       await window.api.attachments.open(owner, name);
     } catch (e) {
@@ -80,19 +87,19 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
           {m}
         </p>
       ))}
-      {items.length === 0 ? (
+      {attachments.length === 0 ? (
         <p className="text--muted">{M.noAttachments}</p>
       ) : (
         <table className="attachments__table">
           <tbody>
-            {items.map((a) => (
+            {attachments.map((a) => (
               <tr key={a.name}>
                 <td className="attachments__cell">
                   <a
                     href="#"
                     onClick={(e) => {
                       e.preventDefault();
-                      void open(a.name);
+                      void openAttachment(a.name);
                     }}
                   >
                     {a.kind === "folder" ? "📁 " : ""}

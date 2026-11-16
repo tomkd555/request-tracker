@@ -1,12 +1,13 @@
 // The block lines of a report: their grammar, the parser, and the issues each block covers. Pure, so the screens and the
 // exporters read one definition.
-import type { DueFilter, Issue, IssueFilter, Project, Report, User } from "../../shared/types";
-import { shiftMonth } from "../gantt/layoutGantt";
-import { compareKeys } from "../issues/compareKeys";
+import { DUE_FILTERS, type DueFilter, type Issue, type IssueFilter, type Project, type Report, type User } from "../../shared/types";
+import { codeLineFlags } from "../app/markdownCode";
+import { MONTH_COUNTS, shiftMonth, type MonthCount } from "../gantt/layoutGantt";
+import { byKeyAsc } from "../issues/compareKeys";
 import { monthOf } from "../issues/countByMonth";
-import { filterIssues } from "../issues/filterIssues";
-import { FIXED_SORT_KEYS, type SortKey } from "../issues/sortIssues";
-import { displayNameOf } from "../app/UserContext";
+import { EMPTY_FILTER, filterIssues } from "../issues/filterIssues";
+import { FIELD_SORT_PREFIX, FIXED_SORT_KEYS, type SortKey } from "../issues/sortIssues";
+import { displayNameOf } from "../app/SessionContext";
 
 /** What a report renders against: the records as read when the screen opened, and the day the report is made. */
 export interface ReportContext {
@@ -22,6 +23,8 @@ export type ReportContent = Pick<Report, "title" | "body" | "terms" | "issueNote
 
 /** "current" and "previous" follow `today`, so a saved report shows the month it is opened in; "YYYY-MM" is fixed. */
 export type MonthRef = "current" | "previous" | string;
+/** The month a `::summary` or `::gantt` block reads when its line names none. */
+export const DEFAULT_MONTH: MonthRef = "current";
 
 /** Which issues a block covers. A field left out restricts nothing. */
 export interface BlockScope {
@@ -63,23 +66,31 @@ export const COLUMN_LABEL: Record<IssueColumn, string> = {
   note: "補足",
 };
 export const DEFAULT_COLUMNS: IssueColumn[] = ["key", "summary", "assignee", "status", "dueDate"];
+export const DEFAULT_SORT_KEY: SortKey = "key";
 
 export type IssuesGroupBy = "none" | "assignee" | "status" | "category";
 export const ISSUES_GROUP_BY: IssuesGroupBy[] = ["none", "assignee", "status", "category"];
+/** No grouping: the default of `::issues` and `::gantt` alike. */
+export const DEFAULT_GROUP_BY = "none";
 
 /** A table of the issues in scope. */
 export interface IssuesBlock extends BlockScope {
   kind: "issues";
   columns?: IssueColumn[]; // default DEFAULT_COLUMNS
-  sort?: SortKey; // default "key"
+  sort?: SortKey; // default DEFAULT_SORT_KEY
   desc?: boolean; // default false
-  groupBy?: IssuesGroupBy; // default "none"
+  groupBy?: IssuesGroupBy; // default DEFAULT_GROUP_BY
   limit?: number; // rows kept after sorting; default every row
 }
+
+export type SummaryMode = "month" | "now";
+const SUMMARY_MODES: SummaryMode[] = ["month", "now"];
+export const DEFAULT_SUMMARY_MODE: SummaryMode = "month";
 
 export type SummaryTable = "status" | "assignee" | "category" | "reporter" | "closed";
 export const SUMMARY_TABLES: SummaryTable[] = ["status", "assignee", "category", "reporter", "closed"];
 export const SUMMARY_TABLE_LABEL: Record<SummaryTable, string> = { status: "状態", assignee: "担当者", category: "種別", reporter: "登録者", closed: "完了 担当者別" };
+export const DEFAULT_SUMMARY_TABLES: SummaryTable[] = ["status"];
 
 /**
  * Counts. `mode: "month"` (default) counts the issues in scope that were created in `month`, the way the 集計 screen does,
@@ -87,20 +98,24 @@ export const SUMMARY_TABLE_LABEL: Record<SummaryTable, string> = { status: "状�
  */
 export interface SummaryBlock extends BlockScope {
   kind: "summary";
-  mode?: "month" | "now"; // default "month"
-  month?: MonthRef; // default "current"
-  tables?: SummaryTable[]; // default ["status"]
+  mode?: SummaryMode; // default DEFAULT_SUMMARY_MODE
+  month?: MonthRef; // default DEFAULT_MONTH
+  tables?: SummaryTable[]; // default DEFAULT_SUMMARY_TABLES
 }
 
-export type GanttMonths = 1 | 2 | 3 | 6;
-export const GANTT_MONTHS: GanttMonths[] = [1, 2, 3, 6];
+export type GanttMonths = MonthCount;
+export const GANTT_MONTHS = MONTH_COUNTS;
+export const DEFAULT_GANTT_MONTHS: GanttMonths = 1;
+
+export type GanttGroupBy = "none" | "assignee";
+export const GANTT_GROUP_BY: GanttGroupBy[] = ["none", "assignee"];
 
 /** The gantt chart of the issues in scope over whole months from `month`. */
 export interface GanttBlock extends BlockScope {
   kind: "gantt";
-  month?: MonthRef; // default "current"
-  months?: GanttMonths; // default 1
-  groupBy?: "none" | "assignee"; // default "none"
+  month?: MonthRef; // default DEFAULT_MONTH
+  months?: GanttMonths; // default DEFAULT_GANTT_MONTHS
+  groupBy?: GanttGroupBy; // default DEFAULT_GROUP_BY
   includeUndated?: boolean; // default false
 }
 
@@ -110,33 +125,34 @@ export const BLOCK_KINDS: BlockKind[] = ["issues", "summary", "gantt"];
 export const BLOCK_LABEL: Record<BlockKind, string> = { issues: "課題一覧", summary: "件数", gantt: "ガントチャート" };
 
 /** A report body split into Markdown runs and block lines; `line` is 1-based. */
-export type Segment = { kind: "markdown"; text: string } | { kind: "block"; block: Block; line: number } | { kind: "invalid"; line: number; text: string };
+export type BodySegment = { kind: "markdown"; text: string } | { kind: "block"; block: Block; line: number } | { kind: "invalid"; line: number; text: string };
 
 const BLOCK_LINE = /^::(issues|summary|gantt)(?:\s+(\S.*?))?\s*$/;
 const MONTH = /^\d{4}-\d{2}$/;
-const DUE_FILTERS: DueFilter[] = ["all", "overdue", "week", "none"];
 
-const isStrArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
-const optStr = (v: unknown): boolean => v === undefined || typeof v === "string";
-const optStrArray = (v: unknown): boolean => v === undefined || isStrArray(v);
-const optMonth = (v: unknown): boolean => v === undefined || v === "current" || v === "previous" || (typeof v === "string" && MONTH.test(v));
-const optOneOf = (v: unknown, all: readonly unknown[]): boolean => v === undefined || all.includes(v);
-const optSubset = (v: unknown, all: readonly string[]): boolean => v === undefined || (isStrArray(v) && v.every((x) => all.includes(x)));
-const optSortKey = (v: unknown): boolean => v === undefined || (typeof v === "string" && (FIXED_SORT_KEYS.includes(v as (typeof FIXED_SORT_KEYS)[number]) || v.startsWith("field:")));
+const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
+const isOptionalString = (v: unknown): boolean => v === undefined || typeof v === "string";
+const isOptionalStringArray = (v: unknown): boolean => v === undefined || isStringArray(v);
+const isOptionalMonthRef = (v: unknown): boolean => v === undefined || v === "current" || v === "previous" || (typeof v === "string" && MONTH.test(v));
+const isOptionalOneOf = (v: unknown, all: readonly unknown[]): boolean => v === undefined || all.includes(v);
+const isOptionalSubset = (v: unknown, all: readonly string[]): boolean => v === undefined || (isStringArray(v) && v.every((x) => all.includes(x)));
+const isOptionalSortKey = (v: unknown): boolean => v === undefined || (typeof v === "string" && (FIXED_SORT_KEYS.includes(v as (typeof FIXED_SORT_KEYS)[number]) || v.startsWith(FIELD_SORT_PREFIX)));
+/** A table with no column, or with one column twice, prints nothing readable, so a column list names each column once. */
+const isOptionalColumnList = (v: unknown): boolean => v === undefined || (isOptionalSubset(v, ISSUE_COLUMNS) && isStringArray(v) && v.length > 0 && new Set(v).size === v.length);
 
 /** True when every field present has the documented type; unknown keys are ignored, so a newer build's field survives an older one. */
 function isScope(v: Record<string, unknown>): boolean {
   return (
-    optStrArray(v.keys) &&
-    optStrArray(v.statuses) &&
-    optStr(v.assignee) &&
-    optStr(v.category) &&
-    optStr(v.milestone) &&
-    optStrArray(v.labels) &&
-    optOneOf(v.due, DUE_FILTERS) &&
-    optStr(v.keyword) &&
-    optMonth(v.createdIn) &&
-    optMonth(v.updatedIn)
+    isOptionalStringArray(v.keys) &&
+    isOptionalStringArray(v.statuses) &&
+    isOptionalString(v.assignee) &&
+    isOptionalString(v.category) &&
+    isOptionalString(v.milestone) &&
+    isOptionalStringArray(v.labels) &&
+    isOptionalOneOf(v.due, DUE_FILTERS) &&
+    isOptionalString(v.keyword) &&
+    isOptionalMonthRef(v.createdIn) &&
+    isOptionalMonthRef(v.updatedIn)
   );
 }
 
@@ -145,16 +161,16 @@ function isBlockParams(kind: BlockKind, v: Record<string, unknown>): boolean {
   switch (kind) {
     case "issues":
       return (
-        optSubset(v.columns, ISSUE_COLUMNS) &&
-        optSortKey(v.sort) &&
+        isOptionalColumnList(v.columns) &&
+        isOptionalSortKey(v.sort) &&
         (v.desc === undefined || typeof v.desc === "boolean") &&
-        optOneOf(v.groupBy, ISSUES_GROUP_BY) &&
+        isOptionalOneOf(v.groupBy, ISSUES_GROUP_BY) &&
         (v.limit === undefined || (Number.isInteger(v.limit) && (v.limit as number) > 0))
       );
     case "summary":
-      return optOneOf(v.mode, ["month", "now"]) && optMonth(v.month) && optSubset(v.tables, SUMMARY_TABLES);
+      return isOptionalOneOf(v.mode, SUMMARY_MODES) && isOptionalMonthRef(v.month) && isOptionalSubset(v.tables, SUMMARY_TABLES);
     case "gantt":
-      return optMonth(v.month) && optOneOf(v.months, GANTT_MONTHS) && optOneOf(v.groupBy, ["none", "assignee"]) && (v.includeUndated === undefined || typeof v.includeUndated === "boolean");
+      return isOptionalMonthRef(v.month) && isOptionalOneOf(v.months, GANTT_MONTHS) && isOptionalOneOf(v.groupBy, GANTT_GROUP_BY) && (v.includeUndated === undefined || typeof v.includeUndated === "boolean");
   }
 }
 
@@ -177,30 +193,27 @@ export function parseBlockLine(line: string): { block: Block } | { invalid: true
   return { block: { ...v, kind } as Block };
 }
 
-const FENCE = /^\s{0,3}(```|~~~)/;
-
 /** Splits the body on its block lines; the Markdown between them keeps its line breaks, and a line inside a code fence is Markdown. */
-export function parseBody(body: string): Segment[] {
-  const out: Segment[] = [];
-  let run: string[] = [];
-  let fenced = false;
+export function parseBody(body: string): BodySegment[] {
+  const segments: BodySegment[] = [];
+  let markdownLines: string[] = [];
   const flush = (): void => {
-    if (run.length > 0) out.push({ kind: "markdown", text: run.join("\n") });
-    run = [];
+    if (markdownLines.length > 0) segments.push({ kind: "markdown", text: markdownLines.join("\n") });
+    markdownLines = [];
   };
-  body.split("\n").forEach((raw, i) => {
-    const line = raw.replace(/\r$/, "");
-    if (FENCE.test(line)) fenced = !fenced;
-    const p = fenced ? null : parseBlockLine(line);
-    if (p === null) {
-      run.push(line);
+  const lines = body.split("\n").map((raw) => raw.replace(/\r$/, ""));
+  const isCode = codeLineFlags(lines);
+  lines.forEach((line, i) => {
+    const parsed = isCode[i] ? null : parseBlockLine(line);
+    if (parsed === null) {
+      markdownLines.push(line);
       return;
     }
     flush();
-    out.push("block" in p ? { kind: "block", block: p.block, line: i + 1 } : { kind: "invalid", line: i + 1, text: line });
+    segments.push("block" in parsed ? { kind: "block", block: parsed.block, line: i + 1 } : { kind: "invalid", line: i + 1, text: line });
   });
   flush();
-  return out;
+  return segments;
 }
 
 /** The line for a block: the kind, then its parameters as JSON without `kind`; `{}` is left off. */
@@ -221,56 +234,62 @@ export function resolveMonth(ref: MonthRef | undefined, today: string): string {
 export const monthLabel = (month: string): string => `${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月`;
 export const dateLabel = (ymd: string): string => ymd.slice(0, 10).replace(/-/g, "/");
 
-/** The issues a block covers, in the order they were given. */
-export function scopeIssues(issues: Issue[], scope: BlockScope, ctx: ReportContext): Issue[] {
+/** The word the report uses for a name the screens show (Report.terms), or the name itself. */
+export const termOf = (terms: Record<string, string>, name: string): string => {
+  const t = Object.hasOwn(terms, name) ? terms[name] : undefined;
+  return t === undefined || t === "" ? name : t;
+};
+
+/** The name of an empty assignee or 種別, before the report's terms apply. */
+export const UNSET_LABEL = "未設定";
+export const assigneeLabel = (users: User[], username: string | null): string => (username === null ? UNSET_LABEL : displayNameOf(users, username));
+export const categoryLabel = (category: string): string => category || UNSET_LABEL;
+/** The summary the report prints for an issue: the report's own wording (Report.issueNotes) when set, else the issue's. */
+export const reportSummaryOf = (report: ReportContent, key: string, summary: string): string => report.issueNotes[key]?.summary || summary;
+
+/** The issues of `ctx` a block covers, in the order they were given. */
+export function scopeIssues(scope: BlockScope, ctx: ReportContext): Issue[] {
   const statuses = ctx.project.statuses;
   const filter: IssueFilter = {
+    ...EMPTY_FILTER,
     statuses: scope.statuses ?? statuses.map((s) => s.id),
     assignee: scope.assignee ?? null,
-    reporter: null,
     keyword: scope.keyword ?? "",
     due: scope.due ?? "all",
     category: scope.category ?? null,
-    awaitingConfirmation: false,
     labels: scope.labels ?? [],
-    fields: {},
     milestone: scope.milestone ?? null,
   };
   const keys = scope.keys === undefined ? null : new Set(scope.keys);
   const createdIn = scope.createdIn === undefined ? null : resolveMonth(scope.createdIn, ctx.today);
   const updatedIn = scope.updatedIn === undefined ? null : resolveMonth(scope.updatedIn, ctx.today);
-  return filterIssues(issues, filter, ctx.today, ctx.me.username, statuses).filter(
+  return filterIssues(ctx.issues, filter, ctx.today, ctx.me.username, statuses).filter(
     (i) => (keys === null || keys.has(i.key)) && (createdIn === null || monthOf(i.createdAt) === createdIn) && (updatedIn === null || monthOf(i.updatedAt) === updatedIn),
   );
 }
 
 /** Every issue an `::issues` or `::gantt` block of the body names, once each, in key order; the wording panel lists these. */
-export function reportIssues(body: string, ctx: ReportContext): Issue[] {
+export function blockIssuesOf(body: string, ctx: ReportContext): Issue[] {
   const seen = new Map<string, Issue>();
   for (const seg of parseBody(body)) {
     if (seg.kind !== "block" || seg.block.kind === "summary") continue;
-    for (const i of scopeIssues(ctx.issues, seg.block, ctx)) seen.set(i.key, i);
+    for (const i of scopeIssues(seg.block, ctx)) seen.set(i.key, i);
   }
-  return [...seen.values()].sort((a, b) => compareKeys(a.key, b.key));
+  return [...seen.values()].sort(byKeyAsc);
 }
 
 /** `{{today}}`, `{{month}}`, `{{prevMonth}}` and `{{me}}` in the Markdown, replaced when the report renders. */
-export const VARIABLES = ["today", "month", "prevMonth", "me"] as const;
-export function expandVariables(text: string, ctx: ReportContext, terms: Record<string, string> = {}): string {
+const VARIABLES = ["today", "month", "prevMonth", "me"] as const;
+const VARIABLE_PATTERN = new RegExp(`\\{\\{(${VARIABLES.join("|")})\\}\\}`, "g");
+export function expandVariables(text: string, ctx: ReportContext, terms: Record<string, string>): string {
   const values: Record<(typeof VARIABLES)[number], string> = {
     today: dateLabel(ctx.today),
     month: monthLabel(resolveMonth("current", ctx.today)),
     prevMonth: monthLabel(resolveMonth("previous", ctx.today)),
     me: termOf(terms, displayNameOf(ctx.users, ctx.me.username)),
   };
-  return text.replace(/\{\{(today|month|prevMonth|me)\}\}/g, (_, name: keyof typeof values) => values[name]);
+  return text.replace(VARIABLE_PATTERN, (_, name: keyof typeof values) => values[name]);
 }
 
 /** What a block prints when no issue is in scope; a noun phrase, since the document is the author's, in the author's register. */
-export const EMPTY_ROWS = "該当する課題なし";
-
-/** The word the report uses for a name the screens show (Report.terms), or the name itself. */
-export const termOf = (terms: Record<string, string>, name: string): string => {
-  const t = Object.hasOwn(terms, name) ? terms[name] : undefined;
-  return t === undefined || t === "" ? name : t;
-};
+export const NO_ISSUES_TEXT = "該当する課題なし";

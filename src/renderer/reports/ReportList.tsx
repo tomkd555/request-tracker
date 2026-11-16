@@ -1,4 +1,4 @@
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { navigate } from "../app/useHashRoute";
 import { formatDateTime } from "../issues/labels";
 import { M } from "../messages";
@@ -8,7 +8,7 @@ import "./reports.css";
 /** Every report and template, the last edited first. */
 export function ReportList(): React.JSX.Element {
   const { users } = useSession();
-  const { reports, loaded } = useReports();
+  const { reports, isLoaded } = useReports();
   return (
     <div>
       <header className="toolbar">
@@ -37,7 +37,7 @@ export function ReportList(): React.JSX.Element {
               <td className="issue-table__cell">{displayNameOf(users, r.updatedBy)}</td>
             </tr>
           ))}
-          {loaded && reports.length === 0 && (
+          {isLoaded && reports.length === 0 && (
             <tr className="issue-table__row">
               <td colSpan={4} className="issue-table__cell text--muted">
                 {M.noReports}

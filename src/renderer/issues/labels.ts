@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
 import type { Issue, IssuePriority, IssueStatus, Project, RelationType, StatusDef, StatusKind } from "../../shared/types";
 import { PALETTE, textOn } from "../app/theme";
-import { withCurrent } from "../app/UserContext";
-import { ymd } from "./dates";
+import { withCurrent } from "../app/SessionContext";
+import { pad, ymd } from "./dates";
 
 export const PRIORITY_LABEL: Record<IssuePriority, string> = { high: "高", normal: "中", low: "低" };
 
@@ -28,19 +28,20 @@ export function statusStyle(statuses: StatusDef[], id: IssueStatus): CSSProperti
   return { background: color, color: textOn(color) };
 }
 
-export const LABEL_DEFAULT = "#9aa0a6";
+export const FALLBACK_CHIP_COLOR = "#9aa0a6";
 
 /** The colour of a ラベル by name; grey once the label is renamed or deleted, so the name still reads as a plain chip. */
 export function labelColor(project: Project, name: string): string {
-  return project.labels.find((l) => l.name === name)?.color ?? LABEL_DEFAULT;
+  return project.labels.find((l) => l.name === name)?.color ?? FALLBACK_CHIP_COLOR;
 }
 
 /** The saved colour of a 種別, or a preset by its position in the list; grey once the 種別 is gone. */
 export function categoryColor(project: Project, name: string): string {
-  const saved = project.categoryColors[name];
+  // An own-property read, so a 種別 named like an Object.prototype member ("__proto__") finds no saved colour.
+  const saved = Object.hasOwn(project.categoryColors, name) ? project.categoryColors[name] : undefined;
   if (saved) return saved;
   const i = project.categories.indexOf(name);
-  return i === -1 ? LABEL_DEFAULT : PALETTE[i % PALETTE.length].hex;
+  return i === -1 ? FALLBACK_CHIP_COLOR : PALETTE[i % PALETTE.length].hex;
 }
 
 /** Adds `name` to the selected set, or removes it when it is already there. */
@@ -59,10 +60,11 @@ export const formatTimestampDate = (iso: string): string => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : ymd(d);
 };
+/** The local date and time of an ISO UTC timestamp, as YYYY/MM/DD HH:MM; empty for an empty or unreadable one. */
 export const formatDateTime = (iso: string): string => {
   const d = new Date(iso);
-  const p = (n: number): string => String(n).padStart(2, "0");
-  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 /** The label on the side that writes the link. */

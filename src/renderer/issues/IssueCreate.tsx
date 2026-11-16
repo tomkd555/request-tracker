@@ -4,18 +4,18 @@ import { depthOf, MAX_DEPTH } from "../../shared/issueTree";
 import { ISSUE_PRIORITIES, type CustomField, type IssuePriority } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { showToast } from "../app/toast";
-import { categoryOptions, useSession, withCurrent } from "../app/UserContext";
+import { categoryOptions, useSession, withCurrent } from "../app/SessionContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { AssigneeSelect } from "./AssigneeSelect";
-import { compareKeys } from "./compareKeys";
-import { MarkdownEditor } from "./FieldEditor";
-import { parseHours } from "./hours";
+import { byKeyDesc } from "./compareKeys";
+import { DESCRIPTION_ROWS, MarkdownEditor } from "./FieldEditor";
+import { formatHours, parseHours } from "./hours";
 import { firstOfKind, PRIORITY_LABEL } from "./labels";
 import { LabelPicker } from "./LabelPicker";
 import { selectableMilestones } from "./milestones";
 import { ParentField } from "./ParentField";
 import { useIssues } from "./useIssues";
-import { errorMessage, M, refusalMessages } from "../messages";
+import { errorMessage, fileName, M, refusalMessages } from "../messages";
 
 interface Props {
   parentKey: string | null;
@@ -24,13 +24,12 @@ interface Props {
 }
 
 export function IssueCreate(props: Props): React.JSX.Element {
-  const { loaded } = useIssues();
+  const { isLoaded } = useIssues();
   // The copy source is read once into form state, so the form mounts only after the issue map is loaded.
-  if (!loaded) return <div className="text--loading">読み込み中</div>;
+  if (!isLoaded) return <div className="text--loading">読み込み中</div>;
   return <IssueForm {...props} />;
 }
 
-const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
 /** One 汎用列 in the attribute grid: a text input, or a select when the column has options. */
 function FieldRow({ field, value, onChange }: { field: CustomField; value: string; onChange(v: string): void }): React.JSX.Element {
@@ -59,45 +58,47 @@ function FieldRow({ field, value, onChange }: { field: CustomField; value: strin
 }
 
 function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
-  const { me, users, project } = useSession();
+  const { me, project } = useSession();
   const { byKey, issues, refreshOne } = useIssues();
-  const source = copyFrom !== null ? byKey.get(copyFrom) : undefined;
+  const copySource = copyFrom !== null ? byKey.get(copyFrom) : undefined;
   const templates = project.categoryTemplates;
-  const initialCategory = source?.category || (project.categories[0] ?? "");
-  const initialSummary = source?.summary ?? templates[initialCategory]?.summary ?? "";
-  const initialDescription = source?.description ?? templates[initialCategory]?.body ?? "";
+  const initialCategory = copySource?.category || (project.categories[0] ?? "");
+  const initialSummary = copySource?.summary ?? templates[initialCategory]?.summary ?? "";
+  const initialDescription = copySource?.description ?? templates[initialCategory]?.body ?? "";
   const [category, setCategory] = useState(initialCategory);
   const [summary, setSummary] = useState(initialSummary);
   const [description, setDescription] = useState(initialDescription);
-  const [priority, setPriority] = useState<IssuePriority>(source?.priority ?? "normal");
-  const [labels, setLabels] = useState<string[]>(source?.labels ?? []);
-  const [assignee, setAssignee] = useState<string>(source?.assignee ?? "");
+  // The text the form started from, or was reset to after 追加して続ける; the leave guard compares against it.
+  const [startingText, setStartingText] = useState({ summary: initialSummary, description: initialDescription });
+  const [priority, setPriority] = useState<IssuePriority>(copySource?.priority ?? "normal");
+  const [labels, setLabels] = useState<string[]>(copySource?.labels ?? []);
+  const [assignee, setAssignee] = useState<string>(copySource?.assignee ?? "");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const milestones = project.milestones ?? [];
+  const openMilestones = selectableMilestones(project.milestones ?? [], null);
   // A copy keeps the source's milestone only while it is open.
-  const [milestone, setMilestone] = useState<string>(selectableMilestones(milestones, null).some((m) => m.id === source?.milestone) ? (source?.milestone ?? "") : "");
-  const [estimatedText, setEstimatedText] = useState(source?.estimatedHours == null ? "" : String(source.estimatedHours));
-  const [fields, setFields] = useState<Record<string, string>>(source?.fields ?? {});
-  const [parent, setParent] = useState<string | null>(parentKey ?? source?.parentKey ?? null);
+  const [milestone, setMilestone] = useState<string>(openMilestones.some((m) => m.id === copySource?.milestone) ? (copySource?.milestone ?? "") : "");
+  const [estimatedText, setEstimatedText] = useState(formatHours(copySource?.estimatedHours));
+  const [fields, setFields] = useState<Record<string, string>>(copySource?.fields ?? {});
+  const [parent, setParent] = useState<string | null>(parentKey ?? copySource?.parentKey ?? null);
   const [parentInvalid, setParentInvalid] = useState(false);
-  const [paths, setPaths] = useState<string[]>([]);
+  const [attachmentPaths, setAttachmentPaths] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
-  const [created, setCreated] = useState<string | null>(null);
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const parents = issues.filter((i) => depthOf(byKey, i.key) < MAX_DEPTH).sort((a, b) => compareKeys(b.key, a.key));
+  const parentCandidates = issues.filter((i) => depthOf(byKey, i.key) < MAX_DEPTH).sort(byKeyDesc);
   const presetParent = parentKey !== null ? byKey.get(parentKey) : undefined;
   const template = templates[category];
   const templateApplied = template !== undefined && summary === template.summary && description === template.body;
-  const pristine = (summary === initialSummary && description === initialDescription) || templateApplied;
-  useNavigationGuard(!busy && (!pristine || paths.length > 0));
+  const isTextUntouched = (summary === startingText.summary && description === startingText.description) || templateApplied;
+  useNavigationGuard(!busy && (!isTextUntouched || attachmentPaths.length > 0));
   const summaryMissing = summary.trim() === "";
   const datesReversed = startDate !== "" && dueDate !== "" && dueDate < startDate;
   const parentMissing = parent !== null && !byKey.has(parent); // from ?parent= or a copied issue, deleted since
   const estimated = parseHours(estimatedText);
-  const blocked = summaryMissing || datesReversed || parentInvalid || parentMissing || !estimated.ok;
+  const isSubmitBlocked = summaryMissing || datesReversed || parentInvalid || parentMissing || !estimated.ok;
 
   const applyTemplate = (t: { summary: string; body: string }): void => {
     setSummary(t.summary);
@@ -110,11 +111,11 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
     if (t !== undefined && untouched) applyTemplate(t);
   };
 
-  const submit = async (again: boolean): Promise<void> => {
+  const submit = async (stayOnForm: boolean): Promise<void> => {
     setSubmitted(true);
     setMessages([]);
-    setCreated(null);
-    if (blocked) return;
+    setCreatedKey(null);
+    if (isSubmitBlocked) return;
     setBusy(true);
     try {
       if (parent !== null && (await window.api.issues.get(parent)) === null) {
@@ -153,19 +154,21 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       const issue = await window.api.issues.create(draft);
       await refreshOne(issue.key);
       const notes: string[] = [];
-      if (paths.length > 0) {
+      if (attachmentPaths.length > 0) {
         try {
-          notes.push(...refusalMessages(await window.api.attachments.add({ kind: "issue", id: issue.key }, paths)));
+          notes.push(...refusalMessages(await window.api.attachments.add({ kind: "issue", id: issue.key }, attachmentPaths)));
         } catch (e) {
           notes.push(errorMessage(e));
         }
       }
-      if (again || notes.length > 0) {
-        setCreated(issue.key);
+      if (stayOnForm || notes.length > 0) {
+        const reset = { summary: template?.summary ?? "", description: template?.body ?? "" };
+        setCreatedKey(issue.key);
         setMessages(notes);
-        setSummary(template?.summary ?? "");
-        setDescription(template?.body ?? "");
-        setPaths([]);
+        setSummary(reset.summary);
+        setDescription(reset.description);
+        setStartingText(reset);
+        setAttachmentPaths([]);
         setSubmitted(false);
         setBusy(false);
         return;
@@ -178,9 +181,15 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
     }
   };
 
-  const choose = async (): Promise<void> => {
-    const chosen = await window.api.attachments.choose();
-    if (chosen) setPaths((p) => [...p, ...chosen.filter((c) => !p.includes(c))]);
+  const addPaths = (more: string[]): void => setAttachmentPaths((p) => [...p, ...more.filter((x) => !p.includes(x))]);
+
+  const chooseAttachments = async (): Promise<void> => {
+    try {
+      const chosen = await window.api.attachments.choose();
+      if (chosen) addPaths(chosen);
+    } catch (e) {
+      setMessages([errorMessage(e)]);
+    }
   };
 
   return (
@@ -198,9 +207,9 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       }}
     >
       <h1>{parentKey ? "子課題の追加" : "課題の追加"}</h1>
-      {created && (
+      {createdKey && (
         <p className="issue-form__created">
-          <a href={`#/issues/${created}`}>{created}</a> を追加しました
+          <a href={`#/issues/${createdKey}`}>{createdKey}</a> を追加しました
         </p>
       )}
       <div className="issue-form__row">
@@ -237,7 +246,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
       </label>
       <div className="issue-form__field">
         <span className="issue-form__label">詳細</span>
-        <MarkdownEditor value={description} onChange={setDescription} preview={(v) => <Markdown source={v} />} rows={12} ariaLabel="詳細" />
+        <MarkdownEditor value={description} onChange={setDescription} preview={(v) => <Markdown source={v} />} rows={DESCRIPTION_ROWS} ariaLabel="詳細" />
       </div>
       <div className="issue-form__grid">
         <label htmlFor="new-priority" className="issue-form__term">
@@ -262,7 +271,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           担当者
         </label>
         <div className="issue-form__cell issue-form__cell--with-link">
-          <AssigneeSelect id="new-assignee" className="issue-form__control" value={assignee} users={users} leading={[{ value: "", label: "未設定" }]} onChange={setAssignee} />
+          <AssigneeSelect id="new-assignee" className="issue-form__control" value={assignee} leading={[{ value: "", label: "未設定" }]} onChange={setAssignee} />
           {assignee !== me.username && (
             <button type="button" className="button--link" onClick={() => setAssignee(me.username)}>
               自分にする
@@ -293,7 +302,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           ) : (
             <ParentField
               value={parent}
-              candidates={parents}
+              candidates={parentCandidates}
               commitOn="change"
               className="issue-form__control"
               ariaLabel="親課題"
@@ -305,7 +314,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
           )}
           {(parentInvalid || parentMissing) && <span className="issue-form__error">{M.parentNotFound}</span>}
         </div>
-        {selectableMilestones(milestones, null).length > 0 && (
+        {openMilestones.length > 0 && (
           <>
             <label htmlFor="new-milestone" className="issue-form__term">
               マイルストーン
@@ -313,7 +322,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
             <div className="issue-form__cell">
               <select id="new-milestone" className="issue-form__control" value={milestone} onChange={(e) => setMilestone(e.target.value)}>
                 <option value="">未設定</option>
-                {selectableMilestones(milestones, null).map((m) => (
+                {openMilestones.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
                   </option>
@@ -345,24 +354,23 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          const dropped = [...e.dataTransfer.files].map((f) => window.api.pathForFile(f));
-          setPaths((p) => [...p, ...dropped.filter((d) => !p.includes(d))]);
+          addPaths([...e.dataTransfer.files].map((f) => window.api.pathForFile(f)));
         }}
       >
         <div className="issue-form__row">
           <span className="issue-form__label">添付ファイル</span>
-          <button type="button" onClick={() => void choose()}>
+          <button type="button" onClick={() => void chooseAttachments()}>
             ファイルを選ぶ
           </button>
         </div>
-        {paths.length === 0 ? (
+        {attachmentPaths.length === 0 ? (
           <p className="issue-form__dropzone">ここにファイルをドロップ</p>
         ) : (
           <ul className="issue-form__files">
-            {paths.map((p) => (
+            {attachmentPaths.map((p) => (
               <li key={p} className="issue-form__file">
                 <span>{fileName(p)}</span>
-                <button type="button" className="button--link" onClick={() => setPaths((x) => x.filter((y) => y !== p))}>
+                <button type="button" className="button--link" onClick={() => setAttachmentPaths((x) => x.filter((y) => y !== p))}>
                   外す
                 </button>
               </li>

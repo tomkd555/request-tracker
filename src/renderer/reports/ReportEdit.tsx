@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { IssueNote, Report } from "../../shared/types";
-import { useSession } from "../app/UserContext";
+import { useSession } from "../app/SessionContext";
 import { navigate, useNavigationGuard } from "../app/useHashRoute";
 import { MarkdownEditor, type EditorTool } from "../issues/FieldEditor";
-import { today } from "../issues/dates";
+import { todayYmd } from "../issues/dates";
 import { useIssues } from "../issues/useIssues";
 import { errorMessage, isStale, M } from "../messages";
-import { BLOCK_KINDS, BLOCK_LABEL, parseBlockLine, serializeBlock, type Block, type BlockKind, type ReportContext } from "./blocks";
+import { BLOCK_KINDS, BLOCK_LABEL, parseBody, serializeBlock, type Block, type BlockKind, type ReportContext } from "./blocks";
 import { BlockDialog } from "./BlockDialog";
 import { REPORT_CSS } from "./reportCss";
 import { ReportDocument } from "./ReportDocument";
@@ -17,35 +17,35 @@ import "./reports.css";
 
 interface Props {
   id: string | null;
-  /** From `?from=` on 複製 (ReportView) or on the 元にする picker's built-in options. */
+  /** From `?from=` on 複製 (ReportView). */
   from: string | null;
 }
 
-interface DialogState { kind: BlockKind; initial: Block | null; commit: (text: string) => void }
+interface BlockDialogState { kind: BlockKind; initial: Block | null; commit: (text: string) => void }
 
 const SAMPLE_KEY = "__sample__";
 
 export function ReportEdit({ id, from }: Props): React.JSX.Element {
   const { me, users, project } = useSession();
   const { issues } = useIssues();
-  const { byId, reports, loaded, refreshOne, reload } = useReports();
+  const { byId, reports, isLoaded, refreshOne, reload } = useReports();
   const existing = id !== null ? byId.get(id) : undefined;
-  const source = from !== null ? byId.get(from) : undefined;
+  const copySource = from !== null ? byId.get(from) : undefined;
 
   const [title, setTitle] = useState(existing?.title ?? "");
   const [body, setBody] = useState(existing?.body ?? "");
   const [isTemplate, setIsTemplate] = useState(existing?.isTemplate ?? false);
   const [terms, setTerms] = useState<Record<string, string>>(existing?.terms ?? {});
   const [issueNotes, setIssueNotes] = useState<Record<string, IssueNote>>(existing?.issueNotes ?? {});
-  const [sourceKey, setSourceKey] = useState("");
-  const [dialog, setDialog] = useState<DialogState | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [startingPointKey, setStartingPointKey] = useState("");
+  const [blockDialog, setBlockDialog] = useState<BlockDialogState | null>(null);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const appliedSource = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const hasAppliedSource = useRef(false);
   const baseUpdatedAt = useRef<string | null>(null); // the stamp the draft was seeded from; a reload mid-edit must not move it
-  const [stale, setStale] = useState(false);
-  const [refill, setRefill] = useState(0);
+  const [canReload, setCanReload] = useState(false);
+  const [reseedCount, setReseedCount] = useState(0);
 
   // On a reload at #/reports/<id>/edit the report arrives after the first render; take its content then. 再読み込み takes it again.
   useEffect(() => {
@@ -57,35 +57,36 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       setIssueNotes(existing.issueNotes);
       baseUpdatedAt.current = existing.updatedAt;
     }
-  }, [existing?.id, refill]);
+  }, [existing?.id, reseedCount]);
 
   // #/reports/new?from=<id> (複製): the source report may still be loading when this screen first renders.
   useEffect(() => {
-    if (!existing && source && !appliedSource.current) {
-      appliedSource.current = true;
-      setBody(source.body);
-      setTerms(source.terms);
-      setIssueNotes(source.issueNotes);
+    if (!existing && copySource && !hasAppliedSource.current) {
+      hasAppliedSource.current = true;
+      setBody(copySource.body);
+      setTerms(copySource.terms);
+      setIssueNotes(copySource.issueNotes);
     }
-  }, [existing, source]);
+  }, [existing, copySource]);
 
   // Compared by content: every screen change re-reads the list, so `existing` is a fresh object each time.
   const dirty = existing
     ? title !== existing.title || body !== existing.body || isTemplate !== existing.isTemplate || JSON.stringify(terms) !== JSON.stringify(existing.terms) || JSON.stringify(issueNotes) !== JSON.stringify(existing.issueNotes)
-    : title !== "" || body !== "";
-  useNavigationGuard(dirty && !busy);
+    : title !== "" || body !== "" || isTemplate || Object.keys(terms).length > 0 || Object.keys(issueNotes).length > 0;
+  useNavigationGuard(dirty && !isSaving);
 
-  const day = today();
-  const ctx = useMemo<ReportContext>(() => ({ issues, users, project, me, today: day }), [issues, users, project, me, day]);
+  const today = todayYmd();
+  const ctx = useMemo<ReportContext>(() => ({ issues, users, project, me, today }), [issues, users, project, me, today]);
 
-  if (id !== null && !loaded) return <div className="text--loading">読み込み中</div>;
+  if (id !== null && !isLoaded) return <div className="text--loading">読み込み中</div>;
   if (id !== null && !existing) return <p>レポートが見つかりません</p>;
 
   const templates = reports.filter((r) => r.isTemplate);
   const titleMissing = title.trim() === "";
+  const heading = existing ? "レポートの編集" : from !== null ? "レポートの複製" : "新規レポート";
 
   const applySource = (key: string): void => {
-    setSourceKey(key);
+    setStartingPointKey(key);
     if (key === "") {
       setBody("");
       setTerms({});
@@ -95,45 +96,48 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       setTerms({});
       setIssueNotes({});
     } else {
-      const t = byId.get(key);
-      if (!t) return;
-      setBody(t.body);
-      setTerms(t.terms);
-      setIssueNotes(t.issueNotes);
+      const template = byId.get(key);
+      if (!template) return;
+      setBody(template.body);
+      setTerms(template.terms);
+      setIssueNotes(template.issueNotes);
     }
   };
 
   const tools: EditorTool[] = BLOCK_KINDS.map((kind) => ({
     label: `${BLOCK_LABEL[kind]}…`, // opens a dialog, the way a Windows menu item with an ellipsis does
     onClick(sel, insert) {
-      const lineStart = sel.text.lastIndexOf("\n", sel.start - 1) + 1;
-      const nl = sel.text.indexOf("\n", sel.start);
-      const lineEnd = nl === -1 ? sel.text.length : nl;
-      const parsed = parseBlockLine(sel.text.slice(lineStart, lineEnd));
-      const editingBlock = parsed !== null && "block" in parsed && parsed.block.kind === kind ? parsed.block : null;
+      // At the first character, lastIndexOf(…, -1) still finds a line break at index 0 and would give the second line.
+      const lineStart = sel.start === 0 ? 0 : sel.text.lastIndexOf("\n", sel.start - 1) + 1;
+      const lineBreakAt = sel.text.indexOf("\n", sel.start);
+      const lineEnd = lineBreakAt === -1 ? sel.text.length : lineBreakAt;
+      // parseBody reads a block line inside a code fence as Markdown, so the caret on such a line inserts a new block.
+      const lineNumber = sel.text.slice(0, lineStart).split("\n").length;
+      const segment = parseBody(sel.text).find((s) => s.kind === "block" && s.line === lineNumber);
+      const editingBlock = segment?.kind === "block" && segment.block.kind === kind ? segment.block : null;
       const commit = editingBlock === null ? (text: string) => insert(text) : (text: string) => setBody((b) => b.slice(0, lineStart) + text + b.slice(lineEnd));
-      setDialog({ kind, initial: editingBlock, commit });
+      setBlockDialog({ kind, initial: editingBlock, commit });
     },
   }));
 
   const reloadDraft = async (): Promise<void> => {
     if (id === null || !window.confirm(M.confirmDiscard)) return;
     setError(null);
-    setStale(false);
+    setCanReload(false);
     try {
       await refreshOne(id);
-      setRefill((n) => n + 1);
+      setReseedCount((n) => n + 1);
     } catch (e) {
       setError(errorMessage(e));
     }
   };
 
   const save = async (): Promise<void> => {
-    setSubmitted(true);
+    setHasSubmitted(true);
     setError(null);
-    setStale(false);
+    setCanReload(false);
     if (titleMissing) return;
-    setBusy(true);
+    setIsSaving(true);
     const now = new Date().toISOString();
     try {
       if (existing) {
@@ -159,8 +163,8 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       }
     } catch (e) {
       setError(errorMessage(e));
-      setStale(isStale(e));
-      setBusy(false);
+      setCanReload(isStale(e));
+      setIsSaving(false);
     }
   };
 
@@ -173,17 +177,17 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
         void save();
       }}
       onKeyDown={(e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !busy) {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !isSaving) {
           e.preventDefault();
           void save();
         }
       }}
     >
-      <h1>{existing ? "レポートの編集" : from !== null ? "レポートの複製" : "新規レポート"}</h1>
+      <h1>{heading}</h1>
       <label className="issue-form__field">
         タイトル
-        <input className="issue-form__control" value={title} onChange={(e) => setTitle(e.target.value)} aria-invalid={submitted && titleMissing} autoFocus />
-        {submitted && titleMissing && <span className="issue-form__error">{M.titleRequired}</span>}
+        <input className="issue-form__control" value={title} onChange={(e) => setTitle(e.target.value)} aria-invalid={hasSubmitted && titleMissing} autoFocus />
+        {hasSubmitted && titleMissing && <span className="issue-form__error">{M.titleRequired}</span>}
       </label>
       <label className="issue-form__field settings__inline">
         <input type="checkbox" checked={isTemplate} onChange={(e) => setIsTemplate(e.target.checked)} />
@@ -192,7 +196,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       {!existing && from === null && (
         <label className="issue-form__field">
           元にする
-          <select className="issue-form__control" value={sourceKey} onChange={(e) => applySource(e.target.value)}>
+          <select className="issue-form__control" value={startingPointKey} onChange={(e) => applySource(e.target.value)}>
             <option value="">白紙</option>
             <option value={SAMPLE_KEY}>{SAMPLE_TITLE}</option>
             {templates.map((t) => (
@@ -220,7 +224,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       {error && (
         <p className="text--error">
           {error}
-          {stale && (
+          {canReload && (
             <>
               {" "}
               <button type="button" className="button--link" onClick={() => void reloadDraft()}>
@@ -231,7 +235,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
         </p>
       )}
       <div className="form-actions">
-        <button type="submit" className="button--primary" disabled={busy}>
+        <button type="submit" className="button--primary" disabled={isSaving}>
           保存
         </button>
         <button type="button" onClick={() => navigate(existing ? `/reports/${existing.id}` : "/reports")}>
@@ -239,15 +243,15 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
         </button>
       </div>
     </form>
-    {dialog && (
+    {blockDialog && (
       <BlockDialog
-        kind={dialog.kind}
-        initial={dialog.initial}
+        kind={blockDialog.kind}
+        initial={blockDialog.initial}
         project={project}
         users={users}
         onClose={(block) => {
-          const commit = dialog.commit;
-          setDialog(null);
+          const commit = blockDialog.commit;
+          setBlockDialog(null);
           if (block !== null) commit(serializeBlock(block));
         }}
       />

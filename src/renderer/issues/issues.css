@@ -605,20 +605,6 @@ button.issue-table__toggle {
   background: var(--bg-panel);
 }
 
-.wiki-form {
-  max-width: 960px;
-}
-
-.wiki-form__textarea {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  font-size: var(--text-md);
-  font-family: inherit;
-  padding: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
 .summary__month-input {
   font-size: var(--text-md);
   padding: var(--space-1) var(--space-2);

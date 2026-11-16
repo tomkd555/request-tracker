@@ -5,26 +5,32 @@ import { KIND_LABEL } from "../issues/labels";
 import { milestonesToIcs } from "./ics";
 import { exportProjectSettings, parseProjectSettings } from "./projectSettingsFile";
 import { renamedEntries, renamePlan, type Rename } from "./renameEntries";
-import { useSaveMessage } from "./Settings";
 import { nextColor, PALETTE } from "./theme";
 import { useNavigationGuard } from "./useHashRoute";
-import { useSession } from "./UserContext";
+import { FormMessageLine, useSaveMessage, type FormMessage } from "./useSaveMessage";
+import { useSession } from "./SessionContext";
 import { errorMessage, M } from "../messages";
 
-/** Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the 状態 stages, the ラベル list, the members, the 汎用列. */
+const JSON_FILTER = { name: "JSON", extensions: ["json"] };
+const ICS_FILTER = { name: "iCalendar", extensions: ["ics"] };
+
+/**
+ * Settings shared by the team through project.json and users/: the 種別 list with colours and templates, the 状態 stages,
+ * the ラベル list, the マイルストーン list, the members, the 汎用列. The toolbar exports and imports them as one settings file.
+ */
 export function ProjectSettings(): React.JSX.Element {
   const { project, refreshProject } = useSession();
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<FormMessage | null>(null);
   // Bumped after an import so every section drops its draft and shows the imported lists.
-  const [imported, setImported] = useState(0);
+  const [importCount, setImportCount] = useState(0);
 
   const exportSettings = async (): Promise<void> => {
     setMessage(null);
     try {
       const saved = await window.api.reports.save(exportProjectSettings(project), "project-settings.json", JSON_FILTER);
-      setMessage(saved ? M.settingsExported : null);
+      setMessage(saved ? { text: M.settingsExported, isError: false } : null);
     } catch (e) {
-      setMessage(errorMessage(e));
+      setMessage({ text: errorMessage(e), isError: true });
     }
   };
   const importSettings = async (): Promise<void> => {
@@ -34,7 +40,7 @@ export function ProjectSettings(): React.JSX.Element {
       if (text === null) return;
       const parsed = parseProjectSettings(text);
       if (!parsed.ok) {
-        setMessage(M.settingsFileInvalid(parsed.part));
+        setMessage({ text: M.settingsFileInvalid(parsed.part), isError: true });
         return;
       }
       if (!window.confirm(M.confirmReplaceSettings)) return;
@@ -47,11 +53,11 @@ export function ProjectSettings(): React.JSX.Element {
         await window.api.project.putMilestones(s.milestones);
       } finally {
         await refreshProject();
-        setImported((n) => n + 1);
+        setImportCount((n) => n + 1);
       }
-      setMessage(M.settingsImported);
+      setMessage({ text: M.settingsImported, isError: false });
     } catch (e) {
-      setMessage(errorMessage(e));
+      setMessage({ text: errorMessage(e), isError: true });
     }
   };
 
@@ -68,8 +74,8 @@ export function ProjectSettings(): React.JSX.Element {
           </button>
         </div>
       </header>
-      {message && <p className="text--muted">{message}</p>}
-      <div className="settings" key={imported}>
+      <FormMessageLine message={message} />
+      <div className="settings" key={importCount}>
         <CategorySection />
         <StatusSection />
         <LabelSection />
@@ -81,46 +87,79 @@ export function ProjectSettings(): React.JSX.Element {
   );
 }
 
-const JSON_FILTER = { name: "JSON", extensions: ["json"] };
-const ICS_FILTER = { name: "iCalendar", extensions: ["ics"] };
+interface DraftRows<T> {
+  rows: T[];
+  /** Replaces the rows without marking them edited, for state that is never saved (an open template panel). */
+  setRows(rows: T[]): void;
+  update(next: T[]): void;
+  edit(i: number, patch: Partial<T>): void;
+  move(i: number, step: -1 | 1): void;
+  remove(i: number): void;
+  /** Called once the save and the re-read are done, so the rows take the list just read. */
+  markSaved(): void;
+}
+
+/**
+ * The rows one section edits. A list saved elsewhere replaces them only while nothing has been edited here,
+ * and leaving the screen with edits asks first. `rowsOf` is a module-level function, so the effect never re-runs for it.
+ */
+function useDraftRows<T>(rowsOf: (p: Project) => T[]): DraftRows<T> {
+  const { project } = useSession();
+  const [rows, setRows] = useState<T[]>(() => rowsOf(project));
+  const [isDirty, setIsDirty] = useState(false);
+  useEffect(() => {
+    if (!isDirty) setRows(rowsOf(project));
+  }, [project, isDirty, rowsOf]);
+  useNavigationGuard(isDirty);
+
+  const update = (next: T[]): void => {
+    setRows(next);
+    setIsDirty(true);
+  };
+  const move = (i: number, step: -1 | 1): void => {
+    const next = [...rows];
+    const [row] = next.splice(i, 1);
+    next.splice(i + step, 0, row);
+    update(next);
+  };
+  return {
+    rows,
+    setRows,
+    update,
+    edit: (i, patch) => update(rows.map((row, j) => (j === i ? { ...row, ...patch } : row))),
+    move,
+    remove: (i) => update(rows.filter((_, j) => j !== i)),
+    markSaved: () => setIsDirty(false),
+  };
+}
 
 const milestoneRowsOf = (p: Project): Milestone[] => (p.milestones ?? []).map((m) => ({ ...m }));
 
 function MilestoneSection(): React.JSX.Element {
   const { project, refreshProject } = useSession();
-  const [rows, setRows] = useState<Milestone[]>(() => milestoneRowsOf(project));
-  const [dirty, setDirty] = useState(false);
+  const { rows, update, edit, remove, markSaved } = useDraftRows(milestoneRowsOf);
   const [message, run] = useSaveMessage();
-  const [icsMessage, setIcsMessage] = useState<string | null>(null);
-  useEffect(() => {
-    if (!dirty) setRows(milestoneRowsOf(project));
-  }, [project, dirty]);
-  useNavigationGuard(dirty);
+  const [icsMessage, setIcsMessage] = useState<FormMessage | null>(null);
 
-  const update = (next: Milestone[]): void => {
-    setRows(next);
-    setDirty(true);
-  };
-  const edit = (i: number, patch: Partial<Milestone>): void => update(rows.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const save = (): Promise<void> =>
     run(async () => {
       if (rows.some((r) => r.startDate !== null && r.dueDate !== null && r.dueDate < r.startDate)) throw new Error(M.dueBeforeStart);
       await window.api.project.putMilestones(rows);
-      setDirty(false);
       await refreshProject();
+      markSaved();
     });
   const exportIcs = async (): Promise<void> => {
     setIcsMessage(null);
     try {
       const listed = project.milestones ?? [];
       if (!listed.some((m) => m.dueDate !== null)) {
-        setIcsMessage(M.icsNoDueDate);
+        setIcsMessage({ text: M.icsNoDueDate, isError: false });
         return;
       }
       const saved = await window.api.reports.save(milestonesToIcs(listed, new Date()), "milestones.ics", ICS_FILTER);
-      setIcsMessage(saved ? M.icsSaved : null);
+      setIcsMessage(saved ? { text: M.icsSaved, isError: false } : null);
     } catch (e) {
-      setIcsMessage(errorMessage(e));
+      setIcsMessage({ text: errorMessage(e), isError: true });
     }
   };
 
@@ -149,14 +188,14 @@ function MilestoneSection(): React.JSX.Element {
                 <input type="checkbox" checked={r.closed} onChange={(e) => edit(i, { closed: e.target.checked })} />
                 完了
               </label>
-              <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>
+              <button type="button" onClick={() => remove(i)}>
                 削除
               </button>
             </li>
           ))}
         </ul>
-        {message && <p className="text--muted">{message}</p>}
-        {icsMessage && <p className="text--muted">{icsMessage}</p>}
+        <FormMessageLine message={message} />
+        <FormMessageLine message={icsMessage} />
         <div className="form-actions">
           <button type="button" onClick={() => update([...rows, { id: crypto.randomUUID(), name: "", startDate: null, dueDate: null, closed: false }])}>
             追加
@@ -176,31 +215,16 @@ interface FieldRow { id: string; name: string; optionsText: string }
 const fieldRowsOf = (p: Project): FieldRow[] => p.fields.map((f) => ({ id: f.id, name: f.name, optionsText: f.options.join("\n") }));
 
 function FieldSection(): React.JSX.Element {
-  const { project, refreshProject } = useSession();
-  const [rows, setRows] = useState<FieldRow[]>(() => fieldRowsOf(project));
-  const [dirty, setDirty] = useState(false);
+  const { refreshProject } = useSession();
+  const { rows, update, edit, move, remove, markSaved } = useDraftRows(fieldRowsOf);
   const [message, run] = useSaveMessage();
-  useEffect(() => {
-    if (!dirty) setRows(fieldRowsOf(project));
-  }, [project, dirty]);
-  useNavigationGuard(dirty);
 
-  const update = (next: FieldRow[]): void => {
-    setRows(next);
-    setDirty(true);
-  };
-  const move = (i: number, d: -1 | 1): void => {
-    const next = [...rows];
-    const [row] = next.splice(i, 1);
-    next.splice(i + d, 0, row);
-    update(next);
-  };
   const save = (): Promise<void> =>
     run(async () => {
       const fields: CustomField[] = rows.map((r) => ({ id: r.id, name: r.name, options: r.optionsText.split("\n") }));
       await window.api.project.putFields(fields);
-      setDirty(false);
       await refreshProject();
+      markSaved();
     });
 
   return (
@@ -215,36 +239,26 @@ function FieldSection(): React.JSX.Element {
         <ul className="settings__list">
           {rows.map((r, i) => (
             <li key={r.id} className="settings__row">
-              <input
-                className="settings__name"
-                aria-label="列名"
-                value={r.name}
-                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-              />
+              <input className="settings__name" aria-label="列名" value={r.name} onChange={(e) => edit(i, { name: e.target.value })} />
               <button type="button" aria-label="上へ" disabled={i === 0} onClick={() => move(i, -1)}>
                 ↑
               </button>
               <button type="button" aria-label="下へ" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
                 ↓
               </button>
-              <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>
+              <button type="button" onClick={() => remove(i)}>
                 削除
               </button>
               <div className="settings__template">
                 <label className="issue-form__field">
                   選択肢
-                  <textarea
-                    className="issue-form__control"
-                    rows={3}
-                    value={r.optionsText}
-                    onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, optionsText: e.target.value } : x)))}
-                  />
+                  <textarea className="issue-form__control" rows={3} value={r.optionsText} onChange={(e) => edit(i, { optionsText: e.target.value })} />
                 </label>
               </div>
             </li>
           ))}
         </ul>
-        {message && <p className="text--muted">{message}</p>}
+        <FormMessageLine message={message} />
         <div className="form-actions">
           <button type="button" onClick={() => update([...rows, { id: crypto.randomUUID(), name: "", optionsText: "" }])}>
             追加
@@ -261,13 +275,9 @@ function MemberSection(): React.JSX.Element {
   const [name, setName] = useState("");
   const [message, run] = useSaveMessage();
   const members = [...users].sort((a, b) => a.displayName.localeCompare(b.displayName, "ja"));
-  const act = (action: () => Promise<unknown>): Promise<void> =>
+  const runMemberAction = (action: () => Promise<unknown>): Promise<void> =>
     run(async () => {
-      try {
-        await action();
-      } catch (e) {
-        throw new Error(errorMessage(e));
-      }
+      await action();
       await refreshUsers();
     });
 
@@ -277,11 +287,11 @@ function MemberSection(): React.JSX.Element {
       <ul className="settings__list">
         {members.map((u) => (
           <li key={u.username} className="settings__row">
-            <TextField className="settings__name" ariaLabel="メンバーの名前" value={u.displayName} required onSave={(v) => void act(() => window.api.users.rename(u.username, v))} />
+            <TextField className="settings__name" ariaLabel="メンバーの名前" value={u.displayName} required onSave={(v) => void runMemberAction(() => window.api.users.rename(u.username, v))} />
             <button
               type="button"
               onClick={() => {
-                if (window.confirm(M.confirmRemoveMember(u.displayName))) void act(() => window.api.users.remove(u.username));
+                if (window.confirm(M.confirmRemoveMember(u.displayName))) void runMemberAction(() => window.api.users.remove(u.username));
               }}
             >
               削除
@@ -293,7 +303,7 @@ function MemberSection(): React.JSX.Element {
         className="settings__row"
         onSubmit={(e) => {
           e.preventDefault();
-          void act(async () => {
+          void runMemberAction(async () => {
             await window.api.users.add(name);
             setName("");
           });
@@ -304,17 +314,28 @@ function MemberSection(): React.JSX.Element {
           追加
         </button>
       </form>
-      {message && <p className="text--muted">{message}</p>}
+      <FormMessageLine message={message} />
     </section>
   );
 }
 
-interface CategoryRow { name: string; color: string | null; template: CategoryTemplate; open: boolean }
+/** `savedName` is the 種別 the row was loaded as, null for a row added here; a rename is judged against it. */
+interface CategoryRow { savedName: string | null; name: string; color: string | null; template: CategoryTemplate; open: boolean }
 
 const EMPTY_TEMPLATE: CategoryTemplate = { summary: "", body: "" };
 
-const rowsOf = (p: Project): CategoryRow[] =>
-  p.categories.map((name) => ({ name, color: p.categoryColors[name] ?? null, template: p.categoryTemplates[name] ?? EMPTY_TEMPLATE, open: false }));
+// Own properties only: a 種別 named like an Object.prototype member (`__proto__`, `constructor`) must not read the inherited value as its colour or template.
+const categoryRowsOf = (p: Project): CategoryRow[] =>
+  p.categories.map((name) => ({
+    savedName: name,
+    name,
+    color: Object.hasOwn(p.categoryColors, name) ? p.categoryColors[name] : null,
+    template: Object.hasOwn(p.categoryTemplates, name) ? p.categoryTemplates[name] : EMPTY_TEMPLATE,
+    open: false,
+  }));
+
+/** The colour a 種別 row shows: its own, or the preset at its position, as the issue screens show a 種別 with no saved colour. */
+const rowColor = (row: CategoryRow, i: number): string => row.color ?? PALETTE[i % PALETTE.length].hex;
 
 /** Asks whether to rename the old names on the issues that use them; the issues to save when the answer is yes, with the new names in place. */
 async function askRenameOnIssues(renames: Rename[], field: "category" | "labels"): Promise<Issue[]> {
@@ -341,44 +362,27 @@ async function renameOnIssues(changed: Issue[], username: string): Promise<void>
 
 function CategorySection(): React.JSX.Element {
   const { me, project, refreshProject } = useSession();
-  const [rows, setRows] = useState<CategoryRow[]>(() => rowsOf(project));
-  const [dirty, setDirty] = useState(false);
+  const { rows, setRows, update, edit, move, remove, markSaved } = useDraftRows(categoryRowsOf);
   const [message, run] = useSaveMessage();
-  // A list saved elsewhere replaces the rows only while nothing has been edited here.
-  useEffect(() => {
-    if (!dirty) setRows(rowsOf(project));
-  }, [project, dirty]);
-  useNavigationGuard(dirty);
 
-  const update = (next: CategoryRow[]): void => {
-    setRows(next);
-    setDirty(true);
-  };
-  const move = (i: number, d: -1 | 1): void => {
-    const next = [...rows];
-    const [row] = next.splice(i, 1);
-    next.splice(i + d, 0, row);
-    update(next);
-  };
   const save = (): Promise<void> =>
     run(async () => {
-      const colors: Record<string, string> = {};
-      const templates: Record<string, CategoryTemplate> = {};
-      rows.forEach((r, i) => {
-        const name = r.name.trim();
-        if (name === "") return;
-        colors[name] = r.color ?? PALETTE[i % PALETTE.length].hex; // the preset shown for the row is saved with it, so a later reorder keeps every 種別's colour
-        templates[name] = r.template;
-      });
-      const changed = await askRenameOnIssues(renamedEntries(project.categories, rows.map((r) => r.name)), "category");
+      // The preset shown for a row is saved with it, so a later reorder keeps every 種別's colour.
+      // Built from entries: an assignment to a 種別 named `__proto__` would set the prototype and store nothing.
+      const named = rows.map((r, i) => ({ name: r.name.trim(), color: rowColor(r, i), template: r.template })).filter((r) => r.name !== "");
+      const changed = await askRenameOnIssues(renamedEntries(project.categories, rows), "category");
       await window.api.project.put(
         rows.map((r) => r.name),
-        colors,
-        templates,
+        Object.fromEntries(named.map((r) => [r.name, r.color])),
+        Object.fromEntries(named.map((r) => [r.name, r.template])),
       );
-      setDirty(false);
-      await refreshProject();
-      await renameOnIssues(changed, me.username);
+      // The renames the user confirmed run even when the re-read fails.
+      try {
+        await renameOnIssues(changed, me.username);
+      } finally {
+        await refreshProject();
+        markSaved();
+      }
     });
 
   return (
@@ -393,16 +397,8 @@ function CategorySection(): React.JSX.Element {
         <ul className="settings__list">
           {rows.map((r, i) => (
             <li key={i} className="settings__row">
-              <ColorField
-                value={r.color ?? PALETTE[i % PALETTE.length].hex}
-                onChange={(color) => update(rows.map((x, j) => (j === i ? { ...x, color } : x)))}
-              />
-              <input
-                className="settings__name"
-                aria-label="種別名"
-                value={r.name}
-                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-              />
+              <ColorField value={rowColor(r, i)} onChange={(color) => edit(i, { color })} />
+              <input className="settings__name" aria-label="種別名" value={r.name} onChange={(e) => edit(i, { name: e.target.value })} />
               <button type="button" aria-label="上へ" disabled={i === 0} onClick={() => move(i, -1)}>
                 ↑
               </button>
@@ -412,18 +408,14 @@ function CategorySection(): React.JSX.Element {
               <button type="button" aria-pressed={r.open} onClick={() => setRows(rows.map((x, j) => (j === i ? { ...x, open: !x.open } : x)))}>
                 ひな形
               </button>
-              <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>
+              <button type="button" onClick={() => remove(i)}>
                 削除
               </button>
               {r.open && (
                 <div className="settings__template">
                   <label className="issue-form__field">
                     件名
-                    <input
-                      className="issue-form__control"
-                      value={r.template.summary}
-                      onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, template: { ...x.template, summary: e.target.value } } : x)))}
-                    />
+                    <input className="issue-form__control" value={r.template.summary} onChange={(e) => edit(i, { template: { ...r.template, summary: e.target.value } })} />
                   </label>
                   <label className="issue-form__field">
                     詳細
@@ -431,7 +423,7 @@ function CategorySection(): React.JSX.Element {
                       className="issue-form__control"
                       rows={6}
                       value={r.template.body}
-                      onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, template: { ...x.template, body: e.target.value } } : x)))}
+                      onChange={(e) => edit(i, { template: { ...r.template, body: e.target.value } })}
                     />
                   </label>
                 </div>
@@ -439,9 +431,9 @@ function CategorySection(): React.JSX.Element {
             </li>
           ))}
         </ul>
-        {message && <p className="text--muted">{message}</p>}
+        <FormMessageLine message={message} />
         <div className="form-actions">
-          <button type="button" onClick={() => update([...rows, { name: "", color: null, template: EMPTY_TEMPLATE, open: false }])}>
+          <button type="button" onClick={() => update([...rows, { savedName: null, name: "", color: null, template: EMPTY_TEMPLATE, open: false }])}>
             追加
           </button>
           <button type="submit" disabled={rows.every((r) => r.name.trim() === "")}>
@@ -475,31 +467,18 @@ function ColorField({ value, onChange }: { value: string; onChange: (hex: string
   );
 }
 
-function StatusSection(): React.JSX.Element {
-  const { project, refreshProject } = useSession();
-  const [rows, setRows] = useState<StatusDef[]>(() => project.statuses);
-  const [dirty, setDirty] = useState(false);
-  const [message, run] = useSaveMessage();
-  useEffect(() => {
-    if (!dirty) setRows(project.statuses);
-  }, [project, dirty]);
-  useNavigationGuard(dirty);
+const statusRowsOf = (p: Project): StatusDef[] => p.statuses;
 
-  const update = (next: StatusDef[]): void => {
-    setRows(next);
-    setDirty(true);
-  };
-  const move = (i: number, d: -1 | 1): void => {
-    const next = [...rows];
-    const [row] = next.splice(i, 1);
-    next.splice(i + d, 0, row);
-    update(next);
-  };
+function StatusSection(): React.JSX.Element {
+  const { refreshProject } = useSession();
+  const { rows, update, edit, move, remove, markSaved } = useDraftRows(statusRowsOf);
+  const [message, run] = useSaveMessage();
+
   const save = (): Promise<void> =>
     run(async () => {
       await window.api.project.putStatuses(rows);
-      setDirty(false);
       await refreshProject();
+      markSaved();
     });
 
   return (
@@ -514,14 +493,9 @@ function StatusSection(): React.JSX.Element {
         <ul className="settings__list">
           {rows.map((r, i) => (
             <li key={r.id} className="settings__row">
-              <ColorField value={r.color} onChange={(color) => update(rows.map((x, j) => (j === i ? { ...x, color } : x)))} />
-              <input
-                className="settings__name"
-                aria-label="状態名"
-                value={r.name}
-                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-              />
-              <select aria-label="区分" value={r.kind} onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, kind: e.target.value as StatusKind } : x)))}>
+              <ColorField value={r.color} onChange={(color) => edit(i, { color })} />
+              <input className="settings__name" aria-label="状態名" value={r.name} onChange={(e) => edit(i, { name: e.target.value })} />
+              <select aria-label="区分" value={r.kind} onChange={(e) => edit(i, { kind: e.target.value as StatusKind })}>
                 {STATUS_KINDS.map((k) => (
                   <option key={k} value={k}>
                     {KIND_LABEL[k]}
@@ -534,13 +508,13 @@ function StatusSection(): React.JSX.Element {
               <button type="button" aria-label="下へ" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
                 ↓
               </button>
-              <button type="button" disabled={rows.length === 1} onClick={() => update(rows.filter((_, j) => j !== i))}>
+              <button type="button" disabled={rows.length === 1} onClick={() => remove(i)}>
                 削除
               </button>
             </li>
           ))}
         </ul>
-        {message && <p className="text--muted">{message}</p>}
+        <FormMessageLine message={message} />
         <div className="form-actions">
           <button type="button" onClick={() => update([...rows, { id: crypto.randomUUID(), name: "", color: nextColor(rows.map((r) => r.color)), kind: "active" }])}>
             追加
@@ -554,38 +528,27 @@ function StatusSection(): React.JSX.Element {
   );
 }
 
-interface LabelRow { name: string; color: string }
+/** `savedName` is the ラベル the row was loaded as, null for a row added here; a rename is judged against it. */
+interface LabelRow extends Label { savedName: string | null }
 
-const labelRowsOf = (p: Project): LabelRow[] => p.labels.map((l) => ({ name: l.name, color: l.color }));
+const labelRowsOf = (p: Project): LabelRow[] => p.labels.map((label) => ({ ...label, savedName: label.name }));
 
 function LabelSection(): React.JSX.Element {
   const { me, project, refreshProject } = useSession();
-  const [rows, setRows] = useState<LabelRow[]>(() => labelRowsOf(project));
-  const [dirty, setDirty] = useState(false);
+  const { rows, update, edit, move, remove, markSaved } = useDraftRows(labelRowsOf);
   const [message, run] = useSaveMessage();
-  useEffect(() => {
-    if (!dirty) setRows(labelRowsOf(project));
-  }, [project, dirty]);
-  useNavigationGuard(dirty);
 
-  const update = (next: LabelRow[]): void => {
-    setRows(next);
-    setDirty(true);
-  };
-  const move = (i: number, d: -1 | 1): void => {
-    const next = [...rows];
-    const [row] = next.splice(i, 1);
-    next.splice(i + d, 0, row);
-    update(next);
-  };
   const save = (): Promise<void> =>
     run(async () => {
-      const labels: Label[] = rows.map((r) => ({ name: r.name, color: r.color }));
-      const changed = await askRenameOnIssues(renamedEntries(project.labels.map((l) => l.name), rows.map((r) => r.name)), "labels");
-      await window.api.project.putLabels(labels);
-      setDirty(false);
-      await refreshProject();
-      await renameOnIssues(changed, me.username);
+      const changed = await askRenameOnIssues(renamedEntries(project.labels.map((l) => l.name), rows), "labels");
+      await window.api.project.putLabels(rows.map(({ name, color }) => ({ name, color })));
+      // The renames the user confirmed run even when the re-read fails.
+      try {
+        await renameOnIssues(changed, me.username);
+      } finally {
+        await refreshProject();
+        markSaved();
+      }
     });
 
   return (
@@ -600,31 +563,27 @@ function LabelSection(): React.JSX.Element {
         <ul className="settings__list">
           {rows.map((r, i) => (
             <li key={i} className="settings__row">
-              <ColorField value={r.color} onChange={(color) => update(rows.map((x, j) => (j === i ? { ...x, color } : x)))} />
-              <input
-                className="settings__name"
-                aria-label="ラベル名"
-                value={r.name}
-                onChange={(e) => update(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-              />
+              <ColorField value={r.color} onChange={(color) => edit(i, { color })} />
+              <input className="settings__name" aria-label="ラベル名" value={r.name} onChange={(e) => edit(i, { name: e.target.value })} />
               <button type="button" aria-label="上へ" disabled={i === 0} onClick={() => move(i, -1)}>
                 ↑
               </button>
               <button type="button" aria-label="下へ" disabled={i === rows.length - 1} onClick={() => move(i, 1)}>
                 ↓
               </button>
-              <button type="button" onClick={() => update(rows.filter((_, j) => j !== i))}>
+              <button type="button" onClick={() => remove(i)}>
                 削除
               </button>
             </li>
           ))}
         </ul>
-        {message && <p className="text--muted">{message}</p>}
+        <FormMessageLine message={message} />
         <div className="form-actions">
-          <button type="button" onClick={() => update([...rows, { name: "", color: nextColor(rows.map((r) => r.color)) }])}>
+          <button type="button" onClick={() => update([...rows, { savedName: null, name: "", color: nextColor(rows.map((r) => r.color)) }])}>
             追加
           </button>
-          <button type="submit" disabled={rows.every((r) => r.name.trim() === "")}>
+          {/* An empty list is a valid save: it removes the last ラベル. */}
+          <button type="submit" disabled={rows.length > 0 && rows.every((r) => r.name.trim() === "")}>
             保存
           </button>
         </div>

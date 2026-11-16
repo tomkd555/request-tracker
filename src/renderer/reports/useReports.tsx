@@ -1,24 +1,24 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Report } from "../../shared/types";
 
-export interface ReportsState {
+interface ReportsState {
   reports: Report[];
   byId: Map<string, Report>;
-  loaded: boolean;
+  isLoaded: boolean;
   reload(): Promise<void>;
   refreshOne(id: string): Promise<void>;
 }
 
-export const ReportsContext = createContext<ReportsState | null>(null);
+const ReportsContext = createContext<ReportsState | null>(null);
 
 export function ReportsProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [byId, setById] = useState<Map<string, Report>>(new Map());
-  const [loaded, setLoaded] = useState(false);
+  const [byId, setById] = useState<Map<string, Report>>(() => new Map());
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const reload = useCallback(async () => {
     const list = await window.api.reports.list();
     setById(new Map(list.map((r) => [r.id, r])));
-    setLoaded(true);
+    setIsLoaded(true);
   }, []);
 
   const refreshOne = useCallback(async (id: string) => {
@@ -35,8 +35,8 @@ export function ReportsProvider({ children }: { children: React.ReactNode }): Re
 
   const value = useMemo<ReportsState>(() => {
     const reports = [...byId.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return { reports, byId, loaded, reload, refreshOne };
-  }, [byId, loaded, reload, refreshOne]);
+    return { reports, byId, isLoaded, reload, refreshOne };
+  }, [byId, isLoaded, reload, refreshOne]);
   return <ReportsContext.Provider value={value}>{children}</ReportsContext.Provider>;
 }
 

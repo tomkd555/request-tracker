@@ -9,53 +9,95 @@ const INDENTED = /^(?: {4}|\t)/;
 export function codeLineFlags(lines: string[]): boolean[] {
   const flags: boolean[] = [];
   let fence: { char: string; len: number } | null = null;
-  let prevBlank = true;
-  let prevCode = false;
-  let inList = false;
+  let wasBlank = true;
+  let wasCode = false;
+  let isInList = false;
   for (const raw of lines) {
     const line = raw.replace(/\r?\n?$/, "");
-    const blank = line.trim() === "";
-    let code = false;
+    const isBlank = line.trim() === "";
+    let isCode = false;
     if (fence) {
-      code = true;
+      isCode = true;
       const close = FENCE_CLOSE.exec(line);
       if (close && close[1][0] === fence.char && close[1].length >= fence.len) fence = null;
     } else {
       const open = FENCE_OPEN.exec(line);
       if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
-        code = true;
+        isCode = true;
         fence = { char: open[1][0], len: open[1].length };
-      } else if (!blank && INDENTED.test(line)) {
-        code = !inList && (prevBlank || prevCode);
-      } else if (!blank) {
-        inList = LIST_ITEM.test(line) || (inList && !prevBlank);
+      } else if (!isBlank && INDENTED.test(line)) {
+        isCode = !isInList && (wasBlank || wasCode);
+      } else if (!isBlank) {
+        isInList = LIST_ITEM.test(line) || (isInList && !wasBlank);
       }
     }
-    flags.push(code);
-    prevBlank = blank;
-    prevCode = code;
+    flags.push(isCode);
+    wasBlank = isBlank;
+    wasCode = isCode;
   }
   return flags;
 }
 
-const INLINE_CODE = /(`+[\s\S]*?`+)/;
+const BLANK_LINE = /\n[ \t]*\n/;
+
+/** Where the run of exactly `length` backticks that closes a span opened before `from` starts, or -1 when the paragraph holds none. */
+function closingRunAt(text: string, from: number, length: number): number {
+  const blankLineAt = text.slice(from).search(BLANK_LINE);
+  const paragraphEnd = blankLineAt === -1 ? text.length : from + blankLineAt;
+  for (const run of text.slice(from, paragraphEnd).matchAll(/`+/g)) {
+    if (run[0].length === length) return from + run.index;
+  }
+  return -1;
+}
+
+/** Splits text outside code blocks into text and inline code spans, text first; an opening run with no closing run of its length is text. */
+function splitInlineCode(text: string): string[] {
+  const backtickRuns = /`+/g;
+  const parts: string[] = [];
+  let textStart = 0;
+  let searchFrom = 0;
+  for (;;) {
+    backtickRuns.lastIndex = searchFrom;
+    const open = backtickRuns.exec(text);
+    if (open === null) break;
+    const openEnd = open.index + open[0].length;
+    const closeAt = closingRunAt(text, openEnd, open[0].length);
+    if (closeAt === -1) {
+      searchFrom = openEnd;
+      continue;
+    }
+    const spanEnd = closeAt + open[0].length;
+    parts.push(text.slice(textStart, open.index), text.slice(open.index, spanEnd));
+    textStart = spanEnd;
+    searchFrom = spanEnd;
+  }
+  parts.push(text.slice(textStart));
+  return parts;
+}
 
 /** Splits on code so that even indexes are text and odd indexes are code (fenced, indented or inline). */
 export function splitCode(src: string): string[] {
   const lines = src.split(/(?<=\n)/);
   const flags = codeLineFlags(lines);
   const out: string[] = [];
-  const push = (s: string, code: boolean): void => {
-    if (code !== (out.length % 2 === 1)) out.push("");
-    out.push(s);
+  const push = (segment: string, isCode: boolean): void => {
+    if (isCode !== (out.length % 2 === 1)) out.push("");
+    out.push(segment);
   };
   for (let i = 0; i < lines.length; ) {
     let j = i;
     while (j < lines.length && flags[j] === flags[i]) j++;
     const chunk = lines.slice(i, j).join("");
     if (flags[i]) push(chunk, true);
-    else chunk.split(INLINE_CODE).forEach((s, k) => push(s, k % 2 === 1));
+    else splitInlineCode(chunk).forEach((part, k) => push(part, k % 2 === 1));
     i = j;
   }
   return out;
+}
+
+/** The source with `rewrite` applied to every stretch of text outside code; the code stays as it is. */
+export function mapOutsideCode(src: string, rewrite: (text: string) => string): string {
+  return splitCode(src)
+    .map((segment, i) => (i % 2 === 1 ? segment : rewrite(segment)))
+    .join("");
 }

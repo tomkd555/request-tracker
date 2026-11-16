@@ -1,74 +1,73 @@
 import { useEffect, useState } from "react";
 import type { WikiPage } from "../../shared/types";
 import type { Route } from "../app/useHashRoute";
+import { toggled } from "../issues/collapsed";
 import { useWiki } from "./useWiki";
 import { WikiEdit } from "./WikiEdit";
 import { WikiIndex } from "./WikiIndex";
-import { childrenMap, newPageKey, pathIds, searchPages } from "./wikiTree";
+import { ancestorIdsOf, childrenMap, newPageKey, searchPages } from "./wikiTree";
 import { WikiView } from "./WikiView";
 import "./wiki.css";
 import { M } from "../messages";
 
 /** The wiki screens share one frame: the page tree on the left, the index, a page or the editor on the right. */
-export function WikiScreen({ route }: { route: Route }): React.JSX.Element {
+export function WikiFrame({ route }: { route: Route }): React.JSX.Element {
   const { path, query } = route;
-  const m = /^\/wiki\/([^/]+)(\/edit)?$/.exec(path);
+  const match = /^\/wiki\/([^/]+)(\/edit)?$/.exec(path);
   const isNew = path === "/wiki/new";
-  const currentId = m && !isNew ? m[1] : null;
+  const pageId = match && !isNew ? match[1] : null;
+  const isEdit = match?.[2] !== undefined;
   let screen: React.JSX.Element;
-  if (isNew) screen = <WikiEdit key={newPageKey(query.get("title") ?? "", query.get("parent"))} id={null} presetTitle={query.get("title") ?? ""} presetParent={query.get("parent")} />;
-  else if (m) screen = m[2] ? <WikiEdit key={m[1]} id={m[1]} presetTitle="" presetParent={null} /> : <WikiView key={m[1]} id={m[1]} />;
+  if (isNew) {
+    const presetTitle = query.get("title") ?? "";
+    const presetParent = query.get("parent");
+    screen = <WikiEdit key={newPageKey(presetTitle, presetParent)} id={null} presetTitle={presetTitle} presetParent={presetParent} />;
+  } else if (pageId !== null) screen = isEdit ? <WikiEdit key={pageId} id={pageId} presetTitle="" presetParent={null} /> : <WikiView key={pageId} id={pageId} />;
   else screen = <WikiIndex />;
   return (
     <div className="wiki-frame">
-      <Sidebar currentId={currentId} />
+      <WikiSidebar currentId={pageId} />
       <div className="wiki-frame__main">{screen}</div>
     </div>
   );
 }
 
-function Sidebar({ currentId }: { currentId: string | null }): React.JSX.Element {
-  const { pages, loaded } = useWiki();
+function WikiSidebar({ currentId }: { currentId: string | null }): React.JSX.Element {
+  const { pages, isLoaded } = useWiki();
   const [keyword, setKeyword] = useState("");
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   // Opening a page opens the path down to it; what the user folded or unfolded elsewhere stays.
   useEffect(() => {
-    if (currentId !== null) setOpen((o) => new Set([...o, ...pathIds(pages, currentId)]));
+    if (currentId !== null) setExpandedIds((ids) => new Set([...ids, ...ancestorIdsOf(pages, currentId)]));
   }, [currentId, pages]);
 
   const children = childrenMap(pages);
-  const toggle = (id: string): void =>
-    setOpen((o) => {
-      const next = new Set(o);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggle = (id: string): void => setExpandedIds((ids) => toggled(ids, id));
 
-  const node = (p: WikiPage, depth: number): React.JSX.Element => {
-    const kids = children.get(p.id) ?? [];
-    const isOpen = open.has(p.id);
+  const renderTreeNode = (page: WikiPage, depth: number): React.JSX.Element => {
+    const kids = children.get(page.id) ?? [];
+    const isExpanded = expandedIds.has(page.id);
     return (
-      <li key={p.id} className="wiki-tree__item">
-        <div className={`wiki-tree__row${p.id === currentId ? " wiki-tree__row--current" : ""}`} style={{ paddingLeft: depth * 16 }}>
+      <li key={page.id} className="wiki-tree__item">
+        <div className={`wiki-tree__row${page.id === currentId ? " wiki-tree__row--current" : ""}`} style={{ paddingLeft: depth * 16 }}>
           {kids.length > 0 ? (
-            <button type="button" className="wiki-tree__toggle" aria-label={isOpen ? "折りたたむ" : "開く"} aria-expanded={isOpen} onClick={() => toggle(p.id)}>
-              {isOpen ? "▾" : "▸"}
+            <button type="button" className="wiki-tree__toggle" aria-label={isExpanded ? "折りたたむ" : "開く"} aria-expanded={isExpanded} onClick={() => toggle(page.id)}>
+              {isExpanded ? "▾" : "▸"}
             </button>
           ) : (
             <span className="wiki-tree__toggle" />
           )}
-          <a className="wiki-tree__link" href={`#/wiki/${p.id}`} aria-current={p.id === currentId ? "page" : undefined}>
-            {p.title}
+          <a className="wiki-tree__link" href={`#/wiki/${page.id}`} aria-current={page.id === currentId ? "page" : undefined}>
+            {page.title}
           </a>
         </div>
-        {kids.length > 0 && isOpen && <ul className="wiki-tree__list">{kids.map((k) => node(k, depth + 1))}</ul>}
+        {kids.length > 0 && isExpanded && <ul className="wiki-tree__list">{kids.map((kid) => renderTreeNode(kid, depth + 1))}</ul>}
       </li>
     );
   };
 
-  const kw = keyword.trim();
-  const hits = kw === "" ? [] : searchPages(pages, kw);
+  const trimmedKeyword = keyword.trim();
+  const hits = trimmedKeyword === "" ? [] : searchPages(pages, trimmedKeyword);
 
   return (
     <aside className="wiki-side" aria-label="ページ一覧">
@@ -81,14 +80,14 @@ function Sidebar({ currentId }: { currentId: string | null }): React.JSX.Element
         </a>
       </div>
       <input type="search" className="wiki-side__search" placeholder="ページを検索" aria-label="ページを検索" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-      {kw !== "" ? (
+      {trimmedKeyword !== "" ? (
         <ul className="wiki-tree__list">
-          {hits.map((p) => (
-            <li key={p.id} className="wiki-tree__item">
-              <div className={`wiki-tree__row${p.id === currentId ? " wiki-tree__row--current" : ""}`}>
+          {hits.map((page) => (
+            <li key={page.id} className="wiki-tree__item">
+              <div className={`wiki-tree__row${page.id === currentId ? " wiki-tree__row--current" : ""}`}>
                 <span className="wiki-tree__toggle" />
-                <a className="wiki-tree__link" href={`#/wiki/${p.id}`}>
-                  {p.title}
+                <a className="wiki-tree__link" href={`#/wiki/${page.id}`} aria-current={page.id === currentId ? "page" : undefined}>
+                  {page.title}
                 </a>
               </div>
             </li>
@@ -97,8 +96,8 @@ function Sidebar({ currentId }: { currentId: string | null }): React.JSX.Element
         </ul>
       ) : (
         <ul className="wiki-tree__list">
-          {(children.get(null) ?? []).map((p) => node(p, 0))}
-          {loaded && pages.length === 0 && <li className="text--muted wiki-tree__empty">{M.noPages}</li>}
+          {(children.get(null) ?? []).map((page) => renderTreeNode(page, 0))}
+          {isLoaded && pages.length === 0 && <li className="text--muted wiki-tree__empty">{M.noPages}</li>}
         </ul>
       )}
     </aside>

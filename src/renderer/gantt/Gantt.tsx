@@ -1,27 +1,37 @@
 import { useEffect, useState } from "react";
+import type { IssueFilter } from "../../shared/types";
 import { useChoiceDialog } from "../app/ChoiceDialog";
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { navigate } from "../app/useHashRoute";
 import { withAncestors } from "../../shared/issueTree";
 import { useCollapsed } from "../issues/collapsed";
-import { ymd } from "../issues/dates";
+import { todayYmd } from "../issues/dates";
 import { FilterBar } from "../issues/FilterBar";
-import { defaultFilter, filterIssues, type IssueFilter } from "../issues/filterIssues";
+import { defaultFilter, filterIssues } from "../issues/filterIssues";
 import { statusName, statusStyle } from "../issues/labels";
 import { milestoneName } from "../issues/milestones";
 import { applyWrites, datedDescendants, moveWrites, type ParentAnswer } from "../issues/parentOps";
-import { carrySeen } from "../issues/seen";
+import { markOwnSave } from "../issues/seen";
 import { SavedFilters } from "../issues/SavedFilters";
 import { DEFAULT_SORT, issueComparator, nextSort, type IssueSort, type SortKey } from "../issues/sortIssues";
 import { useIssues } from "../issues/useIssues";
-import { datesAfterDrag, layoutGantt, rangeFor, shiftMonth, type DragMode, type GanttRow, type GroupBy, type Months, type Segment } from "./layoutGantt";
+import { datesAfterDrag, layoutGantt, MONTH_COUNTS, rangeFor, shiftMonth, type BarSegment, type DragMode, type GanttRow, type GroupBy, type MonthCount } from "./layoutGantt";
 import "./gantt.css";
 import { errorMessage, M } from "../messages";
 
-const DAY_PX: Record<Months, number> = { 1: 28, 2: 20, 3: 14, 6: 8 };
-const MONTH_OPTIONS: Months[] = [1, 2, 3, 6];
-const LEFT_COLS = [320, 90, 90, 100]; // 件名, 担当者, 状態, 期限日
-const LEFT_TOTAL = LEFT_COLS.reduce((a, b) => a + b, 0);
+const DAY_PX: Record<MonthCount, number> = { 1: 28, 2: 20, 3: 14, 6: 8 };
+const LEFT_COL_WIDTHS_PX = [320, 90, 90, 100]; // 件名, 担当者, 状態, 期限日
+const LEFT_WIDTH_PX = LEFT_COL_WIDTHS_PX.reduce((a, b) => a + b, 0);
+const LEFT_OFFSETS_PX = LEFT_COL_WIDTHS_PX.map((_, i) => LEFT_COL_WIDTHS_PX.slice(0, i).reduce((a, b) => a + b, 0));
+// Grid lines: the month and day headers take the first two rows; the day columns follow the left columns.
+const MONTH_ROW = 1;
+const DAY_ROW = 2;
+const FIRST_BODY_ROW = 3;
+const FIRST_DAY_COL = LEFT_COL_WIDTHS_PX.length + 1;
+const BAR_INSET_PX = 2;
+const INDENT_PX = 24;
+/** From this many months on, the day header numbers Mondays only. */
+const MONDAYS_ONLY_FROM_MONTHS = 3;
 // Sort buttons per left column; the first column carries キー as well so the default order stays reachable.
 const HEADERS: { key: SortKey; label: string }[][] = [
   [
@@ -32,41 +42,50 @@ const HEADERS: { key: SortKey; label: string }[][] = [
   [{ key: "status", label: "状態" }],
   [{ key: "dueDate", label: "期限日" }],
 ];
-const EDGE_PX = 8;
+const EDGE_GRAB_PX = 8;
 
-interface Drag { key: string; mode: DragMode; originX: number; delta: number; pointerId: number }
+interface Drag { key: string; mode: DragMode; originClientX: number; deltaDays: number }
 
-const thisMonth = (): string => ymd(new Date()).slice(0, 7);
-const isEditable = (t: EventTarget | null): boolean => t instanceof HTMLElement && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName);
+const thisMonth = (): string => todayYmd().slice(0, 7);
+const isFormField = (target: EventTarget | null): boolean => target instanceof HTMLElement && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 
 /** The bar as it is being dragged: the whole bar moves, or one edge does. */
-function dragged(seg: Segment, mode: DragMode, delta: number): Segment {
-  if (mode === "move") return { startCol: seg.startCol + delta, span: seg.span };
-  if (mode === "start") return { startCol: seg.startCol + Math.min(delta, seg.span - 1), span: Math.max(1, seg.span - delta) };
-  return { startCol: seg.startCol, span: Math.max(1, seg.span + delta) };
+function draggedSegment(seg: BarSegment, mode: DragMode, deltaDays: number): BarSegment {
+  if (mode === "move") return { startCol: seg.startCol + deltaDays, span: seg.span };
+  if (mode === "start") return { startCol: seg.startCol + Math.min(deltaDays, seg.span - 1), span: Math.max(1, seg.span - deltaDays) };
+  return { startCol: seg.startCol, span: Math.max(1, seg.span + deltaDays) };
+}
+
+/** What a press `offsetPx` from the left of a bar `widthPx` wide grabs: an edge near either end, else the whole bar; a point always moves whole. */
+function dragModeAt(row: GanttRow, offsetPx: number, widthPx: number): DragMode {
+  if (row.kind === "point") return "move";
+  const edgePx = Math.min(EDGE_GRAB_PX, widthPx / 3);
+  if (offsetPx < edgePx) return "start";
+  if (offsetPx > widthPx - edgePx) return "due";
+  return "move";
 }
 
 export function Gantt(): React.JSX.Element {
   const { me, users, project } = useSession();
   const { issues, byKey, refreshOne } = useIssues();
-  const [month, setMonth] = useState(thisMonth());
-  const [months, setMonths] = useState<Months>(1);
+  const [startMonth, setStartMonth] = useState(thisMonth());
+  const [monthCount, setMonthCount] = useState<MonthCount>(1);
   const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
-  const [chosenGroupBy, setGroupBy] = useState<GroupBy>("none");
+  const [chosenGroupBy, setChosenGroupBy] = useState<GroupBy>("none");
   const [includeUndated, setIncludeUndated] = useState(false);
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
-  const [collapsed, toggle] = useCollapsed();
+  const [collapsed, toggleCollapsed] = useCollapsed();
   const [drag, setDrag] = useState<Drag | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { ask, dialog } = useChoiceDialog();
-  const today = ymd(new Date());
-  const range = rangeFor(month, months);
-  const dayPx = DAY_PX[months];
+  const today = todayYmd();
+  const range = rangeFor(startMonth, monthCount);
+  const dayPx = DAY_PX[monthCount];
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  // A match keeps its ancestors as context rows, as in the issue list.
   const milestones = project.milestones ?? [];
   // The マイルストーン option leaves the select once the project holds no milestone.
   const groupBy: GroupBy = chosenGroupBy === "milestone" && milestones.length === 0 ? "none" : chosenGroupBy;
+  // A match keeps its ancestors as context rows, as in the issue list.
   const shown = withAncestors(issues, filterIssues(issues, filter, today, me.username, project.statuses, milestones));
   const layout = layoutGantt(shown.issues, range, {
     today,
@@ -76,150 +95,167 @@ export function Gantt(): React.JSX.Element {
     includeUndated,
     statuses: project.statuses,
     compare: issueComparator(sort, nameOf, project.statuses, milestones),
-    groupLabel: nameOf,
+    assigneeName: nameOf,
     milestones,
   });
-  const dayCount = layout.days.length;
-  const bodyRows = layout.groups.reduce((n, g) => n + g.rows.length + (g.label !== null || groupBy !== "none" ? 1 : 0), 0);
+  const dayCount = layout.dayCells.length;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (isEditable(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "n") setMonth((m) => shiftMonth(m, months));
-      if (e.key === "p") setMonth((m) => shiftMonth(m, -months));
+      if (isFormField(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "n") setStartMonth((m) => shiftMonth(m, monthCount));
+      if (e.key === "p") setStartMonth((m) => shiftMonth(m, -monthCount));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [months]);
+  }, [monthCount]);
 
-  const finishDrag = async (d: Drag): Promise<void> => {
+  const finishDrag = async (ended: Drag): Promise<void> => {
     setDrag(null);
-    if (d.delta === 0) {
-      navigate(`/issues/${d.key}`);
+    if (ended.deltaDays === 0) {
+      navigate(`/issues/${ended.key}`);
       return;
     }
-    const issue = byKey.get(d.key);
+    const issue = byKey.get(ended.key);
     if (!issue) return;
-    setMessage(null);
+    setError(null);
     let touched = [issue.key];
     try {
       // An edge drag moves one date of this issue only; a whole-bar move asks about the dated issues under it.
-      const dated = d.mode === "move" ? datedDescendants(issues, issue.key).length : 0;
+      const datedCount = ended.mode === "move" ? datedDescendants(issues, issue.key).length : 0;
       let answer: ParentAnswer = "only";
-      if (dated > 0) answer = await ask(M.datedDescendants(dated), "配下も移動する");
+      if (datedCount > 0) answer = await ask(M.datedDescendants(datedCount), "配下も移動する");
       if (answer === "cancel") return;
       // Uses the bar position from when the drag started; the stale-write guard catches an edit made meanwhile.
-      const writes = moveWrites(issues, issue, datesAfterDrag(issue, d.mode, d.delta, range), d.delta, answer, { updatedAt: new Date().toISOString(), updatedBy: me.username });
+      const writes = moveWrites(issues, issue, datesAfterDrag(issue, ended.mode, ended.deltaDays, range), ended.deltaDays, answer, { updatedAt: new Date().toISOString(), updatedBy: me.username });
       touched = writes.map((w) => w.next.key);
-      await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => carrySeen(byKey.get(next.key) ?? issue, next, me.username));
+      await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => markOwnSave(byKey.get(next.key) ?? issue, next, me.username));
     } catch (e) {
-      setMessage(errorMessage(e));
+      setError(errorMessage(e));
     }
-    for (const k of touched) await refreshOne(k); // snaps a bar back to the record actually on disk after a failure
+    try {
+      for (const key of touched) await refreshOne(key); // snaps a bar back to the record actually on disk after a failure
+    } catch (e) {
+      // a failed save's message stays; it names the first thing that went wrong
+      setError((shownError) => shownError ?? errorMessage(e));
+    }
   };
 
-  const barFor = (r: GanttRow): React.JSX.Element | null => {
-    if (r.bar === null) return null;
-    const draggable = r.tone !== "muted" && r.kind !== "bracket" && !r.context;
-    const tone = r.context ? "muted" : r.tone;
-    const seg = drag && drag.key === r.key ? dragged(r.bar, drag.mode, drag.delta) : r.bar;
-    const tip = `${r.key} ${r.summary}\n開始 ${r.startDate ?? ""} 期限 ${r.dueDate ?? ""}\n${displayNameOf(users, r.assignee)} ${statusName(project.statuses, r.status)}`;
+  const dragDeltaDays = (from: Drag, clientX: number): number => Math.round((clientX - from.originClientX) / dayPx);
+
+  const renderBar = (row: GanttRow): React.JSX.Element | null => {
+    if (row.bar === null) return null;
+    const draggable = row.tone !== "muted" && row.kind !== "bracket" && !row.context;
+    const tone = row.context ? "muted" : row.tone;
+    const seg = drag && drag.key === row.key ? draggedSegment(row.bar, drag.mode, drag.deltaDays) : row.bar;
+    const tooltip = `${row.key} ${row.summary}\n開始 ${row.startDate ?? ""} 期限 ${row.dueDate ?? ""}\n${displayNameOf(users, row.assignee)} ${statusName(project.statuses, row.status)}`;
     const onDown = (e: React.PointerEvent<HTMLDivElement>): void => {
       if (!draggable || e.button !== 0) return;
       const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const edge = Math.min(EDGE_PX, rect.width / 3);
-      const mode: DragMode = r.kind === "point" ? "move" : x < edge ? "start" : x > rect.width - edge ? "due" : "move";
+      const mode = dragModeAt(row, e.clientX - rect.left, rect.width);
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
         // a synthetic event has no active pointer; moves still arrive while the pointer stays over the bar
       }
-      setDrag({ key: r.key, mode, originX: e.clientX, delta: 0, pointerId: e.pointerId });
+      setDrag({ key: row.key, mode, originClientX: e.clientX, deltaDays: 0 });
       e.preventDefault();
     };
     const onMove = (e: React.PointerEvent<HTMLDivElement>): void => {
-      if (drag && drag.key === r.key) setDrag({ ...drag, delta: Math.round((e.clientX - drag.originX) / dayPx) });
+      if (drag && drag.key === row.key) setDrag({ ...drag, deltaDays: dragDeltaDays(drag, e.clientX) });
     };
-    const onUp = (): void => {
-      if (drag && drag.key === r.key) void finishDrag(drag);
+    // The pointerup can arrive before the last move has rendered, so the delta is measured on the pointerup itself.
+    const onUp = (e: React.PointerEvent<HTMLDivElement>): void => {
+      if (drag && drag.key === row.key) void finishDrag({ ...drag, deltaDays: dragDeltaDays(drag, e.clientX) });
     };
+    const barClass = [
+      "gantt__bar",
+      `gantt__bar--${row.kind}`,
+      tone !== "normal" && `gantt__bar--${tone}`,
+      draggable && "gantt__bar--draggable",
+      drag?.key === row.key && "gantt__bar--dragging",
+    ]
+      .filter(Boolean)
+      .join(" ");
     return (
       <>
         <div
-          className={`gantt__bar gantt__bar--${r.kind}${tone !== "normal" ? ` gantt__bar--${tone}` : ""}${draggable ? " gantt__bar--draggable" : ""}${drag?.key === r.key ? " gantt__bar--dragging" : ""}`}
-          style={{ left: seg.startCol * dayPx + 2, width: seg.span * dayPx - 4 }}
-          title={tip}
+          className={barClass}
+          style={{ left: seg.startCol * dayPx + BAR_INSET_PX, width: seg.span * dayPx - 2 * BAR_INSET_PX }}
+          title={tooltip}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
           onPointerCancel={() => setDrag(null)}
         />
-        {r.late && !drag && <div className="gantt__late" style={{ left: r.late.startCol * dayPx + 2, width: r.late.span * dayPx - 4 }} title={tip} />}
+        {row.late && !drag && <div className="gantt__late" style={{ left: row.late.startCol * dayPx + BAR_INSET_PX, width: row.late.span * dayPx - 2 * BAR_INSET_PX }} title={tooltip} />}
       </>
     );
   };
 
-  // Grid rows are fixed up front (the background spans them), so nothing depends on render order.
-  const items: ({ kind: "group"; label: string; row: number } | { kind: "row"; r: GanttRow; row: number })[] = [];
-  let nextRow = 3;
-  for (const g of layout.groups) {
-    if (groupBy !== "none") {
-      const label = g.label === null ? "未設定" : groupBy === "milestone" ? milestoneName(milestones, g.label) : displayNameOf(users, g.label);
-      items.push({ kind: "group", label, row: nextRow++ });
-    }
-    for (const r of g.rows) items.push({ kind: "row", r, row: nextRow++ });
-  }
+  const groupTitle = (label: string | null): string => {
+    if (label === null) return "未設定";
+    return groupBy === "milestone" ? milestoneName(milestones, label) : displayNameOf(users, label);
+  };
 
-  const rowCells = (r: GanttRow, row: number): React.JSX.Element => {
-    const cell = (i: number, cls: string, content: React.ReactNode): React.JSX.Element => (
+  // Grid rows are fixed up front (the background spans them), so nothing depends on render order.
+  const gridItems: ({ kind: "group"; label: string; gridRow: number } | { kind: "row"; row: GanttRow; gridRow: number })[] = [];
+  let nextGridRow = FIRST_BODY_ROW;
+  for (const group of layout.groups) {
+    if (groupBy !== "none") gridItems.push({ kind: "group", label: groupTitle(group.label), gridRow: nextGridRow++ });
+    for (const row of group.rows) gridItems.push({ kind: "row", row, gridRow: nextGridRow++ });
+  }
+  const bodyRows = gridItems.length;
+
+  const renderRowCells = (row: GanttRow, gridRow: number): React.JSX.Element => {
+    const cell = (colIndex: number, cls: string, content: React.ReactNode): React.JSX.Element => (
       <div
-        key={i}
-        className={`gantt__cell ${cls}${r.context ? " gantt__cell--context" : ""}`}
+        key={colIndex}
+        className={`gantt__cell ${cls}${row.context ? " gantt__cell--context" : ""}`}
         style={{
-          gridRow: row,
-          gridColumn: i + 1,
-          left: LEFT_COLS.slice(0, i).reduce((a, b) => a + b, 0),
-          ...(i === 0 && r.depth > 0 ? { paddingLeft: `calc(var(--space-2) + ${r.depth * 24}px)` } : {}),
+          gridRow,
+          gridColumn: colIndex + 1,
+          left: LEFT_OFFSETS_PX[colIndex],
+          ...(colIndex === 0 && row.depth > 0 ? { paddingLeft: `calc(var(--space-2) + ${row.depth * INDENT_PX}px)` } : {}),
         }}
-        onClick={() => navigate(`/issues/${r.key}`)}
+        onClick={() => navigate(`/issues/${row.key}`)}
       >
         {content}
       </div>
     );
     return (
-      <div key={r.key} style={{ display: "contents" }}>
+      <div key={row.key} style={{ display: "contents" }}>
         {cell(
           0,
           "gantt__label",
           <>
-            {r.hasChildren ? (
+            {row.hasChildren ? (
               <button
                 type="button"
                 className="gantt__toggle"
-                aria-label={r.collapsed ? "開く" : "折りたたむ"}
-                aria-expanded={!r.collapsed}
+                aria-label={row.collapsed ? "開く" : "折りたたむ"}
+                aria-expanded={!row.collapsed}
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggle(r.key);
+                  toggleCollapsed(row.key);
                 }}
               >
-                {r.collapsed ? "▸" : "▾"}
+                {row.collapsed ? "▸" : "▾"}
               </button>
             ) : (
               <span className="gantt__toggle" />
             )}
-            <span className="gantt__key">{r.key}</span>
-            <span className="gantt__summary" title={r.summary}>
-              {r.summary}
+            <span className="gantt__key">{row.key}</span>
+            <span className="gantt__summary" title={row.summary}>
+              {row.summary}
             </span>
           </>,
         )}
-        {cell(1, "", displayNameOf(users, r.assignee))}
-        {cell(2, "", <span className="pill" style={statusStyle(project.statuses, r.status)}>{statusName(project.statuses, r.status)}</span>)}
-        {cell(3, r.tone === "overdue" ? "gantt__cell--overdue" : "", r.dueDate ?? "")}
-        <div className="gantt__track" style={{ gridRow: row, gridColumn: `5 / -1`, backgroundSize: `${dayPx}px 100%` }}>
-          {barFor(r)}
+        {cell(1, "", displayNameOf(users, row.assignee))}
+        {cell(2, "", <span className="pill" style={statusStyle(project.statuses, row.status)}>{statusName(project.statuses, row.status)}</span>)}
+        {cell(3, row.tone === "overdue" ? "gantt__cell--overdue" : "", row.dueDate ?? "")}
+        <div className="gantt__track" style={{ gridRow, gridColumn: `${FIRST_DAY_COL} / -1`, backgroundSize: `${dayPx}px 100%` }}>
+          {renderBar(row)}
         </div>
       </div>
     );
@@ -232,21 +268,21 @@ export function Gantt(): React.JSX.Element {
       <header className="toolbar">
         <h1 className="toolbar__heading">ガントチャート</h1>
         <div className="form-actions gantt__nav">
-          <button type="button" onClick={() => setMonth((m) => shiftMonth(m, -months))}>
+          <button type="button" onClick={() => setStartMonth((m) => shiftMonth(m, -monthCount))}>
             前へ
           </button>
-          <button type="button" onClick={() => setMonth(thisMonth())}>
+          <button type="button" onClick={() => setStartMonth(thisMonth())}>
             今日
           </button>
-          <button type="button" onClick={() => setMonth((m) => shiftMonth(m, months))}>
+          <button type="button" onClick={() => setStartMonth((m) => shiftMonth(m, monthCount))}>
             次へ
           </button>
           <label className="filter-bar__field">
             表示
-            <select value={months} onChange={(e) => setMonths(Number(e.target.value) as Months)}>
-              {MONTH_OPTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {m}か月
+            <select value={monthCount} onChange={(e) => setMonthCount(Number(e.target.value) as MonthCount)}>
+              {MONTH_COUNTS.map((count) => (
+                <option key={count} value={count}>
+                  {count}か月
                 </option>
               ))}
             </select>
@@ -255,12 +291,12 @@ export function Gantt(): React.JSX.Element {
         </div>
       </header>
       {dialog}
-      <FilterBar filter={filter} users={users} onChange={setFilter} />
+      <FilterBar filter={filter} onChange={setFilter} />
       <SavedFilters filter={filter} onChange={setFilter} />
       <div className="filter-bar gantt__options">
         <label className="filter-bar__field">
           グループ
-          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
+          <select value={groupBy} onChange={(e) => setChosenGroupBy(e.target.value as GroupBy)}>
             <option value="none">なし</option>
             <option value="assignee">担当者</option>
             {milestones.length > 0 && <option value="milestone">マイルストーン</option>}
@@ -270,61 +306,64 @@ export function Gantt(): React.JSX.Element {
           <input type="checkbox" checked={includeUndated} onChange={(e) => setIncludeUndated(e.target.checked)} />
           期限なしを含む
         </label>
-        {message && <span className="text--error">{message}</span>}
+        {error && <span className="text--error">{error}</span>}
       </div>
       <div className="gantt__scroll">
         <div
           className="gantt"
-          style={{ gridTemplateColumns: `${LEFT_COLS.map((w) => `${w}px`).join(" ")} repeat(${dayCount}, ${dayPx}px)`, width: LEFT_TOTAL + dayCount * dayPx }}
+          style={{ gridTemplateColumns: `${LEFT_COL_WIDTHS_PX.map((w) => `${w}px`).join(" ")} repeat(${dayCount}, ${dayPx}px)`, width: LEFT_WIDTH_PX + dayCount * dayPx }}
         >
-          {HEADERS.map((buttons, i) => {
+          {HEADERS.map((buttons, colIndex) => {
             const active = buttons.find((b) => b.key === sort.key);
             return (
               <div
-                key={i}
+                key={colIndex}
                 className="gantt__corner"
                 role="columnheader"
                 aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-                style={{ gridRow: "1 / span 2", gridColumn: i + 1, left: LEFT_COLS.slice(0, i).reduce((a, b) => a + b, 0) }}
+                style={{ gridRow: `${MONTH_ROW} / span 2`, gridColumn: colIndex + 1, left: LEFT_OFFSETS_PX[colIndex] }}
               >
-                {buttons.map((b) => (
-                  <button key={b.key} type="button" className="issue-table__sort" onClick={() => setSort((s) => nextSort(s, b.key))}>
-                    {b.label}
-                    {sort.key === b.key && <span className="issue-table__sort-mark">{sort.dir === "asc" ? "▲" : "▼"}</span>}
+                {buttons.map((button) => (
+                  <button key={button.key} type="button" className="issue-table__sort" onClick={() => setSort((s) => nextSort(s, button.key))}>
+                    {button.label}
+                    {sort.key === button.key && <span className="issue-table__sort-mark">{sort.dir === "asc" ? "▲" : "▼"}</span>}
                   </button>
                 ))}
               </div>
             );
           })}
-          {layout.months.map((m) => (
-            <div key={m.label} className="gantt__month" style={{ gridRow: 1, gridColumn: `${5 + m.startCol} / span ${m.span}` }}>
-              {m.label}
+          {layout.monthCells.map((month) => (
+            <div key={month.label} className="gantt__month" style={{ gridRow: MONTH_ROW, gridColumn: `${FIRST_DAY_COL + month.startCol} / span ${month.span}` }}>
+              {month.label}
             </div>
           ))}
-          {layout.days.map((d) => (
-            <div key={d.day} className={`gantt__day${d.weekend ? " gantt__day--weekend" : ""}`} style={{ gridRow: 2, gridColumn: 5 + d.col }}>
-              {months >= 3 ? (d.monday ? Number(d.day.slice(8)) : "") : Number(d.day.slice(8))}
-            </div>
-          ))}
+          {layout.dayCells.map((day) => {
+            const isNumbered = monthCount < MONDAYS_ONLY_FROM_MONTHS || day.monday;
+            return (
+              <div key={day.day} className={`gantt__day${day.weekend ? " gantt__day--weekend" : ""}`} style={{ gridRow: DAY_ROW, gridColumn: FIRST_DAY_COL + day.col }}>
+                {isNumbered ? Number(day.day.slice(8)) : ""}
+              </div>
+            );
+          })}
           {bodyRows > 0 && (
-            <div className="gantt__background" style={{ gridRow: `3 / span ${bodyRows}`, gridColumn: "5 / -1" }} aria-hidden="true">
-              {layout.days.filter((d) => d.weekend).map((d) => (
-                <div key={d.day} className="gantt__weekend" style={{ left: d.col * dayPx, width: dayPx }} />
+            <div className="gantt__background" style={{ gridRow: `${FIRST_BODY_ROW} / span ${bodyRows}`, gridColumn: `${FIRST_DAY_COL} / -1` }} aria-hidden="true">
+              {layout.dayCells.filter((day) => day.weekend).map((day) => (
+                <div key={day.day} className="gantt__weekend" style={{ left: day.col * dayPx, width: dayPx }} />
               ))}
               {layout.todayCol !== null && <div className="gantt__today" style={{ left: layout.todayCol * dayPx, width: dayPx }} />}
             </div>
           )}
-          {items.map((it) =>
-            it.kind === "group" ? (
-              <div key={`group-${it.row}`} className="gantt__group" style={{ gridRow: it.row, gridColumn: "1 / -1" }}>
-                {it.label}
+          {gridItems.map((item) =>
+            item.kind === "group" ? (
+              <div key={`group-${item.gridRow}`} className="gantt__group" style={{ gridRow: item.gridRow, gridColumn: "1 / -1" }}>
+                {item.label}
               </div>
             ) : (
-              rowCells(it.r, it.row)
+              renderRowCells(item.row, item.gridRow)
             ),
           )}
           {bodyRows === 0 && (
-            <div className="gantt__empty" style={{ gridRow: 3, gridColumn: "1 / -1" }}>
+            <div className="gantt__empty" style={{ gridRow: FIRST_BODY_ROW, gridColumn: "1 / -1" }}>
               {M.noIssues}
             </div>
           )}

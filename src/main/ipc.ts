@@ -9,29 +9,29 @@ export function registerIpc(): ReturnType<typeof createStore> {
     userDataDir: app.getPath("userData"),
     username: currentUsername(),
     async chooseDirectory() {
-      const r = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
-      return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0];
+      const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
+      return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
     },
     async chooseFiles() {
-      const r = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
-      return r.canceled ? null : r.filePaths;
+      const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
+      return result.canceled ? null : result.filePaths;
     },
     openPath: (path) => shell.openPath(path),
     async chooseSavePath(defaultName, filter) {
-      const r = await dialog.showSaveDialog({ defaultPath: defaultName, filters: [filter] });
-      return r.canceled || !r.filePath ? null : r.filePath;
+      const result = await dialog.showSaveDialog({ defaultPath: defaultName, filters: [filter] });
+      return result.canceled || !result.filePath ? null : result.filePath;
     },
     async chooseOpenPath(filter) {
-      const r = await dialog.showOpenDialog({ properties: ["openFile"], filters: [filter] });
-      return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0];
+      const result = await dialog.showOpenDialog({ properties: ["openFile"], filters: [filter] });
+      return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
     },
     writeClipboard: (html, text) => clipboard.write([new ClipboardItem({ "text/html": html, "text/plain": text })]),
   });
 
   for (const group of Object.keys(API_METHODS) as (keyof StoreApi)[]) {
     for (const method of API_METHODS[group] as readonly string[]) {
-      const fn = (store[group] as Record<string, (...a: unknown[]) => unknown>)[method];
-      ipcMain.handle(`${group}:${method}`, (_event, ...args: unknown[]) => fn(...args));
+      const handler = (store[group] as Record<string, (...args: unknown[]) => unknown>)[method];
+      ipcMain.handle(`${group}:${method}`, (_event, ...args: unknown[]) => handler(...args));
     }
   }
 

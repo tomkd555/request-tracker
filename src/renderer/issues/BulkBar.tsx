@@ -1,48 +1,51 @@
 import { useState } from "react";
-import type { IssueStatus, Project, User } from "../../shared/types";
+import type { Project } from "../../shared/types";
 import { AssigneeSelect } from "./AssigneeSelect";
-import { BULK_MAX, type BulkPatch, type BulkResult } from "./bulkEdit";
+import { MAX_BULK_ROWS, type BulkPatch, type BulkResult } from "./bulkEdit";
 import { selectableMilestones } from "./milestones";
-import { M } from "../messages";
+import { errorMessage, M } from "../messages";
 
 const KEEP = "__keep__";
 type DueMode = "keep" | "set" | "clear";
 
 type Props = {
   count: number;
-  users: User[];
   project: Project;
   onExecute(patch: BulkPatch): Promise<BulkResult[]>;
   onClear(): void;
 };
 
 /** Bar shown above the 課題 table while one or more rows are checked; builds one BulkPatch and runs it. */
-export function BulkBar({ count, users, project, onExecute, onClear }: Props): React.JSX.Element {
-  const [status, setStatus] = useState<IssueStatus | typeof KEEP>(KEEP);
+export function BulkBar({ count, project, onExecute, onClear }: Props): React.JSX.Element {
+  const [status, setStatus] = useState<string>(KEEP);
   const [assignee, setAssignee] = useState<string>(KEEP);
   const [dueMode, setDueMode] = useState<DueMode>("keep");
   const [dueDate, setDueDate] = useState("");
   const [milestone, setMilestone] = useState<string>(KEEP);
-  const [addLabel, setAddLabel] = useState("");
-  const [removeLabel, setRemoveLabel] = useState("");
+  const [labelToAdd, setLabelToAdd] = useState("");
+  const [labelToRemove, setLabelToRemove] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BulkResult[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const overCap = count > BULK_MAX;
+  const isOverCap = count > MAX_BULK_ROWS;
 
-  const run = async (): Promise<void> => {
+  const runBulkEdit = async (): Promise<void> => {
     const patch: BulkPatch = {};
     if (status !== KEEP) patch.status = status;
     if (assignee !== KEEP) patch.assignee = assignee || null;
-    if (dueMode === "set") patch.dueDate = dueDate || null;
+    if (dueMode === "set") patch.dueDate = dueDate;
     if (dueMode === "clear") patch.dueDate = null;
     if (milestone !== KEEP) patch.milestone = milestone || null;
-    if (addLabel !== "") patch.addLabel = addLabel;
-    if (removeLabel !== "") patch.removeLabel = removeLabel;
+    if (labelToAdd !== "") patch.labelToAdd = labelToAdd;
+    if (labelToRemove !== "") patch.labelToRemove = labelToRemove;
     setRunning(true);
     setResult(null);
+    setError(null);
     try {
       setResult(await onExecute(patch));
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setRunning(false);
     }
@@ -56,7 +59,7 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
       <span className="bulk-bar__count">{count}件を選択中</span>
       <label className="bulk-bar__field">
         状態
-        <select value={status} onChange={(e) => setStatus(e.target.value as IssueStatus | typeof KEEP)}>
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value={KEEP}>変更しない</option>
           {project.statuses.map((s) => (
             <option key={s.id} value={s.id}>
@@ -69,7 +72,6 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
         担当者
         <AssigneeSelect
           value={assignee}
-          users={users}
           leading={[
             { value: KEEP, label: "変更しない" },
             { value: "", label: "未設定" },
@@ -102,7 +104,7 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
       )}
       <label className="bulk-bar__field">
         ラベル追加
-        <select value={addLabel} onChange={(e) => setAddLabel(e.target.value)}>
+        <select value={labelToAdd} onChange={(e) => setLabelToAdd(e.target.value)}>
           <option value="">変更しない</option>
           {project.labels.map((l) => (
             <option key={l.name} value={l.name}>
@@ -113,7 +115,7 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
       </label>
       <label className="bulk-bar__field">
         ラベル削除
-        <select value={removeLabel} onChange={(e) => setRemoveLabel(e.target.value)}>
+        <select value={labelToRemove} onChange={(e) => setLabelToRemove(e.target.value)}>
           <option value="">変更しない</option>
           {project.labels.map((l) => (
             <option key={l.name} value={l.name}>
@@ -122,13 +124,14 @@ export function BulkBar({ count, users, project, onExecute, onClear }: Props): R
           ))}
         </select>
       </label>
-      <button type="button" className="button--primary" disabled={overCap || running || (dueMode === "set" && dueDate === "")} onClick={() => void run()}>
+      <button type="button" className="button--primary" disabled={isOverCap || running || (dueMode === "set" && dueDate === "")} onClick={() => void runBulkEdit()}>
         実行
       </button>
       <button type="button" onClick={onClear}>
         選択解除
       </button>
-      {overCap && <p className="text--error">{M.bulkOverCap(BULK_MAX)}</p>}
+      {isOverCap && <p className="text--error">{M.bulkOverCap(MAX_BULK_ROWS)}</p>}
+      {error && <p className="text--error">{error}</p>}
       {result && (
         <div className="bulk-bar__result">
           <p>{M.bulkUpdated(successCount)}</p>

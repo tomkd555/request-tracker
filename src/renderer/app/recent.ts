@@ -1,5 +1,5 @@
 import type { Comment, Issue, WikiPage } from "../../shared/types";
-import { compareKeys } from "../issues/compareKeys";
+import { compareKeys, compareText } from "../issues/compareKeys";
 
 export const RECENT_LIMIT = 100;
 
@@ -25,7 +25,7 @@ const time = (iso: string): number => Date.parse(iso) || 0;
 /** Issues sort before comments, comments before wiki pages. */
 const GROUP: Record<RecentKind, number> = { created: 0, updated: 0, comment: 1, wiki: 2 };
 
-const compareIds = (a: RecentEntry, b: RecentEntry): number => (GROUP[a.kind] === 0 ? compareKeys(a.id, b.id) : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const compareIds = (a: RecentEntry, b: RecentEntry): number => (GROUP[a.kind] === 0 ? compareKeys(a.id, b.id) : compareText(a.id, b.id));
 
 /** Issue creations and saves, comments and wiki page saves, newest first and at most RECENT_LIMIT. */
 export function recentUpdates(issues: Issue[], comments: Comment[], pages: WikiPage[]): RecentEntry[] {

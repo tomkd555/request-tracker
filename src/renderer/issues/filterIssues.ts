@@ -2,8 +2,6 @@ import type { DueFilter, Issue, IssueFilter, Milestone, StatusDef } from "../../
 import { addDays } from "./dates";
 import { isActiveStatus, statusKind } from "./labels";
 
-export type { DueFilter, IssueFilter } from "../../shared/types";
-
 /** Everything except the statuses, which come from the project's list. */
 export const EMPTY_FILTER: Omit<IssueFilter, "statuses"> = {
   assignee: null,
@@ -25,25 +23,25 @@ export const defaultFilter = (statuses: StatusDef[]): IssueFilter => ({
 
 const WEEK_DAYS = 7;
 
-function matchesDue(i: Issue, due: DueFilter, today: string, active: boolean): boolean {
+function matchesDue(issue: Issue, due: DueFilter, today: string, isActive: boolean): boolean {
   switch (due) {
     case "all":
       return true;
     case "none":
-      return i.dueDate === null;
+      return issue.dueDate === null;
     case "overdue":
-      return i.dueDate !== null && i.dueDate < today && active;
+      return issue.dueDate !== null && issue.dueDate < today && isActive;
     case "week":
-      return i.dueDate !== null && i.dueDate >= today && i.dueDate <= addDays(today, WEEK_DAYS) && active;
+      return issue.dueDate !== null && issue.dueDate >= today && issue.dueDate <= addDays(today, WEEK_DAYS) && isActive;
   }
 }
 
-const matchesMilestone = (i: Issue, milestone: string | null | undefined, listed: Milestone[] | undefined): boolean => {
+const matchesMilestone = (issue: Issue, milestone: string | null | undefined, projectMilestones: Milestone[] | undefined): boolean => {
   if (milestone === null || milestone === undefined) return true;
-  const id = i.milestone ?? null;
+  const id = issue.milestone ?? null;
   // An id the project no longer lists reads as no milestone, when the project's list is given.
-  const none = id === null || (listed !== undefined && !listed.some((m) => m.id === id));
-  return milestone === "" ? none : id === milestone;
+  const hasNoMilestone = id === null || (projectMilestones !== undefined && !projectMilestones.some((m) => m.id === id));
+  return milestone === "" ? hasNoMilestone : id === milestone;
 };
 
 /**
@@ -51,7 +49,7 @@ const matchesMilestone = (i: Issue, milestone: string | null | undefined, listed
  * `milestones` is the project's list; with it, an issue naming a milestone that is no longer listed counts as having none.
  */
 export function filterIssues(issues: Issue[], filter: IssueFilter, today: string, me: string, statuses: StatusDef[], milestones?: Milestone[]): Issue[] {
-  const kw = filter.keyword.trim().toLowerCase();
+  const keyword = filter.keyword.trim().toLowerCase();
   return issues.filter(
     (i) =>
       filter.statuses.includes(i.status) &&
@@ -63,9 +61,9 @@ export function filterIssues(issues: Issue[], filter: IssueFilter, today: string
       Object.entries(filter.fields).every(([id, v]) => (i.fields[id] ?? "") === v) &&
       matchesMilestone(i, filter.milestone, milestones) &&
       matchesDue(i, filter.due, today, isActiveStatus(statuses, i.status)) &&
-      (kw === "" ||
-        i.summary.toLowerCase().includes(kw) ||
-        i.key.toLowerCase().includes(kw) ||
-        i.description.toLowerCase().includes(kw)),
+      (keyword === "" ||
+        i.summary.toLowerCase().includes(keyword) ||
+        i.key.toLowerCase().includes(keyword) ||
+        i.description.toLowerCase().includes(keyword)),
   );
 }

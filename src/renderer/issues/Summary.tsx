@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { IssueStatus } from "../../shared/types";
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { burndownRows, loadMilestoneVersions, type BurndownRow } from "./burndown";
 import { BurndownChart, MEASURE_LABEL } from "./BurndownChart";
 import type { BurndownMeasure } from "./burndownGeometry";
-import { countByMonth, createdInMonth, monthOf, toCsv, type Count } from "./countByMonth";
-import { today } from "./dates";
+import { countByMonth, createdInMonth, monthOf, monthlyCountsToCsv, type Count } from "./countByMonth";
+import { todayYmd } from "./dates";
 import { sumHours } from "./hours";
 import { statusName } from "./labels";
 import { orderMilestones } from "./milestones";
@@ -19,23 +19,27 @@ function BurndownSection(): React.JSX.Element | null {
   const { issues } = useIssues();
   const milestones = orderMilestones(project.milestones ?? []);
   const [milestoneId, setMilestoneId] = useState("");
+  // The milestone chosen at this moment: a load that finishes after the choice changed is dropped.
+  const chosenId = useRef("");
   const [measure, setMeasure] = useState<BurndownMeasure>("open");
-  const [shown, setShown] = useState<Burndown | null>(null);
+  const [burndown, setBurndown] = useState<Burndown | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (milestones.length === 0) return null;
 
-  const show = async (): Promise<void> => {
+  const loadBurndown = async (): Promise<void> => {
     const milestone = milestones.find((m) => m.id === milestoneId);
     if (!milestone) return;
     setBusy(true);
     setError(null);
     try {
       const versions = await loadMilestoneVersions(issues, milestone.id, (key) => window.api.issues.history(key));
-      const now = today();
-      setShown({ rows: burndownRows(milestone, versions, project.statuses, now), dueDay: milestone.dueDate, today: now });
+      if (chosenId.current !== milestone.id) return;
+      const today = todayYmd();
+      setBurndown({ rows: burndownRows(milestone, versions, project.statuses, today), dueDay: milestone.dueDate, today });
     } catch (e) {
-      setShown(null);
+      if (chosenId.current !== milestone.id) return;
+      setBurndown(null);
       setError(errorMessage(e));
     } finally {
       setBusy(false);
@@ -50,8 +54,9 @@ function BurndownSection(): React.JSX.Element | null {
           aria-label="マイルストーン"
           value={milestoneId}
           onChange={(e) => {
+            chosenId.current = e.target.value;
             setMilestoneId(e.target.value);
-            setShown(null);
+            setBurndown(null);
           }}
         >
           <option value="">{M.selectPrompt}</option>
@@ -61,7 +66,7 @@ function BurndownSection(): React.JSX.Element | null {
             </option>
           ))}
         </select>
-        <button type="button" disabled={milestoneId === "" || busy} onClick={() => void show()}>
+        <button type="button" disabled={milestoneId === "" || busy} onClick={() => void loadBurndown()}>
           表示
         </button>
         <select aria-label="指標" value={measure} onChange={(e) => setMeasure(e.target.value as BurndownMeasure)}>
@@ -73,7 +78,7 @@ function BurndownSection(): React.JSX.Element | null {
         </select>
       </div>
       {error && <p className="text--error">{error}</p>}
-      {shown !== null && (shown.rows.length === 0 ? <p className="text--muted">{M.noBurndownIssues}</p> : <BurndownChart rows={shown.rows} measure={measure} today={shown.today} dueDay={shown.dueDay} />)}
+      {burndown !== null && (burndown.rows.length === 0 ? <p className="text--muted">{M.noBurndownIssues}</p> : <BurndownChart rows={burndown.rows} measure={measure} today={burndown.today} dueDay={burndown.dueDay} />)}
     </section>
   );
 }
@@ -84,21 +89,21 @@ export function Summary(): React.JSX.Element {
   const [month, setMonth] = useState(monthOf(new Date().toISOString()));
   const [message, setMessage] = useState<string | null>(null);
   const counts = countByMonth(issues, month, project.statuses);
-  const hours = sumHours(createdInMonth(issues, month));
-  const user = (u: string): string => displayNameOf(users, u);
-  const status = (s: IssueStatus): string => statusName(project.statuses, s);
+  const createdHours = sumHours(createdInMonth(issues, month));
+  const nameOf = (u: string): string => displayNameOf(users, u);
+  const statusLabel = (s: IssueStatus): string => statusName(project.statuses, s);
 
   const exportCsv = async (): Promise<void> => {
     setMessage(null);
     try {
-      const saved = await window.api.summary.exportCsv(toCsv(counts, { user, status }), `summary-${month}.csv`);
+      const saved = await window.api.summary.exportCsv(monthlyCountsToCsv(counts, { user: nameOf, status: statusLabel }), `summary-${month}.csv`);
       setMessage(saved ? M.csvSaved : null);
     } catch (e) {
       setMessage(errorMessage(e));
     }
   };
 
-  const table = (title: string, rows: Count[], label: (k: string) => string, total: number = counts.total): React.JSX.Element => (
+  const countTable = (title: string, rows: Count[], label: (k: string) => string, total: number = counts.total): React.JSX.Element => (
     <table className="issue-table">
       <thead>
         <tr>
@@ -134,11 +139,11 @@ export function Summary(): React.JSX.Element {
       </header>
       {message && <p className="text--muted">{message}</p>}
       <div className="summary__grid">
-        {table("登録者", counts.byReporter, user)}
-        {table("担当者", counts.byAssignee, (k) => (k === "" ? "未設定" : user(k)))}
-        {table("状態", counts.byStatus, (k) => status(k as IssueStatus))}
-        {table("種別", counts.byCategory, (k) => k || "未設定")}
-        {table("完了 担当者別", counts.closedByAssignee, (k) => (k === "" ? "未設定" : user(k)), counts.closedTotal)}
+        {countTable("登録者", counts.byReporter, nameOf)}
+        {countTable("担当者", counts.byAssignee, (k) => (k === "" ? "未設定" : nameOf(k)))}
+        {countTable("状態", counts.byStatus, (k) => statusLabel(k as IssueStatus))}
+        {countTable("種別", counts.byCategory, (k) => k || "未設定")}
+        {countTable("完了 担当者別", counts.closedByAssignee, (k) => (k === "" ? "未設定" : nameOf(k)), counts.closedTotal)}
         <table className="issue-table">
           <thead>
             <tr>
@@ -149,11 +154,11 @@ export function Summary(): React.JSX.Element {
           <tbody>
             <tr className="summary__row">
               <td className="issue-table__cell">予定時間</td>
-              <td className="issue-table__cell issue-table__cell--num">{hours.estimated}</td>
+              <td className="issue-table__cell issue-table__cell--num">{createdHours.estimated}</td>
             </tr>
             <tr className="summary__row">
               <td className="issue-table__cell">実績時間</td>
-              <td className="issue-table__cell issue-table__cell--num">{hours.actual}</td>
+              <td className="issue-table__cell issue-table__cell--num">{createdHours.actual}</td>
             </tr>
           </tbody>
         </table>

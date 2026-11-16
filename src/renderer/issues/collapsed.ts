@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 // Per machine, as the seen stamps are: the list, the detail screen and the Gantt chart fold the same parents.
-const KEY = "collapsed-issues";
+const STORAGE_KEY = "collapsed-issues";
 
 /** The keys stored as a JSON list; anything else reads as nothing collapsed. */
 export function parseCollapsed(text: string | null): Set<string> {
@@ -20,9 +20,9 @@ export function toggled(set: Set<string>, key: string): Set<string> {
   return next;
 }
 
-const read = (): Set<string> => {
+const readCollapsed = (): Set<string> => {
   try {
-    return parseCollapsed(window.localStorage.getItem(KEY));
+    return parseCollapsed(window.localStorage.getItem(STORAGE_KEY));
   } catch {
     return new Set();
   }
@@ -30,12 +30,12 @@ const read = (): Set<string> => {
 
 /** The parents whose rows are folded, and the toggle for one of them; the set outlives the screen. */
 export function useCollapsed(): [Set<string>, (key: string) => void] {
-  const [collapsed, setCollapsed] = useState<Set<string>>(read);
+  const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const toggle = useCallback((key: string): void => {
     setCollapsed((c) => {
       const next = toggled(c, key);
       try {
-        window.localStorage.setItem(KEY, JSON.stringify([...next]));
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
       } catch {
         // storage unavailable: the fold lasts as long as the screen
       }

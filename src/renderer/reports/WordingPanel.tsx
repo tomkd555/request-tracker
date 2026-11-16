@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { IssueNote } from "../../shared/types";
 import { M } from "../messages";
-import { reportIssues, type ReportContext } from "./blocks";
+import { blockIssuesOf, type ReportContent, type ReportContext } from "./blocks";
 
-interface WordingDraft { body: string; terms: Record<string, string>; issueNotes: Record<string, IssueNote> }
+type WordingDraft = Omit<ReportContent, "title">;
 
 interface Props {
   draft: WordingDraft;
@@ -18,20 +18,22 @@ const termsOf = (rows: TermRow[]): Record<string, string> => Object.fromEntries(
 
 const EMPTY_NOTE: IssueNote = { summary: "", note: "" };
 
-/** 用語の言い換え (Report.terms) and 課題ごとの書き方 (Report.issueNotes), each as an editable table; blank rows drop on their next change. */
+/** 用語の言い換え (Report.terms) and 課題ごとの言い換え (Report.issueNotes), each an editable table; a row with a blank 元の用語 stays on screen and is left out of `terms`. */
 export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element {
-  const [rows, setRows] = useState<TermRow[]>(() => termRowsOf(draft.terms));
+  const [termRows, setTermRows] = useState<TermRow[]>(() => termRowsOf(draft.terms));
   // A change from outside (the record arriving after mount, a template chosen) replaces the rows; the panel's own edits leave them.
   useEffect(() => {
-    if (JSON.stringify(termsOf(rows)) !== JSON.stringify(draft.terms)) setRows(termRowsOf(draft.terms));
+    if (JSON.stringify(termsOf(termRows)) !== JSON.stringify(draft.terms)) setTermRows(termRowsOf(draft.terms));
   }, [draft.terms]);
-  const issues = useMemo(() => reportIssues(draft.body, ctx), [draft.body, ctx]);
-  const byKey = useMemo(() => new Map(ctx.issues.map((i) => [i.key, i])), [ctx.issues]);
-  const extraKeys = Object.keys(draft.issueNotes).filter((k) => !issues.some((i) => i.key === k));
-  const noteKeys = [...issues.map((i) => i.key), ...extraKeys];
+  const listedIssues = useMemo(() => blockIssuesOf(draft.body, ctx), [draft.body, ctx]);
+  const issueByKey = useMemo(() => new Map(ctx.issues.map((i) => [i.key, i])), [ctx.issues]);
+  const listedKeys = listedIssues.map((i) => i.key);
+  const listedKeySet = new Set(listedKeys);
+  const orphanNoteKeys = Object.keys(draft.issueNotes).filter((k) => !listedKeySet.has(k));
+  const noteKeys = [...listedKeys, ...orphanNoteKeys];
 
-  const updateRows = (next: TermRow[]): void => {
-    setRows(next);
+  const updateTermRows = (next: TermRow[]): void => {
+    setTermRows(next);
     onChange({ terms: termsOf(next), issueNotes: draft.issueNotes });
   };
 
@@ -39,7 +41,7 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
     const next = { ...(draft.issueNotes[key] ?? EMPTY_NOTE), ...patch };
     const { [key]: _dropped, ...rest } = draft.issueNotes;
     const issueNotes = next.summary.trim() === "" && next.note.trim() === "" ? rest : { ...rest, [key]: next };
-    onChange({ terms: termsOf(rows), issueNotes });
+    onChange({ terms: termsOf(termRows), issueNotes });
   };
 
   return (
@@ -54,14 +56,14 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
+          {termRows.map((r, i) => (
             <tr key={i} className="issue-table__row">
               <td className="issue-table__cell">
                 <input
                   className="issue-form__control"
                   aria-label="元の用語"
                   value={r.from}
-                  onChange={(e) => updateRows(rows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))}
+                  onChange={(e) => updateTermRows(termRows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))}
                 />
               </td>
               <td className="issue-table__cell">
@@ -69,11 +71,11 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
                   className="issue-form__control"
                   aria-label="レポートでの用語"
                   value={r.to}
-                  onChange={(e) => updateRows(rows.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))}
+                  onChange={(e) => updateTermRows(termRows.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))}
                 />
               </td>
               <td className="issue-table__cell">
-                <button type="button" onClick={() => updateRows(rows.filter((_, j) => j !== i))}>
+                <button type="button" onClick={() => updateTermRows(termRows.filter((_, j) => j !== i))}>
                   削除
                 </button>
               </td>
@@ -82,7 +84,7 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
         </tbody>
       </table>
       <div className="form-actions">
-        <button type="button" onClick={() => updateRows([...rows, { from: "", to: "" }])}>
+        <button type="button" onClick={() => updateTermRows([...termRows, { from: "", to: "" }])}>
           行を追加
         </button>
       </div>
@@ -102,7 +104,7 @@ export function WordingPanel({ draft, ctx, onChange }: Props): React.JSX.Element
             return (
               <tr key={key} className="issue-table__row">
                 <td className="issue-table__cell issue-table__cell--key">{key}</td>
-                <td className="issue-table__cell">{byKey.get(key)?.summary ?? ""}</td>
+                <td className="issue-table__cell">{issueByKey.get(key)?.summary ?? ""}</td>
                 <td className="issue-table__cell">
                   <input
                     className="issue-form__control"

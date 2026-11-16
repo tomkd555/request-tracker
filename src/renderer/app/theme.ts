@@ -1,10 +1,10 @@
 import type { LocalSettings, ThemeName } from "../../shared/types";
 
-export const THEMES: Record<ThemeName, { label: string; dark: boolean; accent: string }> = {
-  green: { label: "グリーン", dark: false, accent: "#52987c" },
-  blue: { label: "ブルー", dark: false, accent: "#3d6fb4" },
-  gray: { label: "グレー", dark: false, accent: "#5c6b73" },
-  dark: { label: "ダーク", dark: true, accent: "#52987c" },
+export const THEMES: Record<ThemeName, { label: string; isDark: boolean; accent: string }> = {
+  green: { label: "グリーン", isDark: false, accent: "#52987c" },
+  blue: { label: "ブルー", isDark: false, accent: "#3d6fb4" },
+  gray: { label: "グレー", isDark: false, accent: "#5c6b73" },
+  dark: { label: "ダーク", isDark: true, accent: "#52987c" },
 };
 
 /** Preset chip colours for 種別 and ラベル; each keeps 3:1 with the text `textOn` picks. */
@@ -34,9 +34,15 @@ export function luminance(hex: string): number {
   return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
 }
 
+/** WCAG's minimum contrast ratio for large text and interface components. */
+const MIN_CONTRAST = 3;
+
+/** WCAG contrast ratio of white text (luminance 1) on "#rrggbb". */
+const contrastWithWhite = (hex: string): number => (1 + 0.05) / (luminance(hex) + 0.05);
+
 /** White while white keeps 3:1 on the colour (the green preset stays white, 3.42:1); dark text on lighter colours. */
 export function textOn(hex: string): "#ffffff" | "#242424" {
-  return 1.05 / (luminance(hex) + 0.05) >= 3 ? "#ffffff" : "#242424";
+  return contrastWithWhite(hex) >= MIN_CONTRAST ? "#ffffff" : "#242424";
 }
 
 export function accentOf(s: Pick<LocalSettings, "theme" | "accent">): string {
@@ -46,7 +52,7 @@ export function accentOf(s: Pick<LocalSettings, "theme" | "accent">): string {
 /** Writes the preset, accent and notice mode onto <html>; tokens.css and app.css derive the rest. */
 export function applyAppearance(s: Pick<LocalSettings, "theme" | "accent" | "notice">): void {
   const root = document.documentElement;
-  root.dataset.theme = THEMES[s.theme].dark ? "dark" : "light";
+  root.dataset.theme = THEMES[s.theme].isDark ? "dark" : "light";
   root.dataset.notice = s.notice;
   const accent = accentOf(s);
   root.style.setProperty("--brand", accent);

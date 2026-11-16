@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WikiPage } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { navigate } from "../app/useHashRoute";
 import { Attachments } from "../issues/Attachments";
 import { formatDateTime } from "../issues/labels";
@@ -12,20 +12,23 @@ import { errorMessage, M } from "../messages";
 
 interface Heading { level: number; text: string; id: string }
 
+const MIN_TOC_HEADINGS = 3;
+const TOC_INDENT_PX = 12;
+
 export function WikiView({ id }: { id: string }): React.JSX.Element {
   const { me, users } = useSession();
-  const { pages, byId, loaded, refreshOne } = useWiki();
+  const { pages, byId, isLoaded, refreshOne } = useWiki();
   const [error, setError] = useState<string | null>(null);
   const [headings, setHeadings] = useState<Heading[]>([]);
-  const body = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const page = byId.get(id);
   const source = page?.body ?? "";
   // The table of contents reads the headings as rendered, so its ids match whatever inline markup the heading holds.
   useEffect(() => {
-    const els = body.current?.querySelectorAll<HTMLElement>("h2, h3, h4, h5, h6") ?? [];
-    setHeadings([...els].map((el) => ({ level: Number(el.tagName.slice(1)), text: el.textContent ?? "", id: el.id })));
+    const headingElements = bodyRef.current?.querySelectorAll<HTMLElement>("h2, h3, h4, h5, h6") ?? [];
+    setHeadings([...headingElements].map((el) => ({ level: Number(el.tagName.slice(1)), text: el.textContent ?? "", id: el.id })));
   }, [source]);
-  if (!loaded) return <div className="text--loading">読み込み中</div>;
+  if (!isLoaded) return <div className="text--loading">読み込み中</div>;
   if (!page) return <p>ページが見つかりません</p>;
   const ancestors = ancestorsOf(pages, id);
   const children = childrenMap(pages).get(id) ?? [];
@@ -93,19 +96,19 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
             className="button--link"
             onClick={() => {
               setError(null);
-              void refreshOne(page.id);
+              refreshOne(page.id).catch((e: unknown) => setError(errorMessage(e, "wiki")));
             }}
           >
             再読み込み
           </button>
         </p>
       )}
-      {headings.length >= 3 && (
+      {headings.length >= MIN_TOC_HEADINGS && (
         <nav className="wiki-toc" aria-label="目次">
           <div className="wiki-toc__title">目次</div>
           <ul className="wiki-toc__list">
             {headings.map((h, i) => (
-              <li key={i} className="wiki-toc__item" style={{ paddingLeft: (h.level - minLevel) * 12 }}>
+              <li key={i} className="wiki-toc__item" style={{ paddingLeft: (h.level - minLevel) * TOC_INDENT_PX }}>
                 <a href={`#/wiki/${page.id}`} onClick={(e) => {
                   e.preventDefault();
                   document.getElementById(h.id)?.scrollIntoView({ block: "start" });
@@ -117,7 +120,7 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
           </ul>
         </nav>
       )}
-      <div ref={body}>
+      <div ref={bodyRef}>
         <Markdown source={page.body} demote={1} wikiParentId={page.id} />
       </div>
       <Attachments owner={{ kind: "wiki", id: page.id }} />

@@ -1,9 +1,11 @@
 import type { TreeRow } from "./groupByParent";
 
+const INDENT_PX_PER_LEVEL = 16;
+
 /** The キー cell of a tree row: indent per level, 「└」 on a child (issues.css), the fold toggle on a parent, then `children` (the key). */
 export function TreeKeyCell({ row, onToggle, children }: { row: TreeRow; onToggle(key: string): void; children: React.ReactNode }): React.JSX.Element {
   return (
-    <td className="issue-table__cell issue-table__cell--key" style={row.depth > 0 ? { paddingLeft: `calc(var(--space-2) + ${row.depth * 16}px)` } : undefined}>
+    <td className="issue-table__cell issue-table__cell--key" style={row.depth > 0 ? { paddingLeft: `calc(var(--space-2) + ${row.depth * INDENT_PX_PER_LEVEL}px)` } : undefined}>
       {row.hasChildren ? (
         <button
           type="button"

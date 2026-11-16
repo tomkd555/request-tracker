@@ -7,7 +7,7 @@ import { ProjectSettings } from "./ProjectSettings";
 import { Settings } from "./Settings";
 import { applyAppearance } from "./theme";
 import { ToastRegion } from "./ToastRegion";
-import { SessionContext, useSession } from "./UserContext";
+import { SessionContext, useSession } from "./SessionContext";
 import { useHashRoute, type Route } from "./useHashRoute";
 import { IssueCreate } from "../issues/IssueCreate";
 import { IssueImport } from "../issues/IssueImport";
@@ -17,7 +17,7 @@ import { IssuesProvider, useIssues } from "../issues/useIssues";
 import { Summary } from "../issues/Summary";
 import { Gantt } from "../gantt/Gantt";
 import { Kanban } from "../kanban/Kanban";
-import { WikiScreen } from "../wiki/WikiFrame";
+import { WikiFrame } from "../wiki/WikiFrame";
 import { useWiki, WikiProvider } from "../wiki/useWiki";
 import { Search } from "../search/Search";
 import { NoticeList } from "../issues/NoticeList";
@@ -28,57 +28,61 @@ import { ReportView } from "../reports/ReportView";
 import { ReportsProvider, useReports } from "../reports/useReports";
 import "./app.css";
 import "../issues/issues.css";
-import { M } from "../messages";
+import { errorMessage, hasErrorCode, M } from "../messages";
 
-interface Boot { step: BootStep; config: LocalConfig | null; project: Project | null; me: User | null; users: User[]; error: string | null }
+/** What the window shows: a first-launch step, or the app once the folder, the project and the member are known. */
+type BootState =
+  | { step: Exclude<BootStep, "ready">; users: User[]; error: string | null }
+  | { step: "ready"; config: LocalConfig; project: Project; me: User; users: User[] };
 
 export function App(): React.JSX.Element {
-  const [boot, setBoot] = useState<Boot | null>(null);
+  const [boot, setBoot] = useState<BootState | null>(null);
 
-  const load = useCallback(async () => {
+  const loadBootState = useCallback(async () => {
     let config: LocalConfig | null = null;
     try {
       config = await window.api.config.get();
       applyAppearance(config ?? DEFAULT_LOCAL_SETTINGS);
+      if (config === null) {
+        setBoot({ step: "folder", users: [], error: null });
+        return;
+      }
       // config.get has set the layout in main, so the three reads can go out together
-      const [project, me, users] = config ? await Promise.all([window.api.project.get(), window.api.users.me(), window.api.users.list()]) : [null, null, []];
-      setBoot({ step: nextStep(config, project, project ? me : null), config, project, me: project ? me : null, users: project ? users : [], error: null });
+      const [project, me, users] = await Promise.all([window.api.project.get(), window.api.users.me(), window.api.users.list()]);
+      const step = nextStep(config, project, me);
+      // nextStep returns "ready" only when the project and the member both exist.
+      setBoot(step === "ready" ? { step, config, project: project!, me: me!, users } : { step, users, error: null });
     } catch (e) {
       // the share is unreachable (VPN down, drive offline), or its project.json is unreadable: let the user pick the folder again
-      const where = config ? `共有フォルダ（${config.rootDir}）` : "共有フォルダ";
-      const invalid = e instanceof Error && e.message.includes("project-invalid");
-      const error = invalid
-        ? M.projectInvalidAt(where)
-        : M.shareUnreachableAt(where);
-      setBoot({ step: "folder", config, project: null, me: null, users: [], error });
+      const rootDir = config?.rootDir ?? null;
+      const error = hasErrorCode(e, "project-invalid") ? M.projectInvalidAt(rootDir) : M.shareUnreachableAt(rootDir);
+      setBoot({ step: "folder", users: [], error });
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadBootState();
+  }, [loadBootState]);
 
   const refreshUsers = useCallback(async (): Promise<void> => {
     const [users, me] = await Promise.all([window.api.users.list(), window.api.users.me()]);
-    setBoot((b) => (b ? { ...b, users, me: me ?? b.me } : b));
+    setBoot((b) => (b?.step === "ready" ? { ...b, users, me: me ?? b.me } : b));
   }, []);
 
   const refreshProject = useCallback(async (): Promise<void> => {
     const project = await window.api.project.get();
-    if (project !== null) setBoot((b) => (b ? { ...b, project } : b));
+    if (project !== null) setBoot((b) => (b?.step === "ready" ? { ...b, project } : b));
   }, []);
 
   const refreshConfig = useCallback(async (): Promise<void> => {
     const config = await window.api.config.get();
-    if (config !== null) setBoot((b) => (b ? { ...b, config } : b));
+    if (config !== null) setBoot((b) => (b?.step === "ready" ? { ...b, config } : b));
   }, []);
 
   if (boot === null) return <div className="text--loading">読み込み中</div>;
-  if (boot.step !== "ready" || boot.me === null || boot.project === null || boot.config === null) {
-    return <FirstLaunch step={boot.step === "ready" ? "name" : boot.step} users={boot.users} onDone={load} error={boot.error} />;
-  }
+  if (boot.step !== "ready") return <FirstLaunch step={boot.step} users={boot.users} onDone={loadBootState} error={boot.error} />;
   return (
-    <Ready me={boot.me} users={boot.users} project={boot.project} config={boot.config} refreshUsers={refreshUsers} refreshProject={refreshProject} refreshConfig={refreshConfig}>
+    <SessionContext.Provider value={{ me: boot.me, users: boot.users, project: boot.project, config: boot.config, refreshUsers, refreshProject, refreshConfig }}>
       <IssuesProvider>
         <WikiProvider>
           <ReportsProvider>
@@ -86,24 +90,7 @@ export function App(): React.JSX.Element {
           </ReportsProvider>
         </WikiProvider>
       </IssuesProvider>
-    </Ready>
-  );
-}
-
-type ReadyProps = {
-  me: User;
-  users: User[];
-  project: Project;
-  config: LocalConfig;
-  refreshUsers(): Promise<void>;
-  refreshProject(): Promise<void>;
-  refreshConfig(): Promise<void>;
-  children: React.ReactNode;
-};
-
-function Ready({ me, users, project, config, refreshUsers, refreshProject, refreshConfig, children }: ReadyProps): React.JSX.Element {
-  return (
-    <SessionContext.Provider value={{ me, users, project, config, refreshUsers, refreshProject, refreshConfig }}>{children}</SessionContext.Provider>
+    </SessionContext.Provider>
   );
 }
 
@@ -121,13 +108,13 @@ function Shell(): React.JSX.Element {
       setError(null);
     } catch (e) {
       // The share dropped mid-session: the screens keep what they read, and the message says so until a refresh succeeds.
-      setError(M.shareUnreadable(e instanceof Error ? e.message : String(e)));
+      setError(M.shareUnreadable(errorMessage(e)));
     }
   }, [refreshUsers, refreshProject, issues.reload, wiki.reload, reports.reload]);
-  const first = useRef(true);
+  const isFirstRun = useRef(true);
   useEffect(() => {
-    if (first.current) {
-      first.current = false; // App.load has just read the same records; the issues, pages and reports still need their first read
+    if (isFirstRun.current) {
+      isFirstRun.current = false; // loadBootState has just read the same records; the issues, pages and reports still need their first read
       void Promise.all([issues.reload(), wiki.reload(), reports.reload()]).catch(() => void refreshAll());
       return;
     }
@@ -151,7 +138,7 @@ function Shell(): React.JSX.Element {
 
 function Screen({ route }: { route: Route }): React.JSX.Element {
   const { path, query } = route;
-  if (path.startsWith("/wiki")) return <WikiScreen route={route} />;
+  if (path.startsWith("/wiki")) return <WikiFrame route={route} />;
   if (path.startsWith("/kanban")) return <Kanban />;
   if (path.startsWith("/gantt")) return <Gantt />;
   if (path.startsWith("/summary")) return <Summary />;
@@ -165,10 +152,13 @@ function Screen({ route }: { route: Route }): React.JSX.Element {
   if (path.startsWith("/notices")) return <NoticeList />;
   if (path.startsWith("/recent")) return <RecentList />;
   if (path === "/reports/new") return <ReportEdit key={query.get("from") ?? ""} id={null} from={query.get("from")} />;
-  const r = /^\/reports\/([^/]+)(\/edit)?$/.exec(path);
-  if (r) return r[2] ? <ReportEdit key={r[1]} id={r[1]} from={null} /> : <ReportView key={r[1]} id={r[1]} />;
+  const reportMatch = /^\/reports\/([^/]+)(\/edit)?$/.exec(path);
+  if (reportMatch) {
+    const [, id, editSuffix] = reportMatch;
+    return editSuffix ? <ReportEdit key={id} id={id} from={null} /> : <ReportView key={id} id={id} />;
+  }
   if (path.startsWith("/reports")) return <ReportList />;
-  const m = /^\/issues\/([^/]+)$/.exec(path);
-  if (m) return <IssueDetail key={m[1]} issueKey={m[1]} />;
+  const issueMatch = /^\/issues\/([^/]+)$/.exec(path);
+  if (issueMatch) return <IssueDetail key={issueMatch[1]} issueKey={issueMatch[1]} />;
   return <IssueList />;
 }

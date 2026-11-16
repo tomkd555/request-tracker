@@ -17,9 +17,14 @@ export function settleParentText(text: string, candidates: Issue[], restored: st
   return resolveParent(text, candidates).invalid ? { text: restored, message: M.parentNotFound } : { text, message: null };
 }
 
+/** True when the owner cleared the key because `text` names no candidate: the field keeps the text the user is typing. */
+export function keepsTypedText(value: string | null, text: string, candidates: Issue[]): boolean {
+  return value === null && resolveParent(text, candidates).invalid;
+}
+
 type Props = {
   value: string | null;
-  /** Issues that may become the parent; the owner excludes the issue itself, everything under it, and any level too deep (see parentRefusal). */
+  /** The issues the owner allows; for a parent it excludes the issue itself, everything under it, and any level too deep (see parentRefusal). */
   candidates: Issue[];
   onChange(key: string | null, invalid: boolean): void;
   /** "change": report every keystroke (a form that validates on submit); "blur": report on blur or Enter (a field that saves at once). */
@@ -31,13 +36,14 @@ type Props = {
 /** Text input with a datalist of `KEY 件名`; typing a key or part of a summary narrows the list. */
 export function ParentField({ value, candidates, onChange, commitOn, className, ariaLabel }: Props): React.JSX.Element {
   const listId = useId();
-  const current = candidates.find((i) => i.key === value);
-  const saved = current ? optionText(current) : (value ?? "");
-  const [text, setText] = useState(saved);
+  const currentIssue = candidates.find((i) => i.key === value);
+  const committedText = currentIssue ? optionText(currentIssue) : (value ?? "");
+  const [text, setText] = useState(committedText);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
-    setText(saved);
-  }, [saved]);
+    if (keepsTypedText(value, text, candidates)) return;
+    setText(committedText);
+  }, [committedText]);
 
   return (
     <>
@@ -57,7 +63,7 @@ export function ParentField({ value, candidates, onChange, commitOn, className, 
         }}
         onBlur={() => {
           if (commitOn !== "blur") return;
-          const settled = settleParentText(text, candidates, saved);
+          const settled = settleParentText(text, candidates, committedText);
           setText(settled.text);
           setMessage(settled.message);
           const r = resolveParent(text, candidates);
@@ -66,7 +72,7 @@ export function ParentField({ value, candidates, onChange, commitOn, className, 
         onKeyDown={(e) => {
           if (commitOn === "blur" && e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") {
-            setText(saved);
+            setText(committedText);
             setMessage(null);
           }
         }}

@@ -101,8 +101,8 @@ export type StoreApi = {
   watch: {
     /** The issue keys the current member watches (watch/<member id>.json); no keys when the member has no file. */
     list(): Promise<string[]>;
-    /** Adds (`on`) or removes `key` from the current member's watch list and resolves to the keys now stored. */
-    set(key: string, on: boolean): Promise<string[]>;
+    /** Adds (`shouldWatch`) or removes `key` from the current member's watch list and resolves to the keys now stored. */
+    set(key: string, shouldWatch: boolean): Promise<string[]>;
   };
   files: {
     /** Open dialog filtered to `filter`, then the file's text: UTF-8 (a BOM is dropped), or Shift_JIS when the bytes are not valid UTF-8; null when cancelled. */

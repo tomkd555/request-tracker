@@ -5,11 +5,11 @@ export interface Toast { id: number; message: string }
 
 // One message at a time: a new one replaces what is showing, so nothing stacks or queues.
 let current: Toast | null = null;
-let seq = 0;
+let lastToastId = 0;
 const listeners = new Set<() => void>();
 
 export function showToast(message: string): void {
-  current = { id: ++seq, message };
+  current = { id: ++lastToastId, message };
   listeners.forEach((l) => l());
 }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { displayNameOf, useSession } from "../app/UserContext";
+import { displayNameOf, useSession } from "../app/SessionContext";
 import { navigate } from "../app/useHashRoute";
 import { showToast } from "../app/toast";
 import { errorMessage, M } from "../messages";
@@ -8,20 +8,33 @@ import { MAX_IMPORT_ROWS, planImport, runImport, type ImportPlan } from "./impor
 import { PRIORITY_LABEL, statusName } from "./labels";
 import { useIssues } from "./useIssues";
 
+function refusalMessage(refused: ImportPlan["refused"]): string | null {
+  switch (refused) {
+    case "no-summary-column":
+      return M.importNoSummaryColumn;
+    case "no-rows":
+      return M.importNoRows;
+    case "too-many":
+      return M.importTooMany(MAX_IMPORT_ROWS);
+    default:
+      return null;
+  }
+}
+
 export function IssueImport(): React.JSX.Element {
   const { me, users, project } = useSession();
   const { issues, reload } = useIssues();
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [stopped, setStopped] = useState(false); // a run that stopped part-way created its first rows; the same preview must not run again
+  const [hasStoppedPartWay, setHasStoppedPartWay] = useState(false); // a run that stopped part-way created its first rows; the same preview must not run again
 
-  const choose = async (): Promise<void> => {
+  const chooseCsvFile = async (): Promise<void> => {
     setMessage(null);
     try {
       const text = await window.api.files.openText({ name: "CSV", extensions: ["csv"] });
       if (text === null) return;
-      setStopped(false);
+      setHasStoppedPartWay(false);
       setPlan(planImport(parseCsv(text), { project, users, issues, reporter: me.username, now: new Date().toISOString() }));
     } catch (e) {
       setPlan(null);
@@ -29,7 +42,7 @@ export function IssueImport(): React.JSX.Element {
     }
   };
 
-  const register = async (rows: ImportPlan["rows"]): Promise<void> => {
+  const registerRows = async (): Promise<void> => {
     setBusy(true);
     setMessage(null);
     const result = await runImport(rows, (draft) => window.api.issues.create(draft));
@@ -44,23 +57,23 @@ export function IssueImport(): React.JSX.Element {
       navigate("/issues");
     } else {
       setMessage(`${M.importCreated(result.created)}　${M.importFailedAt(result.failedRow, errorMessage(result.error ?? ""))}　${M.importRetry}`);
-      setStopped(true);
+      setHasStoppedPartWay(true);
     }
   };
 
-  const refusal = plan?.refused === "no-summary-column" ? M.importNoSummaryColumn : plan?.refused === "no-rows" ? M.importNoRows : plan?.refused === "too-many" ? M.importTooMany(MAX_IMPORT_ROWS) : null;
+  const refusal = refusalMessage(plan?.refused ?? null);
   const rows = plan?.rows ?? [];
-  const blocked = stopped || rows.length === 0 || rows.some((r) => !r.ok);
+  const isRegisterDisabled = hasStoppedPartWay || rows.length === 0 || rows.some((r) => !r.ok);
 
   return (
     <div>
       <header className="toolbar">
         <h1 className="toolbar__heading">CSVから登録</h1>
         <div className="form-actions">
-          <button type="button" disabled={busy} onClick={() => void choose()}>
+          <button type="button" disabled={busy} onClick={() => void chooseCsvFile()}>
             ファイルを選ぶ
           </button>
-          <button type="button" className="button--primary" disabled={busy || blocked} onClick={() => void register(rows)}>
+          <button type="button" className="button--primary" disabled={busy || isRegisterDisabled} onClick={() => void registerRows()}>
             登録
           </button>
           <button type="button" onClick={() => navigate("/issues")}>

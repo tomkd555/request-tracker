@@ -13,7 +13,15 @@ export function sameFilter(a: IssueFilter, b: IssueFilter): boolean {
   const fieldsA = Object.entries(a.fields);
   const fieldsB = Object.entries(b.fields);
   if (fieldsA.length !== fieldsB.length || !fieldsA.every(([id, v]) => b.fields[id] === v)) return false;
-  return a.assignee === b.assignee && a.reporter === b.reporter && a.keyword === b.keyword && a.due === b.due && a.category === b.category && a.awaitingConfirmation === b.awaitingConfirmation && (a.milestone ?? null) === (b.milestone ?? null);
+  return (
+    a.assignee === b.assignee &&
+    a.reporter === b.reporter &&
+    a.keyword === b.keyword &&
+    a.due === b.due &&
+    a.category === b.category &&
+    a.awaitingConfirmation === b.awaitingConfirmation &&
+    (a.milestone ?? null) === (b.milestone ?? null)
+  );
 }
 
 /**
@@ -24,8 +32,9 @@ export function sameFilter(a: IssueFilter, b: IssueFilter): boolean {
 export function restoreFilter(saved: IssueFilter, project: Pick<Project, "statuses" | "fields" | "milestones">): IssueFilter {
   const statuses = saved.statuses.filter((id) => project.statuses.some((s) => s.id === id));
   const fields = Object.entries(saved.fields ?? {}).filter(([id, v]) => project.fields.some((f) => f.id === id && f.options.includes(v)));
-  const milestone = saved.milestone === "" || (saved.milestone != null && (project.milestones ?? []).some((m) => m.id === saved.milestone)) ? saved.milestone : null;
-  return { ...EMPTY_FILTER, ...saved, statuses: statuses.length === 0 ? defaultFilter(project.statuses).statuses : statuses, fields: Object.fromEntries(fields), milestone: milestone ?? null };
+  const isListed = (project.milestones ?? []).some((m) => m.id === saved.milestone);
+  const milestone = saved.milestone === "" || isListed ? saved.milestone : null;
+  return { ...EMPTY_FILTER, ...saved, statuses: statuses.length === 0 ? defaultFilter(project.statuses).statuses : statuses, fields: Object.fromEntries(fields), milestone };
 }
 
 /** Replaces the row named `name`, or appends a new one. */

@@ -66,7 +66,6 @@ export const REPORT_CSS = `
 .report-doc__gantt-late { fill: #e06b5c; }
 @page { size: A4; margin: 18mm; }
 @media print {
-  .report-doc { background: #ffffff; color: #242424; }
   .report-doc__scroll { overflow: visible; }
   .report-doc__gantt { max-width: 100%; height: auto; }
   .report-doc__issues { min-width: 0; }

@@ -1,34 +1,19 @@
 import { isReport, type Report } from "../../shared/types";
-import { collection, type Collection } from "./collection";
-import { fileStamp } from "./fileStamp";
+import { collection, createWithStampId, type Collection } from "./collection";
 import type { Layout } from "./paths";
 
-export const reportsCollection = (l: Layout): Collection<Report> =>
-  collection<Report>({ dir: l.reports, guard: isReport, historyDir: l.historyReports, trashDir: l.trashReports, idOf: (r) => r.id });
+export const reportsCollection = (layout: Layout): Collection<Report> =>
+  collection<Report>({ dir: layout.reports, guard: isReport, historyDir: layout.historyReports, trashDir: layout.trashReports, idOf: (report) => report.id });
 
 /** The id is the creation stamp; a collision (same millisecond on two clients) retries with the next millisecond, as `createPage` in wiki.ts. */
-export async function createReport(l: Layout, report: Report): Promise<Report> {
-  const c = reportsCollection(l);
-  let at = new Date(report.createdAt).getTime();
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const createdAt = new Date(at).toISOString();
-    const id = fileStamp(createdAt);
-    const record = { ...report, id, createdAt };
-    try {
-      await c.create(id, record);
-      return record;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      at += 1;
-    }
-  }
-  throw new Error("could not allocate a report id");
+export async function createReport(layout: Layout, report: Report): Promise<Report> {
+  return createWithStampId(reportsCollection(layout), new Date(report.createdAt).getTime(), (id, createdAt) => ({ ...report, id, createdAt }), "report");
 }
 
-export async function putReport(l: Layout, report: Report, expectedUpdatedAt?: string): Promise<void> {
-  await reportsCollection(l).put(report.id, report, expectedUpdatedAt);
+export async function putReport(layout: Layout, report: Report, expectedUpdatedAt?: string): Promise<void> {
+  await reportsCollection(layout).put(report.id, report, expectedUpdatedAt);
 }
 
-export async function removeReport(l: Layout, id: string): Promise<void> {
-  await reportsCollection(l).remove(id);
+export async function removeReport(layout: Layout, id: string): Promise<void> {
+  await reportsCollection(layout).remove(id);
 }
