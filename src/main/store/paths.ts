@@ -15,7 +15,7 @@ function assertWikiPageId(id: string): string {
   return id;
 }
 
-// Shared-folder layout; documented in README.md, "How it works".
+// Shared-folder layout; documented in README.md, "仕組み".
 export function layoutOf(root: string) {
   return {
     root,

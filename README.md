@@ -1,77 +1,81 @@
 # Request Tracker
 
-Request Tracker is a portable Windows desktop app that a small team uses to file and track requests without a server. The app calls each request an issue. Every instance of the app reads and writes the same folder of JSON files, kept on a shared network drive or in a synced folder. The UI is in Japanese.
+Request Tracker は、小規模なチームが依頼を登録し、対応状況を管理するための Windows 用デスクトップアプリです。サーバーを用意する必要はありません。チーム全員のアプリが、共有ネットワークドライブまたは同期フォルダーに配置した1つのフォルダーの JSON ファイルを読み書きします。
 
-## Features
+アプリでは、1件の依頼を「課題」と呼びます。画面は日本語です。
 
-- Issues in a tree up to five levels deep, each with a status, a priority, a category, labels and an assignee
-- Dates, a milestone, and planned and actual hours on each issue
-- Links between issues, each with a link type
-- Custom columns per project
-- Issue list as a collapsible tree, with filters, saved filters, bulk edit, and CSV export and import
-- Kanban board and Gantt chart, with drag-and-drop for cards and bars
-- Milestones, with a burndown chart and an .ics export of their due dates
-- Notifications of changes that other people make to open issues you reported, are assigned to or watch
-- A list of recent updates across the project
-- Comments, attachments as files or whole folders, and an edit history from which you can restore earlier versions
-- Markdown wiki pages arranged in a tree, with `[[タイトル]]` links and a diff between versions
-- Search across issues, comments and wiki pages
-- Monthly issue counts and totals of planned and actual hours
-- Reports for people outside the team, exported as HTML or Markdown
-- Categories, status stages, labels, milestones, members and templates defined per project
-- Export and import of these project settings
+## 主な機能
 
-## Install
+- 5階層までの親課題と子課題。課題ごとに状態、優先度、種別、ラベル、担当者を設定できます
+- 課題ごとの日付、マイルストーン、予定時間と実績時間
+- 課題どうしの関連付けと、関連の種類の指定
+- プロジェクトごとに追加できる汎用列
+- 折りたためるツリー形式の課題一覧。絞り込み、絞り込み条件の保存、一括編集、CSV のエクスポートとインポートに対応しています
+- カンバンとガントチャート。カードとバーはドラッグ＆ドロップで動かせます
+- マイルストーンのバーンダウンチャートと、期限の .ics 形式でのエクスポート
+- 自分が登録した課題、担当している課題、ウォッチしている課題のうち、未完了の課題をほかのメンバーが変更したときの通知
+- プロジェクト全体の最近の更新の一覧
+- コメント、ファイルとフォルダーの添付、変更履歴からの以前の版の復元
+- ツリー状に整理できる Markdown の Wiki。`[[タイトル]]` 形式のリンクと、版どうしの差分表示に対応しています
+- 課題、コメント、Wiki の横断検索
+- 月ごとの課題数と、予定時間と実績時間の集計
+- チーム外の相手に渡すレポートの作成と、HTML または Markdown 形式でのエクスポート
+- プロジェクトごとの種別、状態、ラベル、マイルストーン、メンバー、テンプレートの設定
+- これらのプロジェクト設定のエクスポートとインポート
 
-1. Download `RequestTracker-<version>.exe` from [Releases](https://github.com/tomkd555/request-tracker/releases). It is an unsigned, portable build that runs without installation.
-2. Run it and pick the shared folder. If the folder does not hold a project yet, the app creates a new project in it.
-3. Enter your name, or pick it from the list of existing members. The issue list opens.
+## インストール
 
-Requirements: 64-bit Windows 10 or later, and a shared folder every user can write to.
+1. [Releases](https://github.com/tomkd555/request-tracker/releases) から `RequestTracker-<version>.exe` をダウンロードします。この exe はインストール不要のポータブル版で、コード署名はありません。
+2. exe を実行し、共有フォルダーを選びます。フォルダーにプロジェクトがない場合は、アプリが新しいプロジェクトを作成します。
+3. 自分の名前を入力するか、登録済みのメンバーの一覧から選びます。課題一覧が開きます。
 
-## How it works
+動作環境は、64 ビット版の Windows 10 以降です。また、利用者全員に書き込み権限のある共有フォルダーを用意してください。
 
-The shared folder is the database: one JSON file per issue, comment, wiki page and report, with the attachments copied alongside them.
+## 仕組み
 
-- The app writes each record to a temp file and then renames it over the target, so an instance of the app that stops mid-write leaves the old file intact.
-- Before it overwrites an issue, a wiki page, a report or `project.json`, the app copies the previous version to `history/`. Deleting a record moves its file to `trash/`.
-- If someone else changed an issue or a wiki page after you opened it, the app rejects your save and offers to reload it.
-- Issue keys take the form `YY-NNNN`, where `YY` is the fiscal year and `NNNN` is a sequence number. The app claims each key by creating its file in exclusive mode, so two instances of the app that create an issue at the same moment get different keys.
-- Distinct keys and the rejected save hold on a shared network drive, where every instance of the app works on the same files.
-- In a synced folder such as OneDrive, each PC works on its own copy until the sync client has copied a change to the other PCs. Two PCs that create an issue within that delay get the same key, and two saves of one issue within it both succeed. The sync client then keeps one of the two files under another name as a conflict copy, and the app leaves that copy out of its lists. A team that edits concurrently needs a network drive.
-- The app stores the keys of the issues each member watches in `watch/<member id>.json`.
-- The app reads the shared folder when a screen opens, after each save and when you press 更新 (refresh). It does not monitor the folder between these reads.
+共有フォルダーがデータベースの役割を果たします。課題、コメント、Wiki ページ、レポートは1件ごとに1つの JSON ファイルとして保存され、添付ファイルはその隣にコピーされます。
 
-## Development
+- アプリは、レコードを一時ファイルに書き込んでから対象のファイル名に変更します。そのため、書き込みの途中でアプリが止まっても、元のファイルはそのまま残ります。
+- 課題、Wiki ページ、レポート、`project.json` を上書きする前に、アプリは以前の版を `history/` にコピーします。レコードを削除すると、ファイルは `trash/` に移動します。
+- 課題または Wiki ページを開いたあとにほかのメンバーが変更した場合、アプリは保存を拒否し、再読み込みを促します。
+- 課題のキーは `YY-NNNN` の形式です。`YY` は年度、`NNNN` は連番を表します。アプリはキーごとのファイルを排他モードで作成してキーを確保します。そのため、2台のアプリが同時に課題を作成しても、別々のキーが割り当てられます。
+- キーの重複防止と保存の拒否は、共有ネットワークドライブで有効です。共有ネットワークドライブでは、すべてのアプリが同じファイルを操作するからです。
+- OneDrive などの同期フォルダーでは、同期クライアントが変更をほかの PC にコピーし終えるまで、各 PC は自分のコピーを操作します。この間に2台の PC が課題を作成すると、同じキーが割り当てられます。同じ課題を2台で保存した場合も、どちらの保存も成功します。同期クライアントは2つのファイルのうち1つを別名の競合コピーとして残し、アプリは競合コピーを一覧に表示しません。複数の人が同時に編集するチームでは、共有ネットワークドライブを使ってください。
+- 各メンバーがウォッチしている課題のキーは、`watch/<メンバー ID>.json` に保存されます。
+- アプリが共有フォルダーを読み込むのは、画面を開いたとき、保存したあと、［更新］ボタンを押したときです。それ以外のタイミングでは、フォルダーの変更を監視しません。
+
+## 開発
 
 ```
 npm install
-npm run dev          # one instance with hot reload
-npm run dev:second   # a second instance with its own user data, for two-client checks
-npm run typecheck    # tsc for main/preload and for the renderer
-npm run package      # build and electron-builder, producing dist/RequestTracker-<version>.exe
+npm run dev          # ホットリロード付きで1つ起動する
+npm run dev:second   # 別のユーザーデータで2つ目を起動する（2台での動作確認用）
+npm run typecheck    # main/preload と renderer の型チェック
+npm run package      # ビルドして dist/RequestTracker-<version>.exe を作成する
 ```
 
-Stack: Electron, electron-vite, React and TypeScript.
+使用技術: Electron、electron-vite、React、TypeScript
 
-Source layout:
+ソースの構成:
 
 ```
-src/main/store/          all file-system access: collections, identity, config
-src/main/ipc.ts          IPC handlers; the only path from renderer to the file system
-src/preload/index.ts     contextBridge exposing window.api (typed in src/shared/api.ts)
-src/shared/types.ts      record types; this file is the schema
-src/renderer/            React screens: app shell, issues, kanban, search, wiki, gantt, reports
+src/main/store/          ファイルシステムへのすべてのアクセス（コレクション、利用者の識別、設定）
+src/main/ipc.ts          IPC ハンドラー。renderer からファイルシステムに届く唯一の経路
+src/preload/index.ts     window.api を公開する contextBridge（型は src/shared/api.ts）
+src/shared/types.ts      レコードの型。このファイルがスキーマ
+src/renderer/            React の画面（アプリの枠、課題、カンバン、検索、Wiki、ガントチャート、レポート）
 ```
 
-## Security
+## セキュリティ
 
-- The renderer runs with `sandbox` and `contextIsolation` on and `nodeIntegration` off, and reaches the file system only through the typed IPC handlers.
-- Markdown renders with raw HTML disabled.
-- The app does not store passwords or tokens.
+- renderer は `sandbox` と `contextIsolation` を有効、`nodeIntegration` を無効にして動作します。ファイルシステムには、型付きの IPC ハンドラーを通してだけアクセスします。
+- Markdown は、生の HTML を無効にして表示します。
+- アプリはパスワードとトークンを保存しません。
 
-To report a vulnerability, use "Report a vulnerability" under the repository's Security tab.
+脆弱性は、リポジトリの Security タブにある「Report a vulnerability」から報告してください。
 
-## License
+## ライセンス
 
-MIT. See `LICENSE`. Request Tracker is a descriptive name that other products also use. This app is not affiliated with any of them. The packages bundled into the exe are listed with their licenses in `THIRD-PARTY-NOTICES.txt`.
+MIT ライセンスです。詳しくは `LICENSE` を参照してください。
+
+Request Tracker は機能を表す一般的な名前で、同じ名前のほかの製品があります。このアプリは、それらの製品と関係ありません。exe に同梱したパッケージとそのライセンスは、`THIRD-PARTY-NOTICES.txt` に記載しています。
