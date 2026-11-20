@@ -3,10 +3,10 @@
 import { mapOutsideCode, splitCode } from "./markdownCode";
 
 // A key preceded by "/" is part of a URL path and stays as it is.
-const ISSUE_KEY_IN_TEXT = /(?<![\w\-/])(\d{2}-\d{4,})(?![\w\]-])/g;
+const ISSUE_KEY_IN_TEXT = /(?<![\w\-/\\])(\d{2}-\d{4,})(?![\w\]-])/g;
 
-// Matched before a key can match inside it: a `[[wiki link]]`, a link destination `](...)` and a bare URL.
-const SKIPPED = /\[\[[^\]\n]+\]\]|\]\([^)\n]*\)|https?:\/\/[^\s<>]+/;
+// Matched before a key can match inside it: a `[[wiki link]]`, a whole inline link or image, a reference link, a link destination `](...)` and a bare URL.
+const SKIPPED = /\[\[[^\]\n]+\]\]|!?\[[^\[\]\n]*\]\([^)\n]*\)|\[[^\[\]\n]*\]\[[^\]\n]*\]|\]\([^)\n]*\)|https?:\/\/[^\s<>]+/;
 const KEY_OR_SKIPPED = new RegExp(`${SKIPPED.source}|${ISSUE_KEY_IN_TEXT.source}`, "g");
 
 /** Rewrites bare issue keys outside code as `[key](#/issues/key)`. A key that is already the text of a link (followed by `]`) is left alone. */

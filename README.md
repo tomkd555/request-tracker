@@ -27,7 +27,7 @@ Request Tracker is a portable Windows desktop app that a small team uses to file
 2. Run it and pick the shared folder. If the folder does not hold a project yet, the app creates a new project in it.
 3. Enter your name, or pick it from the list of existing members. The issue list opens.
 
-Requirements: Windows 10 or later, and a shared folder every user can write to.
+Requirements: 64-bit Windows 10 or later, and a shared folder every user can write to.
 
 ## How it works
 
@@ -37,6 +37,8 @@ The shared folder is the database: one JSON file per issue, comment, wiki page a
 - Before it overwrites an issue, a wiki page, a report or `project.json`, the app copies the previous version to `history/`. Deleting a record moves its file to `trash/`.
 - If someone else changed an issue or a wiki page after you opened it, the app rejects your save and offers to reload it.
 - Issue keys take the form `YY-NNNN`, where `YY` is the fiscal year and `NNNN` is a sequence number. The app claims each key by creating its file in exclusive mode, so two instances of the app that create an issue at the same moment get different keys.
+- Distinct keys and the rejected save hold on a shared network drive, where every instance of the app works on the same files.
+- In a synced folder such as OneDrive, each PC works on its own copy until the sync client has copied a change to the other PCs. Two PCs that create an issue within that delay get the same key, and two saves of one issue within it both succeed. The sync client then keeps one of the two files under another name as a conflict copy, and the app leaves that copy out of its lists. A team that edits concurrently needs a network drive.
 - The app stores the keys of the issues each member watches in `watch/<member id>.json`.
 - The app reads the shared folder when a screen opens, after each save and when you press 更新 (refresh). It does not monitor the folder between these reads.
 
@@ -66,7 +68,6 @@ src/renderer/            React screens: app shell, issues, kanban, search, wiki,
 
 - The renderer runs with `sandbox` and `contextIsolation` on and `nodeIntegration` off, and reaches the file system only through the typed IPC handlers.
 - Markdown renders with raw HTML disabled.
-- The app refuses to add or open an attachment with an executable extension.
 - The app does not store passwords or tokens.
 
 To report a vulnerability, use "Report a vulnerability" under the repository's Security tab.

@@ -10,6 +10,8 @@ interface Props<T extends Versioned> {
   load(): Promise<T[]>;
   /** Changes whenever the current record is saved, which reloads the list. */
   saveCount: number;
+  /** Changes whenever the current record changes by any save, this screen's or another member's, which reloads the list. */
+  version?: string;
   labelOf(item: T): string;
   onRestore(old: T): void;
 }
@@ -24,7 +26,7 @@ export async function readHistory<T>(load: () => Promise<T[]>): Promise<{ items:
 }
 
 /** Previous versions of an issue, newest first, each with 戻す. Nothing shows until the first read returns. */
-export function HistoryTable<T extends Versioned>({ load, saveCount, labelOf, onRestore }: Props<T>): React.JSX.Element | null {
+export function HistoryTable<T extends Versioned>({ load, saveCount, version, labelOf, onRestore }: Props<T>): React.JSX.Element | null {
   const { users } = useSession();
   const [items, setItems] = useState<T[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function HistoryTable<T extends Versioned>({ load, saveCount, labelOf, on
     return () => {
       isCurrent = false;
     };
-  }, [load, saveCount]);
+  }, [load, saveCount, version]);
 
   if (error !== null) return <p className="text--error">{error}</p>;
   if (items === null) return null;
@@ -46,8 +48,8 @@ export function HistoryTable<T extends Versioned>({ load, saveCount, labelOf, on
   return (
     <table className="history">
       <tbody>
-        {items.map((h) => (
-          <tr key={h.updatedAt}>
+        {items.map((h, i) => (
+          <tr key={`${h.updatedAt}-${i}`}>
             <td className="history__cell">{formatDateTime(h.updatedAt)}</td>
             <td className="history__cell">{displayNameOf(users, h.updatedBy)}</td>
             <td className="history__cell history__cell--summary">{labelOf(h)}</td>

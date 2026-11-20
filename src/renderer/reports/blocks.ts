@@ -128,7 +128,7 @@ export const BLOCK_LABEL: Record<BlockKind, string> = { issues: "課題一覧", 
 export type BodySegment = { kind: "markdown"; text: string } | { kind: "block"; block: Block; line: number } | { kind: "invalid"; line: number; text: string };
 
 const BLOCK_LINE = /^::(issues|summary|gantt)(?:\s+(\S.*?))?\s*$/;
-const MONTH = /^\d{4}-\d{2}$/;
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
 const isOptionalString = (v: unknown): boolean => v === undefined || typeof v === "string";
@@ -137,6 +137,8 @@ const isOptionalMonthRef = (v: unknown): boolean => v === undefined || v === "cu
 const isOptionalOneOf = (v: unknown, all: readonly unknown[]): boolean => v === undefined || all.includes(v);
 const isOptionalSubset = (v: unknown, all: readonly string[]): boolean => v === undefined || (isStringArray(v) && v.every((x) => all.includes(x)));
 const isOptionalSortKey = (v: unknown): boolean => v === undefined || (typeof v === "string" && (FIXED_SORT_KEYS.includes(v as (typeof FIXED_SORT_KEYS)[number]) || v.startsWith(FIELD_SORT_PREFIX)));
+/** A summary with no table prints nothing, and a table twice gives two tables one React key, so a table list names each table once. */
+const isOptionalTableList = (v: unknown): boolean => v === undefined || (isOptionalSubset(v, SUMMARY_TABLES) && isStringArray(v) && v.length > 0 && new Set(v).size === v.length);
 /** A table with no column, or with one column twice, prints nothing readable, so a column list names each column once. */
 const isOptionalColumnList = (v: unknown): boolean => v === undefined || (isOptionalSubset(v, ISSUE_COLUMNS) && isStringArray(v) && v.length > 0 && new Set(v).size === v.length);
 
@@ -168,7 +170,7 @@ function isBlockParams(kind: BlockKind, v: Record<string, unknown>): boolean {
         (v.limit === undefined || (Number.isInteger(v.limit) && (v.limit as number) > 0))
       );
     case "summary":
-      return isOptionalOneOf(v.mode, SUMMARY_MODES) && isOptionalMonthRef(v.month) && isOptionalSubset(v.tables, SUMMARY_TABLES);
+      return isOptionalOneOf(v.mode, SUMMARY_MODES) && isOptionalMonthRef(v.month) && isOptionalTableList(v.tables);
     case "gantt":
       return isOptionalMonthRef(v.month) && isOptionalOneOf(v.months, GANTT_MONTHS) && isOptionalOneOf(v.groupBy, GANTT_GROUP_BY) && (v.includeUndated === undefined || typeof v.includeUndated === "boolean");
   }
@@ -263,7 +265,7 @@ export function scopeIssues(scope: BlockScope, ctx: ReportContext): Issue[] {
   const keys = scope.keys === undefined ? null : new Set(scope.keys);
   const createdIn = scope.createdIn === undefined ? null : resolveMonth(scope.createdIn, ctx.today);
   const updatedIn = scope.updatedIn === undefined ? null : resolveMonth(scope.updatedIn, ctx.today);
-  return filterIssues(ctx.issues, filter, ctx.today, ctx.me.username, statuses).filter(
+  return filterIssues(ctx.issues, filter, ctx.today, ctx.me.username, statuses, ctx.project.milestones ?? []).filter(
     (i) => (keys === null || keys.has(i.key)) && (createdIn === null || monthOf(i.createdAt) === createdIn) && (updatedIn === null || monthOf(i.updatedAt) === updatedIn),
   );
 }

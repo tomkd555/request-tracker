@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { WikiPage } from "../../shared/types";
 import { titleIndex } from "./wikiTree";
 
@@ -18,14 +18,23 @@ export function WikiProvider({ children }: { children: React.ReactNode }): React
   const [byId, setById] = useState<Map<string, WikiPage>>(new Map());
   const [isLoaded, setIsLoaded] = useState(false);
 
+  const refreshCount = useRef(0); // bumped by every refreshOne
+
   const reload = useCallback(async () => {
-    const list = await window.api.wiki.list();
-    setById(new Map(list.map((p) => [p.id, p])));
-    setIsLoaded(true);
+    for (;;) {
+      const refreshesAtStart = refreshCount.current;
+      const list = await window.api.wiki.list();
+      // A list read that began before a save's own re-read holds the page as it was before the save, and would put it back: read again.
+      if (refreshCount.current !== refreshesAtStart) continue;
+      setById(new Map(list.map((p) => [p.id, p])));
+      setIsLoaded(true);
+      return;
+    }
   }, []);
 
   const refreshOne = useCallback(async (id: string) => {
     const page = await window.api.wiki.get(id);
+    refreshCount.current++;
     setById((m) => {
       const next = new Map(m);
       if (page === null) next.delete(id);

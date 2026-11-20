@@ -1,9 +1,11 @@
-import { promises as fsp } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { constants, promises as fsp } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileStamp } from "./fileStamp";
 
 export type Collection<T> = {
-  list(): Promise<T[]>;
+  /** A record file that cannot be read (held open by another program) is left out; with `strict` it rejects the call, for a caller that takes a missing record as an absent one. */
+  list(strict?: boolean): Promise<T[]>;
   get(id: string): Promise<T | null>;
   /** Exclusive create: rejects with code EEXIST when the id is taken. */
   create(id: string, record: T): Promise<void>;
@@ -82,18 +84,34 @@ export async function readRecord<T>(path: string, guard: (v: unknown) => v is T)
   return null;
 }
 
-/** Every valid record of `dir` in file-name order, read from disk on each call; a directory that does not exist yet holds no records. */
-export async function readRecords<T>(dir: string, guard: (v: unknown) => v is T, idOf?: (record: T) => string): Promise<T[]> {
+/** The records of a directory, and the error of the first record file that could not be read (held open by another program, or closed to this user); undefined when every file was read. */
+interface Listing<T> { records: T[]; unreadable: unknown }
+
+/** The valid records of `dir` in file-name order; a directory that does not exist yet holds no records. */
+async function readListing<T>(dir: string, guard: (v: unknown) => v is T, idOf?: (record: T) => string): Promise<Listing<T>> {
   let names: string[];
   try {
     names = await fsp.readdir(dir);
   } catch (e) {
-    if (errorCode(e) === "ENOENT") return [];
+    if (errorCode(e) === "ENOENT") return { records: [], unreadable: undefined };
     throw e;
   }
   const fileNames = names.filter((name) => name.endsWith(".json") && !name.startsWith(".")).sort();
+  let unreadable: unknown;
+  let readCount = 0;
   const records = await mapLimit(fileNames, async (fileName) => {
-    const record = await readRecord(join(dir, fileName), guard);
+    let record: T | null;
+    try {
+      record = await readRecord(join(dir, fileName), guard);
+    } catch (e) {
+      // One record that cannot be read must not hide every other one; any other failure (the share dropped) still rejects the listing.
+      const code = errorCode(e) ?? "";
+      if (code !== "EISDIR" && !HELD_OPEN.has(code)) throw e;
+      console.error(`store: record cannot be read, skipped: ${join(dir, fileName)}`, e);
+      if (code !== "EISDIR") unreadable ??= e; // a folder under a record's name is no record
+      return null;
+    }
+    readCount++;
     if (record === null || idOf === undefined) return record;
     // Compared as Windows compares file names: a login stored in another letter case is the same member, and a conflict copy still differs.
     const idInFileName = fileName.slice(0, -".json".length);
@@ -103,7 +121,18 @@ export async function readRecords<T>(dir: string, guard: (v: unknown) => v is T,
     }
     return record;
   });
-  return records.filter((record): record is T => record !== null);
+  if (unreadable !== undefined && readCount === 0) throw unreadable; // a folder this user may not read must not pass for an empty one
+  return { records: records.filter((record): record is T => record !== null), unreadable };
+}
+
+/**
+ * Every valid record of `dir` in file-name order, read from disk on each call. A record file that cannot be read is left out;
+ * with `strict` it rejects the call, for a check that guards a write and must see every record.
+ */
+export async function readRecords<T>(dir: string, guard: (v: unknown) => v is T, idOf?: (record: T) => string, strict = false): Promise<T[]> {
+  const listing = await readListing(dir, guard, idOf);
+  if (strict && listing.unreadable !== undefined) throw listing.unreadable;
+  return listing.records;
 }
 
 const READ_CONCURRENCY = 16;
@@ -122,19 +151,75 @@ export async function mapLimit<A, B>(items: A[], fn: (item: A) => Promise<B>, li
   return results;
 }
 
-let tempFileSeq = 0; // two overlapping saves of the same record in one process get distinct temp names
+/** A temp name beside `target` that no other save uses, on this machine or on another one writing the same share; the leading dot keeps it out of every listing. */
+const tempPathFor = (target: string): string => join(dirname(target), `.${basename(target)}.tmp-${randomUUID()}`);
+
+/** Codes Windows gives a rename, a delete or a read while another program (a virus scanner, a sync client, the indexer) holds the file open, or when the file is closed to this user. */
+const HELD_OPEN = new Set(["EPERM", "EACCES", "EBUSY"]);
+const HELD_OPEN_RETRY_DELAYS_MS = [25, 50, 100, 200, 400, 800];
+
+/** `operation`, tried again while a file it needs is held open for a moment; any other failure, and one that outlasts the delays, rejects. */
+async function whenFree<T>(operation: () => Promise<T>): Promise<T> {
+  for (const delayMs of HELD_OPEN_RETRY_DELAYS_MS) {
+    try {
+      return await operation();
+    } catch (e) {
+      if (!HELD_OPEN.has(errorCode(e) ?? "")) throw e;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return operation();
+}
+
+/** fs.rename that waits out a file another program holds open for a moment. */
+export const renameWhenFree = (from: string, to: string): Promise<void> => whenFree(() => fsp.rename(from, to));
 
 /** Write to a temp file in the same directory, then rename over the target. */
 export async function writeAtomic(target: string, text: string): Promise<void> {
-  const dir = dirname(target);
-  const tempPath = join(dir, `.${basename(target)}.tmp-${process.pid}-${tempFileSeq++}`);
-  await mkdirp(dir);
-  await fsp.writeFile(tempPath, text, "utf8");
+  const tempPath = tempPathFor(target);
+  await mkdirp(dirname(target));
   try {
-    await fsp.rename(tempPath, target);
+    await fsp.writeFile(tempPath, text, "utf8");
+    await renameWhenFree(tempPath, target);
   } catch (e) {
-    await fsp.unlink(tempPath).catch(() => undefined); // a share that dropped between the two calls leaves no temp file behind
+    await fsp.unlink(tempPath).catch(() => undefined); // after a full disk or a failed rename the temp file goes; a share that dropped keeps it
     throw e;
+  }
+}
+
+/**
+ * Writes `text` to `target` only while that name is free; rejects with code EEXIST when it is taken.
+ * The text is complete under a temp name before a hard link gives it the final name, so an instance that stops mid-write,
+ * or a write that fails, leaves no half-written record. Where the link fails for another reason (a file system without
+ * hard links: exFAT, some NAS shares), the text goes to the final name with a plain exclusive write.
+ */
+export async function createExclusive(target: string, text: string): Promise<void> {
+  const tempPath = tempPathFor(target);
+  try {
+    await fsp.writeFile(tempPath, text, "utf8");
+    try {
+      await fsp.link(tempPath, target);
+    } catch (e) {
+      if (errorCode(e) === "EEXIST") throw e;
+      await fsp.writeFile(target, text, { encoding: "utf8", flag: "wx" });
+    }
+  } finally {
+    // After the link the temp name is a second name of the record, and a scanner that opened the record holds it too.
+    await whenFree(() => fsp.unlink(tempPath)).catch(() => undefined);
+  }
+}
+
+/** Copies the record file `source` into `versionsDir` under `stamp`. Another version already kept under that stamp stays: the copy takes the next free suffix (`_001`, `_002`), which sorts after it. */
+export async function keepVersion(source: string, versionsDir: string, stamp: string): Promise<void> {
+  for (let copy = 0; ; copy++) {
+    const target = join(versionsDir, copy === 0 ? `${stamp}.json` : `${stamp}_${String(copy).padStart(3, "0")}.json`);
+    try {
+      await fsp.copyFile(source, target, constants.COPYFILE_EXCL);
+      return;
+    } catch (e) {
+      if (errorCode(e) !== "EEXIST") throw e;
+    }
+    if ((await fsp.readFile(target, "utf8")) === (await fsp.readFile(source, "utf8"))) return; // this version is kept already: a save retried after its history copy
   }
 }
 
@@ -143,6 +228,15 @@ const versionTimeOf = (record: unknown): string => {
   const { updatedAt, createdAt } = record as { updatedAt?: unknown; createdAt?: unknown };
   const iso = typeof updatedAt === "string" ? updatedAt : createdAt;
   return typeof iso === "string" ? iso : new Date().toISOString();
+};
+
+/** The file stamp of an ISO time, or null when `iso` is no time. */
+const stampOf = (iso: unknown): string | null => {
+  try {
+    return typeof iso === "string" ? fileStamp(iso) : null;
+  } catch {
+    return null;
+  }
 };
 
 /** A listing is served from memory while the directory's mtime is unchanged and the listing is younger than this. */
@@ -161,7 +255,7 @@ async function dirSignature(dir: string): Promise<string | null> {
 }
 
 /** Reads under way, so the launch warm-up and the renderer's first list share one pass over the directory. */
-const pendingReads = new Map<string, Promise<unknown[]>>();
+const pendingReads = new Map<string, Promise<Listing<unknown>>>();
 
 /** Forgets the listing of `dir`; called after every write of this process, so its own change is visible at once. A read in flight still resolves for its callers, but its result is never cached. */
 const forgetListing = (dir: string): void => {
@@ -171,7 +265,7 @@ const forgetListing = (dir: string): void => {
 
 /** One stat per call while nothing changed; a full read otherwise. The age bound covers a share that reports directory mtimes late. */
 // ponytail: a file system with coarse mtimes (2 s on exFAT) can hide another client's write for that long; lower LIST_TTL_MS if it bites
-async function readRecordsCached<T>(dir: string, guard: (v: unknown) => v is T, idOf?: (record: T) => string): Promise<T[]> {
+async function readRecordsCached<T>(dir: string, guard: (v: unknown) => v is T, idOf?: (record: T) => string, strict = false): Promise<T[]> {
   const signature = await dirSignature(dir);
   const nowMs = Date.now();
   const cached = listings.get(dir);
@@ -179,13 +273,14 @@ async function readRecordsCached<T>(dir: string, guard: (v: unknown) => v is T, 
   for (const [listedDir, listing] of listings) if (nowMs - listing.readAtMs >= LIST_TTL_MS) listings.delete(listedDir); // expired listings go, so the map holds the directories in use alone
   let pendingRead = pendingReads.get(dir);
   if (pendingRead === undefined) {
-    const read: Promise<unknown[]> = readRecords(dir, guard, idOf).then(
-      (records) => {
+    const read: Promise<Listing<unknown>> = readListing(dir, guard, idOf).then(
+      (listing) => {
         if (pendingReads.get(dir) === read) {
-          listings.set(dir, { signature, readAtMs: nowMs, records });
+          // A listing that left a record out is served to this call alone: the next call reads the directory again.
+          if (listing.unreadable === undefined) listings.set(dir, { signature, readAtMs: nowMs, records: listing.records });
           pendingReads.delete(dir);
         }
-        return records;
+        return listing;
       },
       (e: unknown) => {
         if (pendingReads.get(dir) === read) pendingReads.delete(dir); // the next call reads again
@@ -195,7 +290,9 @@ async function readRecordsCached<T>(dir: string, guard: (v: unknown) => v is T, 
     pendingReads.set(dir, read);
     pendingRead = read;
   }
-  return (await pendingRead).slice() as T[];
+  const listing = await pendingRead;
+  if (strict && listing.unreadable !== undefined) throw listing.unreadable;
+  return listing.records.slice() as T[];
 }
 
 export function collection<T>({ dir, guard, historyDir, trashDir, idOf }: CollectionOptions<T>): Collection<T> {
@@ -210,22 +307,18 @@ export function collection<T>({ dir, guard, historyDir, trashDir, idOf }: Collec
     if (current === null) return;
     const versionsDir = join(historyDir, id);
     await mkdirp(versionsDir);
-    let stamp: string;
-    try {
-      stamp = fileStamp(versionTimeOf(current));
-    } catch {
-      stamp = fileStamp((current as { createdAt: string }).createdAt); // an updatedAt that does not parse must not block the save
-    }
-    await fsp.copyFile(recordPath(dir, id), join(versionsDir, `${stamp}.json`));
+    // A time that does not parse must not block the save: updatedAt, then createdAt, then now.
+    const stamp = stampOf(versionTimeOf(current)) ?? stampOf((current as { createdAt?: unknown }).createdAt) ?? fileStamp(new Date().toISOString());
+    await keepVersion(recordPath(dir, id), versionsDir, stamp);
   }
 
   return {
-    list: () => readRecordsCached(dir, guard, idOf),
+    list: (strict) => readRecordsCached(dir, guard, idOf, strict),
     get: (id) => readRecord(recordPath(dir, id), guard),
     async create(id, record) {
       assertValid(record);
       await mkdirp(dir);
-      await fsp.writeFile(recordPath(dir, id), toJsonText(record), { encoding: "utf8", flag: "wx" });
+      await createExclusive(recordPath(dir, id), toJsonText(record));
       forgetListing(dir);
     },
     async put(id, record, expectedUpdatedAt) {
@@ -249,7 +342,7 @@ export function collection<T>({ dir, guard, historyDir, trashDir, idOf }: Collec
       } catch {
         // free name
       }
-      await fsp.rename(recordPath(dir, id), trashPath);
+      await renameWhenFree(recordPath(dir, id), trashPath);
       forgetListing(dir);
     },
     async history(id) {

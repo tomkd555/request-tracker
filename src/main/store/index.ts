@@ -2,7 +2,7 @@ import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import type { SaveFilter, StoreApi } from "../../shared/api";
 import { assertLocalSettings, DEFAULT_LOCAL_SETTINGS, type Issue, type LocalConfig, type LocalSettings } from "../../shared/types";
-import { addAttachments, assertName, attachmentDir, isRefusedExtension, listAttachments, removeAttachment } from "./attachments";
+import { addAttachments, assertName, attachmentDir, listAttachments, removeAttachment } from "./attachments";
 import { mkdirp } from "./collection";
 import { addComment, commentsCollection, listAllComments } from "./comments";
 import { loadConfig, saveConfig } from "./config";
@@ -183,7 +183,6 @@ export function createStore(deps: StoreDeps): StoreApi & { settings(): LocalSett
       choose: () => deps.chooseFiles(),
       async open(owner, name) {
         assertName(name);
-        if (isRefusedExtension(name)) throw new Error("refused-extension"); // a file placed in the folder by hand
         await openWithOs(join(attachmentDir(requireLayout(), owner), name));
       },
       async openFolder(owner) {

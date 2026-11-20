@@ -4,7 +4,7 @@ import { textOn } from "../app/theme";
 import { displayNameOf, useSession } from "../app/SessionContext";
 import { navigate } from "../app/useHashRoute";
 import { MAX_BULK_ROWS, bulkChanges, keepVisible, toggleAllSelection, type BulkPatch, type BulkResult } from "./bulkEdit";
-import { BulkBar } from "./BulkBar";
+import { BulkBar, BulkResultView } from "./BulkBar";
 import { dateRefusal, todayYmd } from "./dates";
 import { dueTone } from "./dueTone";
 import { FilterBar } from "./FilterBar";
@@ -48,6 +48,7 @@ export function IssueList(): React.JSX.Element {
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
   const [message, setMessage] = useState<string | null>(null);
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
+  const [bulkResult, setBulkResult] = useState<BulkResult[] | null>(null);
   const today = todayYmd();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
   const [collapsed, toggleCollapsed] = useCollapsed();
@@ -73,10 +74,16 @@ export function IssueList(): React.JSX.Element {
   }, [visibleCheckedKeys.size, checkedKeys.size]);
   const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.slice(0, MAX_BULK_ROWS).every((k) => visibleCheckedKeys.has(k));
 
-  const toggleAll = (): void => setCheckedKeys(toggleAllSelection(visibleCheckedKeys, visibleKeys));
-  const toggleRow = (key: string): void => setCheckedKeys(toggled(visibleCheckedKeys, key));
+  // A new selection replaces the last result.
+  const select = (keys: Set<string>): void => {
+    setBulkResult(null);
+    setCheckedKeys(keys);
+  };
+  const toggleAll = (): void => select(toggleAllSelection(visibleCheckedKeys, visibleKeys));
+  const toggleRow = (key: string): void => select(toggled(visibleCheckedKeys, key));
 
-  const runBulk = async (patch: BulkPatch): Promise<BulkResult[]> => {
+  const runBulk = async (patch: BulkPatch): Promise<void> => {
+    setBulkResult(null);
     const results: BulkResult[] = [];
     for (const key of visibleCheckedKeys) {
       const issue = byKey.get(key);
@@ -98,12 +105,13 @@ export function IssueList(): React.JSX.Element {
         results.push({ key, ok: false, message: errorMessage(e) });
       }
     }
+    // Kept here and set before the reload: when every written row leaves the filter the bar unmounts, and the result stays on screen.
+    setBulkResult(results);
     try {
       await reload();
     } catch (e) {
-      setMessage(errorMessage(e)); // the writes above are done; the results still go back to the bar
+      setMessage(errorMessage(e)); // the writes above are done; the results stay on screen
     }
-    return results;
   };
 
   const onRowKey = (e: React.KeyboardEvent<HTMLTableRowElement>, row: TreeRow): void => {
@@ -149,8 +157,14 @@ export function IssueList(): React.JSX.Element {
       {message && <p className="text--muted">{message}</p>}
       <FilterBar filter={filter} onChange={setFilter} />
       <SavedFilters filter={filter} onChange={setFilter} />
-      {visibleCheckedKeys.size > 0 && (
-        <BulkBar count={visibleCheckedKeys.size} project={project} onExecute={runBulk} onClear={() => setCheckedKeys(new Set())} />
+      {visibleCheckedKeys.size > 0 ? (
+        <BulkBar count={visibleCheckedKeys.size} project={project} result={bulkResult} onExecute={runBulk} onClear={() => select(new Set())} />
+      ) : (
+        bulkResult !== null && (
+          <div className="bulk-bar">
+            <BulkResultView result={bulkResult} />
+          </div>
+        )
       )}
       <table className="issue-table issue-table--tree" role="treegrid" aria-label="課題">
         <thead>

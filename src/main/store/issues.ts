@@ -11,7 +11,7 @@ export const issuesCollection = (layout: Layout): Collection<Issue> =>
   collection<Issue>({ dir: layout.issues, guard: isIssue, historyDir: layout.historyIssues, trashDir: layout.trashIssues, idOf: (issue) => issue.key });
 
 /** The issues as the share holds them now, past the listing cache: a check that guards a write must see the latest files. */
-export const readIssuesUncached = (layout: Layout): Promise<Issue[]> => readRecords(layout.issues, isIssue, (issue) => issue.key);
+export const readIssuesUncached = (layout: Layout): Promise<Issue[]> => readRecords(layout.issues, isIssue, (issue) => issue.key, true);
 
 async function issueKeysIn(dir: string): Promise<string[]> {
   try {
@@ -52,15 +52,17 @@ export async function createIssue(layout: Layout, project: Project, draft: Issue
   const yy = fiscalYy(fiscalYearOf(draft.createdAt, project.fiscalYearStartMonth));
   await assertParent(layout, null, draft.parentKey);
   const issues = issuesCollection(layout);
+  const takenKeys: string[] = []; // keys a create found taken; a folder listing the SMB client serves from its cache may not show them yet
   for (let attempt = 0; attempt < MAX_KEY_ATTEMPTS; attempt++) {
-    const usedKeys = [...(await issueKeysIn(layout.issues)), ...(await issueKeysIn(layout.trashIssues))];
+    const usedKeys = [...(await issueKeysIn(layout.issues)), ...(await issueKeysIn(layout.trashIssues)), ...takenKeys];
     const key = allocateKey(usedKeys, yy);
     const issue: Issue = { ...draft, key }; // key last: IPC arguments arrive untyped
     try {
       await issues.create(key, issue);
     } catch (e) {
-      if (errorCode(e) === "EEXIST") continue; // another client took the key between the listing and the create
-      throw e;
+      if (errorCode(e) !== "EEXIST") throw e;
+      takenKeys.push(key); // another client took the key between the listing and the create
+      continue;
     }
     // The record is saved; a rejection here would make the caller retry a create that already succeeded.
     await mkdirp(layout.attachments(key)).catch((e: unknown) => console.error(`store: attachments folder not created: ${layout.attachments(key)}`, e));

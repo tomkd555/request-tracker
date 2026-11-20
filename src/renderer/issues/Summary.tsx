@@ -12,7 +12,8 @@ import { orderMilestones } from "./milestones";
 import { useIssues } from "./useIssues";
 import { errorMessage, M } from "../messages";
 
-interface Burndown { rows: BurndownRow[]; dueDay: string | null; today: string }
+/** `hasIssues` tells an empty `rows` caused by a range with no day from one caused by a milestone with no issue. */
+interface Burndown { rows: BurndownRow[]; dueDay: string | null; today: string; hasIssues: boolean }
 
 function BurndownSection(): React.JSX.Element | null {
   const { project } = useSession();
@@ -36,7 +37,7 @@ function BurndownSection(): React.JSX.Element | null {
       const versions = await loadMilestoneVersions(issues, milestone.id, (key) => window.api.issues.history(key));
       if (chosenId.current !== milestone.id) return;
       const today = todayYmd();
-      setBurndown({ rows: burndownRows(milestone, versions, project.statuses, today), dueDay: milestone.dueDate, today });
+      setBurndown({ rows: burndownRows(milestone, versions, project.statuses, today), dueDay: milestone.dueDate, today, hasIssues: versions.some((vs) => vs.some((v) => v.milestone === milestone.id)) });
     } catch (e) {
       if (chosenId.current !== milestone.id) return;
       setBurndown(null);
@@ -78,7 +79,7 @@ function BurndownSection(): React.JSX.Element | null {
         </select>
       </div>
       {error && <p className="text--error">{error}</p>}
-      {burndown !== null && (burndown.rows.length === 0 ? <p className="text--muted">{M.noBurndownIssues}</p> : <BurndownChart rows={burndown.rows} measure={measure} today={burndown.today} dueDay={burndown.dueDay} />)}
+      {burndown !== null && (burndown.rows.length === 0 ? <p className="text--muted">{burndown.hasIssues ? M.burndownNoDays : M.noBurndownIssues}</p> : <BurndownChart rows={burndown.rows} measure={measure} today={burndown.today} dueDay={burndown.dueDay} />)}
     </section>
   );
 }

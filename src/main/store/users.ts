@@ -12,7 +12,7 @@ export const usersCollection = (layout: Layout): Collection<User> =>
 /** The user whose file is the OS login, or the member who bound that login on first launch. */
 export async function findUser(layout: Layout, login: string): Promise<User | null> {
   const users = usersCollection(layout);
-  return (await users.get(login)) ?? (await users.list()).find((user) => user.login === login) ?? null;
+  return (await users.get(login)) ?? (await users.list(true)).find((user) => user.login === login) ?? null; // strict: a member file that cannot be read must not pass for a login nobody has bound
 }
 
 function trimmedDisplayName(displayName: string): string {

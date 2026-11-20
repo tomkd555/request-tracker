@@ -178,6 +178,8 @@
 
 .gantt__bar--draggable {
   cursor: grab;
+  /* a touch or pen drag on a bar moves the bar; left to the browser it scrolls the chart and cancels the drag */
+  touch-action: none;
 }
 
 .gantt__bar--dragging {

@@ -1,7 +1,7 @@
 import type { Attachment, CategoryTemplate, Comment, CustomField, Issue, Label, LocalConfig, LocalSettings, Milestone, Project, Report, StatusDef, User, WikiPage } from "./types";
 
 export type IssueDraft = Omit<Issue, "key">;
-export interface AttachmentRefusal { path: string; reason: "size" | "extension" | "link" | "name" | "failed" }
+export interface AttachmentRefusal { path: string; reason: "size" | "link" | "name" | "failed" }
 /** What an attachment belongs to: an issue by key, or a wiki page by id. */
 export type AttachmentOwner = { kind: "issue"; id: string } | { kind: "wiki"; id: string };
 export interface AddAttachmentsResult { added: string[]; refused: AttachmentRefusal[] }

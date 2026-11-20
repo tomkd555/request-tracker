@@ -1,5 +1,5 @@
 import type { DueFilter, IssueFilter, IssueStatus } from "../../shared/types";
-import { categoryOptions, useSession } from "../app/SessionContext";
+import { categoryOptions, displayNameOf, useSession } from "../app/SessionContext";
 import { defaultFilter } from "./filterIssues";
 import { LabelPicker } from "./LabelPicker";
 
@@ -43,6 +43,8 @@ export function FilterBar({ filter, onChange }: Props): React.JSX.Element {
           {u.displayName}
         </option>
       ))}
+      {/* A saved filter can name a member who was removed; without its own option the select would show すべて while the list stays filtered. */}
+      {value !== null && !users.some((u) => u.username === value) && <option value={value}>{displayNameOf(users, value)}</option>}
     </select>
   );
   const renderMineToggle = (field: "assignee" | "reporter", label: string): React.JSX.Element => {

@@ -1,4 +1,17 @@
 import { isValidElement, type ReactNode } from "react";
+import { defaultUrlTransform } from "react-markdown";
+
+/**
+ * The URL a link or an image in rendered Markdown keeps: what react-markdown keeps by default, less a network path.
+ * `//host/x.png`, written with slashes or backslashes, resolves against the app's file: document to `file://host/x.png`;
+ * shown as an image, it makes the PC of everyone who opens the text connect to that host over SMB.
+ */
+export function markdownUrl(url: string): string {
+  const kept = defaultUrlTransform(url);
+  // A URL parser drops leading spaces and control characters, and every tab and line break, before it reads the slashes.
+  const asParsed = kept.replace(/[\t\n\r]/g, "").replace(/^[\u0000- ]+/, "");
+  return /^[\\/]{2}/.test(asParsed) ? "" : kept;
+}
 
 // A link to `#something` that is not a route of the app (routes start with `#/`) points at an element of the document.
 

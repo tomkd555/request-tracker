@@ -46,18 +46,27 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
   const baseUpdatedAt = useRef<string | null>(null); // the stamp the draft was seeded from; a reload mid-edit must not move it
   const [canReload, setCanReload] = useState(false);
   const [reseedCount, setReseedCount] = useState(0);
+  const seeded = useRef<string | null>(null); // the draft as it was last seeded, as JSON
+  const appliedReseedCount = useRef(reseedCount);
+  const draftJson = JSON.stringify({ title, body, isTemplate, terms, issueNotes });
 
-  // On a reload at #/reports/<id>/edit the report arrives after the first render; take its content then. 再読み込み takes it again.
+  // On a reload at #/reports/<id>/edit the report arrives after the first render, and the share is read again when the screen opens:
+  // a version that arrives while the draft still holds what it was seeded with replaces it, so an edit never starts from an outdated report.
+  // 再読み込み takes the stored version whatever the draft holds.
   useEffect(() => {
-    if (existing) {
-      setTitle(existing.title);
-      setBody(existing.body);
-      setIsTemplate(existing.isTemplate);
-      setTerms(existing.terms);
-      setIssueNotes(existing.issueNotes);
-      baseUpdatedAt.current = existing.updatedAt;
-    }
-  }, [existing?.id, reseedCount]);
+    if (!existing) return;
+    const isUntouched = seeded.current === null || draftJson === seeded.current;
+    const isReseedAsked = appliedReseedCount.current !== reseedCount;
+    appliedReseedCount.current = reseedCount;
+    if (!isUntouched && !isReseedAsked) return;
+    setTitle(existing.title);
+    setBody(existing.body);
+    setIsTemplate(existing.isTemplate);
+    setTerms(existing.terms);
+    setIssueNotes(existing.issueNotes);
+    seeded.current = JSON.stringify({ title: existing.title, body: existing.body, isTemplate: existing.isTemplate, terms: existing.terms, issueNotes: existing.issueNotes });
+    baseUpdatedAt.current = existing.updatedAt;
+  }, [existing?.id, existing?.updatedAt, reseedCount]);
 
   // #/reports/new?from=<id> (複製): the source report may still be loading when this screen first renders.
   useEffect(() => {
@@ -113,9 +122,15 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       const lineEnd = lineBreakAt === -1 ? sel.text.length : lineBreakAt;
       // parseBody reads a block line inside a code fence as Markdown, so the caret on such a line inserts a new block.
       const lineNumber = sel.text.slice(0, lineStart).split("\n").length;
-      const segment = parseBody(sel.text).find((s) => s.kind === "block" && s.line === lineNumber);
+      const segment = parseBody(sel.text).find((s) => s.kind !== "markdown" && s.line === lineNumber);
       const editingBlock = segment?.kind === "block" && segment.block.kind === kind ? segment.block : null;
-      const commit = editingBlock === null ? (text: string) => insert(text) : (text: string) => setBody((b) => b.slice(0, lineStart) + text + b.slice(lineEnd));
+      // On a block line of another kind, or one that fails to parse, the new block goes below it: inserted at the caret it would cut that line in two.
+      const commit =
+        editingBlock !== null
+          ? (text: string) => setBody((b) => b.slice(0, lineStart) + text + b.slice(lineEnd))
+          : segment !== undefined
+            ? (text: string) => setBody((b) => `${b.slice(0, lineEnd)}\n${text}${b.slice(lineEnd)}`)
+            : (text: string) => insert(text);
       setBlockDialog({ kind, initial: editingBlock, commit });
     },
   }));
@@ -143,7 +158,8 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
       if (existing) {
         const report: Report = { ...existing, title: title.trim(), body, isTemplate, terms, issueNotes, updatedAt: now, updatedBy: me.username };
         await window.api.reports.put(report, baseUpdatedAt.current ?? existing.updatedAt);
-        await refreshOne(report.id);
+        // From here the report is saved: a failed re-read must not show as a failed save, nor leave the form to be sent a second time. The next screen reads the share again.
+        await refreshOne(report.id).catch(() => undefined);
         navigate(`/reports/${report.id}`);
       } else {
         const created = await window.api.reports.create({
@@ -158,7 +174,7 @@ export function ReportEdit({ id, from }: Props): React.JSX.Element {
           updatedAt: now,
           updatedBy: me.username,
         });
-        await reload();
+        await reload().catch(() => undefined); // saved, as above
         navigate(`/reports/${created.id}`);
       }
     } catch (e) {

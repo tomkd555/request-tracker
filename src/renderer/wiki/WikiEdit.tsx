@@ -32,16 +32,24 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
   const [canReloadDraft, setCanReloadDraft] = useState(false);
   const [refillCount, setRefillCount] = useState(0);
   const baseUpdatedAt = useRef<string | null>(null); // the stamp the draft was filled from; a re-read of the list mid-edit must not move it
+  const filled = useRef<{ title: string; body: string; parentId: string | null } | null>(null); // what the draft was last filled with
+  const appliedRefillCount = useRef(refillCount);
 
-  // On a reload at #/wiki/<id>/edit the page arrives after the first render; take its content then. 再読み込み takes it again.
+  // On a reload at #/wiki/<id>/edit the page arrives after the first render, and the share is read again when the screen opens:
+  // a version that arrives while the draft still holds what it was filled with replaces it, so an edit never starts from an outdated page.
+  // 再読み込み takes the stored version whatever the draft holds.
   useEffect(() => {
-    if (existing) {
-      setTitle(existing.title);
-      setBody(existing.body);
-      setParentId(existing.parentId);
-      baseUpdatedAt.current = existing.updatedAt;
-    }
-  }, [existing?.id, refillCount]);
+    if (!existing) return;
+    const isUntouched = filled.current === null || (title === filled.current.title && body === filled.current.body && parentId === filled.current.parentId);
+    const isRefillAsked = appliedRefillCount.current !== refillCount;
+    appliedRefillCount.current = refillCount;
+    if (!isUntouched && !isRefillAsked) return;
+    setTitle(existing.title);
+    setBody(existing.body);
+    setParentId(existing.parentId);
+    filled.current = { title: existing.title, body: existing.body, parentId: existing.parentId };
+    baseUpdatedAt.current = existing.updatedAt;
+  }, [existing?.id, existing?.updatedAt, refillCount]);
 
   const isDirty = existing ? title !== existing.title || body !== existing.body || parentId !== existing.parentId : title !== presetTitle || body !== "";
   useNavigationGuard(isDirty && !isSaving);
@@ -78,11 +86,12 @@ export function WikiEdit({ id, presetTitle, presetParent }: Props): React.JSX.El
       if (existing) {
         const page: WikiPage = { ...existing, title: title.trim(), body, parentId, note: note.trim(), updatedAt: now, updatedBy: me.username };
         await window.api.wiki.put(page, baseUpdatedAt.current ?? existing.updatedAt);
-        await refreshOne(page.id);
+        // From here the page is saved: a failed re-read must not show as a failed save, nor leave the form to be sent a second time. The next screen reads the share again.
+        await refreshOne(page.id).catch(() => undefined);
         navigate(`/wiki/${page.id}`);
       } else {
         const created = await window.api.wiki.create({ id: "", title: title.trim(), body, parentId, note: note.trim(), createdAt: now, createdBy: me.username, updatedAt: now, updatedBy: me.username });
-        await reload();
+        await reload().catch(() => undefined); // saved, as above
         navigate(`/wiki/${created.id}`);
       }
     } catch (e) {

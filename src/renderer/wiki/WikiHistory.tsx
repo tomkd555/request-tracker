@@ -41,9 +41,9 @@ export function WikiHistory({ page, onRestore }: Props): React.JSX.Element | nul
   return (
     <table className="history">
       <tbody>
-        {rows.map(({ old, next }) => (
+        {rows.map(({ old, next }, i) => (
           <HistoryRow
-            key={old.updatedAt}
+            key={`${old.updatedAt}-${i}`}
             old={old}
             next={next}
             isExpanded={expandedStamp === old.updatedAt}

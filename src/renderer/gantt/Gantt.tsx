@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { IssueFilter } from "../../shared/types";
 import { useChoiceDialog } from "../app/ChoiceDialog";
 import { displayNameOf, useSession } from "../app/SessionContext";
@@ -76,6 +76,9 @@ export function Gantt(): React.JSX.Element {
   const [sort, setSort] = useState<IssueSort>(DEFAULT_SORT);
   const [collapsed, toggleCollapsed] = useCollapsed();
   const [drag, setDrag] = useState<Drag | null>(null);
+  const isDragging = drag !== null;
+  // The bars being saved: a second drag of one of them, ended before the first is saved and re-read, would send the bar's old stamp and be refused as another member's change.
+  const savingKeys = useRef(new Set<string>());
   const [error, setError] = useState<string | null>(null);
   const { ask, dialog } = useChoiceDialog();
   const today = todayYmd();
@@ -102,13 +105,14 @@ export function Gantt(): React.JSX.Element {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (isFormField(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      // A month change mid-drag can take the dragged bar off the chart; its pointerup then never arrives and the drag stays on.
+      if (isDragging || isFormField(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "n") setStartMonth((m) => shiftMonth(m, monthCount));
       if (e.key === "p") setStartMonth((m) => shiftMonth(m, -monthCount));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [monthCount]);
+  }, [monthCount, isDragging]);
 
   const finishDrag = async (ended: Drag): Promise<void> => {
     setDrag(null);
@@ -117,27 +121,33 @@ export function Gantt(): React.JSX.Element {
       return;
     }
     const issue = byKey.get(ended.key);
-    if (!issue) return;
+    if (!issue || savingKeys.current.has(issue.key)) return;
     setError(null);
     let touched = [issue.key];
+    savingKeys.current.add(issue.key);
     try {
-      // An edge drag moves one date of this issue only; a whole-bar move asks about the dated issues under it.
-      const datedCount = ended.mode === "move" ? datedDescendants(issues, issue.key).length : 0;
-      let answer: ParentAnswer = "only";
-      if (datedCount > 0) answer = await ask(M.datedDescendants(datedCount), "配下も移動する");
-      if (answer === "cancel") return;
-      // Uses the bar position from when the drag started; the stale-write guard catches an edit made meanwhile.
-      const writes = moveWrites(issues, issue, datesAfterDrag(issue, ended.mode, ended.deltaDays, range), ended.deltaDays, answer, { updatedAt: new Date().toISOString(), updatedBy: me.username });
-      touched = writes.map((w) => w.next.key);
-      await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => markOwnSave(byKey.get(next.key) ?? issue, next, me.username));
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-    try {
-      for (const key of touched) await refreshOne(key); // snaps a bar back to the record actually on disk after a failure
-    } catch (e) {
-      // a failed save's message stays; it names the first thing that went wrong
-      setError((shownError) => shownError ?? errorMessage(e));
+      try {
+        // An edge drag moves one date of this issue only; a whole-bar move asks about the dated issues under it.
+        const datedCount = ended.mode === "move" ? datedDescendants(issues, issue.key).length : 0;
+        let answer: ParentAnswer = "only";
+        if (datedCount > 0) answer = await ask(M.datedDescendants(datedCount), "配下も移動する");
+        if (answer === "cancel") return;
+        // Uses the bar position from when the drag started; the stale-write guard catches an edit made meanwhile.
+        const writes = moveWrites(issues, issue, datesAfterDrag(issue, ended.mode, ended.deltaDays, range), ended.deltaDays, answer, { updatedAt: new Date().toISOString(), updatedBy: me.username });
+        touched = writes.map((w) => w.next.key);
+        for (const key of touched) savingKeys.current.add(key);
+        await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => markOwnSave(byKey.get(next.key) ?? issue, next, me.username));
+      } catch (e) {
+        setError(errorMessage(e));
+      }
+      try {
+        for (const key of touched) await refreshOne(key); // snaps a bar back to the record actually on disk after a failure
+      } catch (e) {
+        // a failed save's message stays; it names the first thing that went wrong
+        setError((shownError) => shownError ?? errorMessage(e));
+      }
+    } finally {
+      for (const key of touched) savingKeys.current.delete(key);
     }
   };
 

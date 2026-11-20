@@ -19,8 +19,8 @@ export function reportToHtml(report: ReportContent, ctx: ReportContext): string 
 /** A table cell that prints `s` as text: Markdown and HTML punctuation is escaped, a line break becomes a space. */
 export const mdCell = (s: string): string =>
   s
-    .replace(/\r?\n/g, " ")
-    .replace(/[\\|*_`[\]<>]/g, "\\$&")
+    .replace(/\r\n|\r|\n/g, " ")
+    .replace(/[\\|*_`[\]<>~&]/g, "\\$&")
     .replace(/^(\s*)#/, "$1\\#");
 const mdRow = (cells: string[]): string => `| ${cells.map(mdCell).join(" | ")} |`;
 const mdTable = (headers: string[], rows: string[][]): string => [mdRow(headers), mdRow(headers.map(() => "---")), ...rows.map(mdRow)].join("\n");

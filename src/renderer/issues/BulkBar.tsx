@@ -11,12 +11,34 @@ type DueMode = "keep" | "set" | "clear";
 type Props = {
   count: number;
   project: Project;
-  onExecute(patch: BulkPatch): Promise<BulkResult[]>;
+  /** The outcome of the last run, shown in the bar; the owner keeps it so it outlives the bar. */
+  result: BulkResult[] | null;
+  onExecute(patch: BulkPatch): Promise<void>;
   onClear(): void;
 };
 
+/** The outcome of a bulk run: how many rows changed and why the others did not. */
+export function BulkResultView({ result }: { result: BulkResult[] }): React.JSX.Element {
+  const successCount = result.filter((r) => r.ok).length;
+  const failures = result.filter((r) => !r.ok);
+  return (
+    <div className="bulk-bar__result">
+      <p>{M.bulkUpdated(successCount)}</p>
+      {failures.length > 0 && (
+        <ul className="bulk-bar__failures">
+          {failures.map((f) => (
+            <li key={f.key} className="text--error">
+              {f.key}: {f.message}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Bar shown above the 課題 table while one or more rows are checked; builds one BulkPatch and runs it. */
-export function BulkBar({ count, project, onExecute, onClear }: Props): React.JSX.Element {
+export function BulkBar({ count, project, result, onExecute, onClear }: Props): React.JSX.Element {
   const [status, setStatus] = useState<string>(KEEP);
   const [assignee, setAssignee] = useState<string>(KEEP);
   const [dueMode, setDueMode] = useState<DueMode>("keep");
@@ -25,7 +47,6 @@ export function BulkBar({ count, project, onExecute, onClear }: Props): React.JS
   const [labelToAdd, setLabelToAdd] = useState("");
   const [labelToRemove, setLabelToRemove] = useState("");
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<BulkResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isOverCap = count > MAX_BULK_ROWS;
@@ -40,19 +61,15 @@ export function BulkBar({ count, project, onExecute, onClear }: Props): React.JS
     if (labelToAdd !== "") patch.labelToAdd = labelToAdd;
     if (labelToRemove !== "") patch.labelToRemove = labelToRemove;
     setRunning(true);
-    setResult(null);
     setError(null);
     try {
-      setResult(await onExecute(patch));
+      await onExecute(patch);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setRunning(false);
     }
   };
-
-  const successCount = result?.filter((r) => r.ok).length ?? 0;
-  const failures = result?.filter((r) => !r.ok) ?? [];
 
   return (
     <div className="bulk-bar">
@@ -132,20 +149,7 @@ export function BulkBar({ count, project, onExecute, onClear }: Props): React.JS
       </button>
       {isOverCap && <p className="text--error">{M.bulkOverCap(MAX_BULK_ROWS)}</p>}
       {error && <p className="text--error">{error}</p>}
-      {result && (
-        <div className="bulk-bar__result">
-          <p>{M.bulkUpdated(successCount)}</p>
-          {failures.length > 0 && (
-            <ul className="bulk-bar__failures">
-              {failures.map((f) => (
-                <li key={f.key} className="text--error">
-                  {f.key}: {f.message}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      {result && <BulkResultView result={result} />}
     </div>
   );
 }

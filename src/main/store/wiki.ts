@@ -11,7 +11,7 @@ export const wikiCollection = (layout: Layout): Collection<WikiPage> =>
 export const withWikiDefaults = (page: WikiPage): WikiPage => ({ ...page, parentId: page.parentId ?? null, note: page.note ?? "" });
 
 /** The pages as the share holds them now, past the listing cache: a check that guards a write must see the latest files. */
-const readPagesUncached = async (layout: Layout): Promise<WikiPage[]> => (await readRecords(layout.wiki, isWikiPage, (page) => page.id)).map(withWikiDefaults);
+const readPagesUncached = async (layout: Layout): Promise<WikiPage[]> => (await readRecords(layout.wiki, isWikiPage, (page) => page.id, true)).map(withWikiDefaults);
 
 /** The id is the creation stamp; a collision (same millisecond on two clients) retries with the next millisecond. */
 export async function createPage(layout: Layout, page: WikiPage): Promise<WikiPage> {

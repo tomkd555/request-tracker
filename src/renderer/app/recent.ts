@@ -14,7 +14,7 @@ export interface RecentEntry {
   id: string;
   /** Issue key of an issue entry or a comment. */
   key?: string;
-  /** 件名 of that issue, when it is listed. */
+  /** 件名 of that issue. */
   summary?: string;
   /** Wiki page title. */
   title?: string;
@@ -27,7 +27,7 @@ const GROUP: Record<RecentKind, number> = { created: 0, updated: 0, comment: 1, 
 
 const compareIds = (a: RecentEntry, b: RecentEntry): number => (GROUP[a.kind] === 0 ? compareKeys(a.id, b.id) : compareText(a.id, b.id));
 
-/** Issue creations and saves, comments and wiki page saves, newest first and at most RECENT_LIMIT. */
+/** Issue creations and saves, comments on the issues listed and wiki page saves, newest first and at most RECENT_LIMIT. */
 export function recentUpdates(issues: Issue[], comments: Comment[], pages: WikiPage[]): RecentEntry[] {
   const summaryOf = new Map(issues.map((i) => [i.key, i.summary]));
   const entries: RecentEntry[] = [];
@@ -35,7 +35,11 @@ export function recentUpdates(issues: Issue[], comments: Comment[], pages: WikiP
     entries.push({ kind: "created", at: i.createdAt, by: i.reporter, id: i.key, key: i.key, summary: i.summary });
     if (time(i.updatedAt) > time(i.createdAt)) entries.push({ kind: "updated", at: i.updatedAt, by: i.updatedBy, id: i.key, key: i.key, summary: i.summary });
   }
-  for (const c of comments) entries.push({ kind: "comment", at: c.createdAt, by: c.author, id: c.id, key: c.issueKey, summary: summaryOf.get(c.issueKey) });
+  for (const c of comments) {
+    const summary = summaryOf.get(c.issueKey);
+    if (summary === undefined) continue; // a comment of a deleted issue has no screen to open
+    entries.push({ kind: "comment", at: c.createdAt, by: c.author, id: c.id, key: c.issueKey, summary });
+  }
   for (const p of pages) entries.push({ kind: "wiki", at: p.updatedAt, by: p.updatedBy, id: p.id, title: p.title });
   return entries
     .sort((a, b) => time(b.at) - time(a.at) || GROUP[a.kind] - GROUP[b.kind] || compareIds(a, b))

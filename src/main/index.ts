@@ -21,7 +21,7 @@ function createWindow(): void {
     mainWindow.show();
   });
 
-  // Links in colleagues' Markdown open in the browser; the app window itself never leaves its own document.
+  // Links in colleagues' Markdown open in the browser or the mail program; the app window itself never leaves its own document.
   const openExternally = (url: string): void => {
     let protocol = "";
     try {
@@ -29,16 +29,16 @@ function createWindow(): void {
     } catch {
       return;
     }
-    if (protocol === "http:" || protocol === "https:") void shell.openExternal(url);
+    if (protocol === "http:" || protocol === "https:" || protocol === "mailto:") shell.openExternal(url).catch((e: unknown) => console.error(`main: link not opened: ${url}`, e));
   };
   mainWindow.webContents.setWindowOpenHandler((details) => {
     openExternally(details.url);
     return { action: "deny" };
   });
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (url !== mainWindow.webContents.getURL()) {
+  mainWindow.webContents.on("will-navigate", (event) => {
+    if (event.url !== mainWindow.webContents.getURL()) {
       event.preventDefault();
-      openExternally(url);
+      openExternally(event.url);
     }
   });
 
@@ -48,27 +48,36 @@ function createWindow(): void {
     if (choice === 0) event.preventDefault(); // overrides the page's cancel, so the window closes
   });
 
-  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
-    mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);
-  } else {
-    mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
-  }
+  const devUrl = is.dev ? process.env["ELECTRON_RENDERER_URL"] : undefined;
+  (devUrl ? mainWindow.loadURL(devUrl) : mainWindow.loadFile(join(__dirname, "../renderer/index.html"))).catch((e: unknown) => console.error("main: page not loaded", e));
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId("jp.tomkd.request-tracker");
-  void registerIpc().warm(); // the share is read while the window boots
-
-  app.on("browser-window-created", (_, window) => {
-    optimizer.watchWindowShortcuts(window);
+// A second launch on the same user data would run with a local storage of its own, cut off from the first window's: it hands over to the first window and quits.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) return;
+    if (window.isMinimized()) window.restore();
+    window.focus();
   });
 
-  createWindow();
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId("jp.tomkd.request-tracker");
+    void registerIpc().warm(); // the share is read while the window boots
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on("browser-window-created", (_, window) => {
+      optimizer.watchWindowShortcuts(window);
+    });
+
+    createWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on("window-all-closed", () => {
   app.quit();

@@ -1,33 +1,27 @@
+import { randomUUID } from "node:crypto";
 import { promises as fsp } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { basename, extname, isAbsolute, join, relative, sep } from "node:path";
 import type { AddAttachmentsResult, AttachmentOwner, AttachmentRefusal } from "../../shared/api";
 import type { Attachment } from "../../shared/types";
-import { errorCode, mkdirp } from "./collection";
+import { errorCode, mkdirp, renameWhenFree } from "./collection";
 import { fileStamp } from "./fileStamp";
 import { SHARE_UNREACHABLE, type Layout } from "./paths";
 
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
-// Extensions Windows hands to an interpreter or installer on open: executables, script hosts, shortcuts, help files,
-// ClickOnce launchers. Shared by the add path and the open path. Extend when a new runnable type turns up.
-const REFUSED_EXTENSIONS = new Set([
-  ".exe", ".bat", ".cmd", ".com", ".ps1", ".psc1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".msi", ".msp", ".scr", ".pif", ".lnk", ".url", ".scf", ".reg", ".msc", ".cpl", ".jar",
-  ".chm", ".application", ".appref-ms", ".settingcontent-ms",
-]);
 
 /** How many numbered names ("report (2).xlsx", …) are tried before an add gives up. */
 const MAX_NAME_ATTEMPTS = 1000;
 
-let tempCopySeq = 0; // distinguishes concurrent copies of the same name within one process
-
-/** An attachment name is one path segment chosen by another user; it never walks out of the issue folder. */
+/**
+ * An attachment name is one path segment chosen by another user; it never walks out of the issue folder.
+ * Windows drops a trailing dot or space from a file name and reads ":" as a stream of another file, so such a name would act on a file other than the one it names.
+ */
 export function assertName(name: string): string {
-  if (name === "" || name === "." || name === ".." || /[\\/]/.test(name) || name.startsWith(".")) {
+  if (name === "" || name === "." || name === ".." || /[\\/:]/.test(name) || name.startsWith(".") || /[. ]$/.test(name)) {
     throw new Error(`invalid attachment name: ${name}`);
   }
   return name;
 }
-
-export const isRefusedExtension = (name: string): boolean => REFUSED_EXTENSIONS.has(extname(name).toLowerCase());
 
 export const attachmentDir = (layout: Layout, owner: AttachmentOwner): string => (owner.kind === "issue" ? layout.attachments(owner.id) : layout.wikiAttachments(owner.id));
 const attachmentTrashDir = (layout: Layout, owner: AttachmentOwner): string => (owner.kind === "issue" ? layout.trashAttachments(owner.id) : layout.trashWikiAttachments(owner.id));
@@ -74,9 +68,7 @@ export function suffixed(name: string, copyNumber: number, isFolder: boolean): s
 }
 
 function refusalOf(path: string, sizeBytes: number): AttachmentRefusal | null {
-  if (isRefusedExtension(path)) return { path, reason: "extension" };
-  if (sizeBytes > MAX_ATTACHMENT_BYTES) return { path, reason: "size" };
-  return null;
+  return sizeBytes > MAX_ATTACHMENT_BYTES ? { path, reason: "size" } : null;
 }
 
 /** Claims a final file name with an exclusive create, then renames the temp file over the placeholder; resolves to the name taken. */
@@ -91,7 +83,7 @@ async function placeFile(dir: string, tempPath: string, name: string): Promise<s
       throw e;
     }
     try {
-      await fsp.rename(tempPath, target);
+      await renameWhenFree(tempPath, target);
     } catch (e) {
       await fsp.unlink(target).catch(() => {}); // our own empty placeholder, never user data
       throw e;
@@ -105,18 +97,18 @@ async function placeFile(dir: string, tempPath: string, name: string): Promise<s
 async function placeFolder(dir: string, tempPath: string, name: string): Promise<string> {
   for (let copyNumber = 1; copyNumber < MAX_NAME_ATTEMPTS; copyNumber++) {
     const candidate = suffixed(name, copyNumber, true);
+    const target = join(dir, candidate);
+    const isTaken = (): Promise<boolean> => fsp.access(target).then(() => true, () => false);
+    if (await isTaken()) continue;
     try {
-      await fsp.access(join(dir, candidate));
-      continue;
-    } catch {
-      // free so far
-    }
-    try {
-      await fsp.rename(tempPath, join(dir, candidate));
+      await fsp.rename(tempPath, target);
       return candidate;
     } catch (e) {
-      if (["EEXIST", "ENOTEMPTY", "EPERM"].includes(errorCode(e) ?? "")) continue;
-      throw e;
+      if (!["EEXIST", "ENOTEMPTY", "EPERM"].includes(errorCode(e) ?? "")) throw e;
+      if (await isTaken()) continue; // another client took the name between the check and the rename
+      // The name is still free, so a program reading the copied files holds them: wait for it on this name.
+      await renameWhenFree(tempPath, target);
+      return candidate;
     }
   }
   throw new Error(`no free name for ${name}`);
@@ -158,7 +150,7 @@ export async function addAttachments(layout: Layout, owner: AttachmentOwner, pat
       result.refused.push({ path: sourcePath, reason: "name" }); // the listing hides dot names and assertName refuses them, so a copy could never be opened or removed
       continue;
     }
-    const tempPath = join(dir, `.${name}.tmp-${process.pid}-${tempCopySeq++}`);
+    const tempPath = join(dir, `.${name}.tmp-${randomUUID()}`); // a name no other add uses, on this machine or on another one writing the same share
     // One path that fails (source gone, share dropped mid-copy) is reported with the refusals, and the rest are still added.
     try {
       const stats = await fsp.lstat(sourcePath);
@@ -167,6 +159,15 @@ export async function addAttachments(layout: Layout, owner: AttachmentOwner, pat
         continue;
       }
       if (stats.isDirectory()) {
+        // A folder that holds this attachments folder would be copied into its own copy without end.
+        // Compared by their real paths, so the same folder named through a mapped drive and through \\server\share is seen as one.
+        const realPathOf = (path: string): Promise<string> => fsp.realpath(path).catch(() => path);
+        const toAttachments = relative(await realPathOf(sourcePath), await realPathOf(dir));
+        const isOutsideSource = toAttachments === ".." || toAttachments.startsWith(`..${sep}`) || isAbsolute(toAttachments);
+        if (!isOutsideSource) {
+          result.refused.push({ path: sourcePath, reason: "failed" });
+          continue;
+        }
         await copyFolder(sourcePath, tempPath, result.refused);
         result.added.push(await placeFolder(dir, tempPath, name));
         continue;
@@ -198,5 +199,5 @@ export async function removeAttachment(layout: Layout, owner: AttachmentOwner, n
   } catch {
     // free name
   }
-  await fsp.rename(join(attachmentDir(layout, owner), name), trashPath);
+  await renameWhenFree(join(attachmentDir(layout, owner), name), trashPath);
 }

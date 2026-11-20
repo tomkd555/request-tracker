@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Comment, Issue, IssueStatus } from "../../shared/types";
 import { Markdown } from "../app/Markdown";
 import { displayNameOf, useSession } from "../app/SessionContext";
@@ -32,19 +32,51 @@ export function Comments({ issue, saveCount, saveStatus }: Props): React.JSX.Ele
   const issueKey = issue.key;
   const nameOf = useCallback((u: string | null) => displayNameOf(users, u), [users]);
 
-  const loadComments = useCallback(async () => setComments(await window.api.comments.list(issueKey)), [issueKey]);
-  const loadChanges = useCallback(async () => {
-    const history = await window.api.issues.history(issueKey);
-    // The record as stored: `issue` shows a deleted stage as the first stage, which would read as a status change.
-    const stored = (await window.api.issues.get(issueKey)) ?? issue;
-    setChanges(changeEntries(history, stored, nameOf, project.fields, project.statuses, project.milestones ?? []));
-  }, [issueKey, issue, nameOf, project.fields, project.statuses, project.milestones]);
+  // The newest comment read; a read that finishes after a newer one started, or after unmount, is dropped.
+  const commentsRead = useRef(0);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [changesError, setChangesError] = useState<string | null>(null);
+  const loadError = commentsError ?? changesError;
+
+  const loadComments = useCallback(async () => {
+    const read = ++commentsRead.current;
+    try {
+      const list = await window.api.comments.list(issueKey);
+      if (read !== commentsRead.current) return;
+      setComments(list);
+      setCommentsError(null);
+    } catch (e) {
+      if (read === commentsRead.current) setCommentsError(errorMessage(e));
+    }
+  }, [issueKey]);
+  const loadChanges = useCallback(
+    async (isCurrent: () => boolean) => {
+      try {
+        const history = await window.api.issues.history(issueKey);
+        // The record as stored: `issue` shows a deleted stage as the first stage, which would read as a status change.
+        const stored = (await window.api.issues.get(issueKey)) ?? issue;
+        if (!isCurrent()) return;
+        setChanges(changeEntries(history, stored, nameOf, project.fields, project.statuses, project.milestones ?? []));
+        setChangesError(null);
+      } catch (e) {
+        if (isCurrent()) setChangesError(errorMessage(e));
+      }
+    },
+    [issueKey, issue, nameOf, project.fields, project.statuses, project.milestones],
+  );
 
   useEffect(() => {
     void loadComments();
+    return () => {
+      commentsRead.current++;
+    };
   }, [loadComments]);
   useEffect(() => {
-    void loadChanges();
+    let isCurrent = true;
+    void loadChanges(() => isCurrent);
+    return () => {
+      isCurrent = false;
+    };
   }, [loadChanges, saveCount]);
   useEffect(() => setStatus(issue.status), [issue.status]);
 
@@ -90,8 +122,9 @@ export function Comments({ issue, saveCount, saveStatus }: Props): React.JSX.Ele
           </button>
         </div>
       </div>
+      {loadError !== null && <p className="text--error">{loadError}</p>}
       {feed.length === 0 ? (
-        <p className="text--muted">{M.noComments}</p>
+        loadError === null && <p className="text--muted">{M.noComments}</p>
       ) : (
         <ul className="comments">
           {feed.map((f) =>

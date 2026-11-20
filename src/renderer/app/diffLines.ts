@@ -5,8 +5,8 @@ export interface DiffLine { kind: DiffKind; text: string }
 
 /** Every line of both texts, in order, marked same / added / deleted. */
 export function diffLines(before: string, after: string): DiffLine[] {
-  const beforeLines = before.split("\n");
-  const afterLines = after.split("\n");
+  const beforeLines = before === "" ? [] : before.split("\n");
+  const afterLines = after === "" ? [] : after.split("\n");
   // ponytail: O(n·m) table; a page of a few thousand lines is still instant
   const beforeCount = beforeLines.length;
   const afterCount = afterLines.length;

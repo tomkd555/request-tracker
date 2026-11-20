@@ -24,7 +24,9 @@ const URL_PLACEHOLDER = "url";
 function prefixLines(sel: TextSelection, prefix: (lineIndex: number) => string): TextSelection {
   const { text } = sel;
   const from = sel.start === 0 ? 0 : text.lastIndexOf("\n", sel.start - 1) + 1;
-  const toBreak = text.indexOf("\n", sel.end);
+  // A selection that ends right after a line break (Shift+Down) does not reach the next line.
+  const searchEnd = sel.end > sel.start && text[sel.end - 1] === "\n" ? sel.end - 1 : sel.end;
+  const toBreak = text.indexOf("\n", searchEnd);
   const to = toBreak === -1 ? text.length : toBreak;
   const lines = text.slice(from, to).split("\n");
   const block = lines.map((l, i) => prefix(i) + l).join("\n");

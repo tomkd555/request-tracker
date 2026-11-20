@@ -7,7 +7,7 @@ import { Attachments } from "../issues/Attachments";
 import { formatDateTime } from "../issues/labels";
 import { useWiki } from "./useWiki";
 import { WikiHistory } from "./WikiHistory";
-import { ancestorsOf, childrenMap } from "./wikiTree";
+import { ancestorsOf, childrenMap, hasDuplicateTitle } from "./wikiTree";
 import { errorMessage, M } from "../messages";
 
 interface Heading { level: number; text: string; id: string }
@@ -36,6 +36,10 @@ export function WikiView({ id }: { id: string }): React.JSX.Element {
 
   const restore = async (old: WikiPage): Promise<void> => {
     setError(null);
+    if (hasDuplicateTitle(pages, page.id, old.title)) {
+      setError(M.duplicateTitle);
+      return;
+    }
     try {
       await window.api.wiki.put({ ...page, title: old.title, body: old.body, note: `${formatDateTime(old.updatedAt)} の版に戻す`, updatedAt: new Date().toISOString(), updatedBy: me.username }, page.updatedAt);
       await refreshOne(page.id);

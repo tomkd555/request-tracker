@@ -21,6 +21,7 @@ export const M = {
   icsSaved: "ICSを保存しました",
   icsNoDueDate: "期限日のあるマイルストーンがありません",
   noBurndownIssues: "このマイルストーンの課題はありません",
+  burndownNoDays: "開始日が終了日（期限日、なければ今日）より後のため、表示できる日がありません",
   markdownSaved: "Markdownを保存しました",
   copied: "クリップボードにコピーしました",
   issueAdded: (key: string): string => `${key} を追加しました`,
@@ -88,7 +89,6 @@ export const M = {
   openFailed: (detail: string): string => `開けません：${detail}`,
 
   attachTooLarge: (names: string[]): string => `50MBを超えるファイルは添付できません：${names.join("、")}`,
-  attachExecutable: (names: string[]): string => `実行ファイルは添付できません：${names.join("、")}`,
   attachLink: (names: string[]): string => `リンクは添付できません：${names.join("、")}`,
   attachFailed: (names: string[]): string => `添付できませんでした：${names.join("、")}`,
   attachDotName: (names: string[]): string => `名前が「.」で始まるファイルやフォルダは添付できません：${names.join("、")}`,
@@ -103,7 +103,6 @@ const ERROR_BY_CODE: Record<string, string> = {
   "in-use": "このメンバーが担当者か登録者になっている課題があるため削除できません",
   "already-claimed": "別の端末がこの名前を使っています",
   "share-unreachable": "共有フォルダに接続できません",
-  "refused-extension": "実行ファイルは開けません",
 };
 /** The wiki names pages where issues name issues. */
 const WIKI_ERROR_BY_CODE: Record<string, string> = { ...ERROR_BY_CODE, cycle: "このページの下のページは親ページに選べません", "has-children": M.pageHasChildren };
@@ -138,7 +137,6 @@ export const fileName = (path: string): string => path.split(/[\\/]/).pop() || p
 /** The refusal reasons in the order their messages show, each with its message. */
 const REFUSAL_MESSAGES: [AttachmentRefusal["reason"], (names: string[]) => string][] = [
   ["size", M.attachTooLarge],
-  ["extension", M.attachExecutable],
   ["link", M.attachLink],
   ["name", M.attachDotName],
   ["failed", M.attachFailed],

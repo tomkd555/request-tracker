@@ -1,5 +1,4 @@
 import { promises as fsp } from "node:fs";
-import { join } from "node:path";
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_STATUSES,
@@ -14,7 +13,7 @@ import {
   type Project,
   type StatusDef,
 } from "../../shared/types";
-import { mkdirp, readRecord, toJsonText, writeAtomic } from "./collection";
+import { createExclusive, errorCode, keepVersion, mkdirp, readRecord, toJsonText, writeAtomic } from "./collection";
 import { fileStamp } from "./fileStamp";
 import { assertShareReachable, collectionDirs, type Layout } from "./paths";
 
@@ -83,7 +82,12 @@ export async function initProject(layout: Layout, fiscalYearStartMonth: number):
     milestones: [],
   };
   for (const dir of collectionDirs(layout)) await mkdirp(dir);
-  await fsp.writeFile(layout.projectFile, toJsonText(project), { encoding: "utf8", flag: "wx" }); // exclusive: a file that appeared meanwhile stays
+  try {
+    await createExclusive(layout.projectFile, toJsonText(project)); // exclusive: a file that appeared meanwhile stays
+  } catch (e) {
+    if (errorCode(e) !== "EEXIST") throw e;
+    return requireProject(layout); // another instance created the project first: this one carries on with that project
+  }
   return project;
 }
 
@@ -189,7 +193,7 @@ export async function putMilestones(layout: Layout, milestones: Milestone[]): Pr
 async function writeProject(layout: Layout, project: Project): Promise<Project> {
   if (!isProject(project)) throw new Error("invalid record"); // readProject would reject the file this writes
   await mkdirp(layout.historyProject);
-  await fsp.copyFile(layout.projectFile, join(layout.historyProject, `${fileStamp(new Date().toISOString())}.json`));
+  await keepVersion(layout.projectFile, layout.historyProject, fileStamp(new Date().toISOString()));
   await writeAtomic(layout.projectFile, toJsonText(project));
   return project;
 }

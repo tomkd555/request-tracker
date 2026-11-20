@@ -1,5 +1,5 @@
-/** A first character that makes a spreadsheet run the cell as a formula. */
-const FORMULA_START = /^[=+\-@\t\r]/;
+/** A formula character after any number of apostrophes; the guard `csvCell` adds is one more, so `stripFormulaGuard` removes only that one. */
+const FORMULA_START = /^'*[=+\-@\t\r]/;
 
 /** One CSV cell; a value holding a quote, comma or line break is quoted. */
 export const csvCell = (v: string | number): string => {

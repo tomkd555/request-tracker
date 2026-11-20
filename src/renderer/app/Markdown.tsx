@@ -3,7 +3,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { WikiContext } from "../wiki/useWiki";
 import { normalizeTitle } from "../wiki/wikiTree";
-import { headingIdOf, linkProps, makeIdAllocator } from "./anchorLink";
+import { headingIdOf, linkProps, makeIdAllocator, markdownUrl } from "./anchorLink";
 import { linkIssueKeys } from "./linkIssueKeys";
 import { linkWikiPages, MISSING_PAGE_PATH } from "./wikiLinks";
 
@@ -45,7 +45,7 @@ export function Markdown({ source, demote = 2, wikiParentId = null }: Props): Re
   const components = useMemo(() => markdownComponents(demote), [demote, text]);
   return (
     <div className="markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} urlTransform={markdownUrl}>{text}</ReactMarkdown>
     </div>
   );
 }

@@ -14,6 +14,7 @@ export function resolveParent(text: string, candidates: Issue[]): { key: string 
 
 /** The text a field that saves on blur shows once `text` is committed: an invalid text goes back to `restored`, with the reason. */
 export function settleParentText(text: string, candidates: Issue[], restored: string): { text: string; message: string | null } {
+  if (text === restored) return { text, message: null };
   return resolveParent(text, candidates).invalid ? { text: restored, message: M.parentNotFound } : { text, message: null };
 }
 
@@ -66,6 +67,7 @@ export function ParentField({ value, candidates, onChange, commitOn, className, 
           const settled = settleParentText(text, candidates, committedText);
           setText(settled.text);
           setMessage(settled.message);
+          if (text === committedText) return;
           const r = resolveParent(text, candidates);
           onChange(r.key, r.invalid);
         }}

@@ -62,9 +62,11 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   const { byKey, issues, refreshOne } = useIssues();
   const copySource = copyFrom !== null ? byKey.get(copyFrom) : undefined;
   const templates = project.categoryTemplates;
+  // An own-property read, so a 種別 named like an Object.prototype member ("constructor") has no template.
+  const templateOf = (name: string): (typeof templates)[string] | undefined => (Object.hasOwn(templates, name) ? templates[name] : undefined);
   const initialCategory = copySource?.category || (project.categories[0] ?? "");
-  const initialSummary = copySource?.summary ?? templates[initialCategory]?.summary ?? "";
-  const initialDescription = copySource?.description ?? templates[initialCategory]?.body ?? "";
+  const initialSummary = copySource?.summary ?? templateOf(initialCategory)?.summary ?? "";
+  const initialDescription = copySource?.description ?? templateOf(initialCategory)?.body ?? "";
   const [category, setCategory] = useState(initialCategory);
   const [summary, setSummary] = useState(initialSummary);
   const [description, setDescription] = useState(initialDescription);
@@ -90,7 +92,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
 
   const parentCandidates = issues.filter((i) => depthOf(byKey, i.key) < MAX_DEPTH).sort(byKeyDesc);
   const presetParent = parentKey !== null ? byKey.get(parentKey) : undefined;
-  const template = templates[category];
+  const template = templateOf(category);
   const templateApplied = template !== undefined && summary === template.summary && description === template.body;
   const isTextUntouched = (summary === startingText.summary && description === startingText.description) || templateApplied;
   useNavigationGuard(!busy && (!isTextUntouched || attachmentPaths.length > 0));
@@ -106,7 +108,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
   };
   const changeCategory = (next: string): void => {
     setCategory(next);
-    const t = templates[next];
+    const t = templateOf(next);
     const untouched = (summary === "" || templateApplied) && (description === "" || templateApplied);
     if (t !== undefined && untouched) applyTemplate(t);
   };
@@ -152,7 +154,7 @@ function IssueForm({ parentKey, copyFrom }: Props): React.JSX.Element {
     };
     try {
       const issue = await window.api.issues.create(draft);
-      await refreshOne(issue.key);
+      await refreshOne(issue.key).catch(() => undefined); // the issue is saved: a failed re-read must not leave the form to be sent a second time; the next screen reads the share again
       const notes: string[] = [];
       if (attachmentPaths.length > 0) {
         try {

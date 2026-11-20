@@ -56,14 +56,41 @@ export function SelectField<T extends string>({ value, options, onSave, classNam
 
 type DateProps = { value: string | null; onSave(v: string | null): void; className?: string; ariaLabel?: string };
 
+/**
+ * Date field. A date picked in the calendar saves at once. A date typed on the keyboard saves on blur or Enter:
+ * each digit typed into the year is a complete date of its own ("0002-10-01"), and a segment being retyped reads as no date.
+ * Escape restores the saved value.
+ */
 export function DateField({ value, onSave, className, ariaLabel }: DateProps): React.JSX.Element {
+  const saved = value ?? "";
+  const [draft, setDraft] = useState(saved);
+  const isTyping = useRef(false);
+  useEffect(() => setDraft(saved), [saved]);
+  /** Shows the saved date again; the input is reset directly as well, since a half-typed date has the same value ("") as a saved empty one and React would leave its segments on screen. */
+  const restore = (input: HTMLInputElement): void => {
+    isTyping.current = false;
+    input.value = saved;
+    setDraft(saved);
+  };
+  const commit = (input: HTMLInputElement): void => {
+    const next = input.validity.badInput ? saved : input.value; // a date left half-typed goes back to the saved one; an emptied field clears the date
+    restore(input); // the saved date shows until the save lands, and stays when the save is refused
+    if (next !== saved) onSave(next || null);
+  };
   return (
     <input
       type="date"
       className={className}
       aria-label={ariaLabel}
-      value={value ?? ""}
-      onChange={(e) => onSave(e.target.value || null)}
+      value={draft}
+      onChange={(e) => (isTyping.current ? setDraft(e.target.value) : commit(e.target))}
+      onBlur={(e) => commit(e.target)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit(e.currentTarget);
+        else if (e.key === "Escape") restore(e.currentTarget);
+        // The keys that edit a segment; Alt+↓, which opens the calendar, is none of them.
+        else if (!e.altKey && (/^\d$/.test(e.key) || ["Backspace", "Delete", "ArrowUp", "ArrowDown"].includes(e.key))) isTyping.current = true;
+      }}
     />
   );
 }

@@ -23,7 +23,7 @@ import { applyWrites, completionWrites, openDescendants, type ParentAnswer } fro
 import { byKeyAsc, byKeyDesc } from "./compareKeys";
 import { addRelation, relatedIssues, relationRows } from "./relatedIssues";
 import { restorePatch } from "./restoreIssue";
-import { markSeen } from "./seen";
+import { markOwnSave, markSeen, seenStamp } from "./seen";
 import { ProgressCount, TreeKeyCell } from "./TreeCells";
 import { useIssues } from "./useIssues";
 import { errorMessage, M } from "../messages";
@@ -35,7 +35,7 @@ function withLabelChange(base: string[], shown: string[], picked: string[]): str
 
 export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Element {
   const { me, users, project, config } = useSession();
-  const { byKey, issues: allIssues, isLoaded, refreshOne, watched, setWatched } = useIssues();
+  const { byKey, issues: allIssues, isLoaded, refreshOne, watched, setWatched, notifySeenChanged } = useIssues();
   const [saveCount, setSaveCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -52,8 +52,12 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
   useEffect(() => {
     saveBase.current = issue;
-    if (issue) markSeen(issue);
-  }, [issue]);
+    if (!issue) return;
+    const stamp = seenStamp(issue.key);
+    markSeen(issue);
+    // Only a stamp that changed, and was stored, notifies: the next run of this effect then finds the stamp current and stops.
+    if (stamp !== issue.updatedAt && seenStamp(issue.key) === issue.updatedAt) notifySeenChanged();
+  }, [issue, notifySeenChanged]);
   if (!isLoaded) return <div className="text--loading">読み込み中</div>;
   if (!issue) return <p>課題 {issueKey} が見つかりません</p>;
   const { statuses } = project;
@@ -103,16 +107,16 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
     });
   };
   const saveDates = async (patch: { startDate?: string | null; dueDate?: string | null }): Promise<void> => {
-    const refusal = dateRefusal(saveBase.current ?? issue, patch);
-    if (refusal !== null) {
-      setError(refusal);
-      return;
-    }
-    await save(patch);
+    // Checked inside the queued step, against the record the save writes over, so an earlier queued save counts.
+    await save((base) => {
+      const refusal = dateRefusal(base, patch);
+      if (refusal !== null) throw new Error(refusal);
+      return patch;
+    });
   };
   const reloadIssue = (): void => {
     setError(null);
-    void refreshOne(issue.key);
+    refreshOne(issue.key).catch((e: unknown) => setError(errorMessage(e)));
   };
   const toggleWatch = async (): Promise<void> => {
     setError(null);
@@ -125,8 +129,9 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
   const addNewRelation = (): void => {
     if (newRelationKey === null || isNewRelationKeyInvalid) return;
     const relation = { type: newRelationType, key: newRelationKey };
-    void save((base) => ({ relations: addRelation(base.relations, relation) }));
-    setNewRelationKey(null);
+    void save((base) => ({ relations: addRelation(base.relations, relation) })).then((ok) => {
+      if (ok) setNewRelationKey((typedKey) => (typedKey === relation.key ? null : typedKey)); // a key picked while the save ran stays
+    });
   };
   const removeRelation = (row: { type: RelationType; key: string }): void => {
     void save((base) => ({ relations: base.relations.filter((r) => !(r.type === row.type && r.key === row.key)) }));
@@ -155,13 +160,18 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
       try {
         await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => {
           if (next.key === issue.key) saveBase.current = next;
+          else markOwnSave(byKey.get(next.key) ?? issue, next, me.username);
         });
         return true;
       } catch (e) {
         setError(errorMessage(e));
         return false;
       } finally {
-        for (const w of writes) await refreshOne(w.next.key);
+        try {
+          for (const w of writes) await refreshOne(w.next.key);
+        } catch (e) {
+          setError((shownError) => shownError ?? errorMessage(e)); // a failed save's message stays; it names the first thing that went wrong
+        }
         setSaveCount((v) => v + 1);
       }
     });
@@ -343,6 +353,7 @@ export function IssueDetail({ issueKey }: { issueKey: string }): React.JSX.Eleme
             <HistoryList
               issueKey={issue.key}
               saveCount={saveCount}
+              updatedAt={issue.updatedAt}
               onRestore={(old) => {
                 const { patch, parentKept } = restorePatch(saveBase.current ?? issue, old, allIssues);
                 void save(patch).then((ok) => {

@@ -36,7 +36,10 @@ const BRACKET_OFFSET_PX = 9;
 const BRACKET_HEIGHT_PX = 5;
 
 // ponytail: a fixed character budget stands in for measuring the rendered text width; tighten it or measure for real if labels still clip
-const truncate = (s: string, max: number): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+const truncate = (s: string, max: number): string => {
+  const chars = Array.from(s); // by code point: slicing UTF-16 units can split a surrogate pair
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : s;
+};
 
 const TONE_CLASS: Record<GanttRow["tone"], string> = {
   normal: "report-doc__gantt-bar",

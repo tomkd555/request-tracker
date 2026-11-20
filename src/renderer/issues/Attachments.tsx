@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AttachmentOwner } from "../../shared/api";
 import type { Attachment } from "../../shared/types";
 import { formatDateTime } from "./labels";
@@ -20,9 +20,26 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
   const [dragging, setDragging] = useState(false);
   const { kind, id } = owner;
 
-  const load = useCallback(async () => setAttachments(await window.api.attachments.list({ kind, id })), [kind, id]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // The newest read; a read that finishes after a newer one started, or after unmount, is dropped.
+  const latestRead = useRef(0);
+
+  const load = useCallback(async () => {
+    const read = ++latestRead.current;
+    try {
+      const list = await window.api.attachments.list({ kind, id });
+      if (read !== latestRead.current) return;
+      setAttachments(list);
+      setLoadError(null);
+    } catch (e) {
+      if (read === latestRead.current) setLoadError(errorMessage(e));
+    }
+  }, [kind, id]);
   useEffect(() => {
     void load();
+    return () => {
+      latestRead.current++;
+    };
   }, [load]);
 
   /** `paths` null lets the main process show the file picker. */
@@ -87,8 +104,9 @@ export function Attachments({ owner }: { owner: AttachmentOwner }): React.JSX.El
           {m}
         </p>
       ))}
+      {loadError !== null && <p className="text--error">{loadError}</p>}
       {attachments.length === 0 ? (
-        <p className="text--muted">{M.noAttachments}</p>
+        loadError === null && <p className="text--muted">{M.noAttachments}</p>
       ) : (
         <table className="attachments__table">
           <tbody>

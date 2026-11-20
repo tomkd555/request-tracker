@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { Issue } from "../../shared/types";
 import { useSession } from "../app/SessionContext";
 import { withKnownStatus } from "./labels";
@@ -27,17 +27,26 @@ export function IssuesProvider({ children }: { children: React.ReactNode }): Rea
   const [watchedKeys, setWatchedKeys] = useState<string[]>([]);
   const [seenTick, setSeenTick] = useState(0);
 
+  const refreshCount = useRef(0); // bumped by every refreshOne
+
   const reload = useCallback(async () => {
-    const [list, keys] = await Promise.all([window.api.issues.list(), window.api.watch.list()]);
-    setStoredByKey(new Map(list.map((i) => [i.key, i])));
-    setWatchedKeys(keys);
-    setIsLoaded(true);
+    for (;;) {
+      const refreshesAtStart = refreshCount.current;
+      const [list, keys] = await Promise.all([window.api.issues.list(), window.api.watch.list()]);
+      // A list read that began before a save's own re-read holds the record as it was before the save, and would put it back: read again.
+      if (refreshCount.current !== refreshesAtStart) continue;
+      setStoredByKey(new Map(list.map((i) => [i.key, i])));
+      setWatchedKeys(keys);
+      setIsLoaded(true);
+      return;
+    }
   }, []);
 
   const notifySeenChanged = useCallback(() => setSeenTick((n) => n + 1), []);
 
   const refreshOne = useCallback(async (key: string) => {
     const issue = await window.api.issues.get(key);
+    refreshCount.current++;
     setStoredByKey((m) => {
       const next = new Map(m);
       if (issue === null) next.delete(key);

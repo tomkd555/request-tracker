@@ -1,6 +1,6 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { headingIdOf, linkProps, makeIdAllocator } from "../app/anchorLink";
+import { headingIdOf, linkProps, makeIdAllocator, markdownUrl } from "../app/anchorLink";
 import { codeLineFlags } from "../app/markdownCode";
 import { M } from "../messages";
 import { expandVariables, parseBody, type BodySegment, type ReportContent, type ReportContext } from "./blocks";
@@ -69,7 +69,7 @@ export function ReportDocument({ report, ctx, showTitle = true, showInvalid = tr
       {segments.map((seg, i) => {
         if (seg.kind === "markdown") {
           return (
-            <ReactMarkdown key={i} remarkPlugins={[remarkGfm]} components={markdownComponents(headingShift, (id, offset) => nextId(id, `${i}:${offset}`))}>
+            <ReactMarkdown key={i} remarkPlugins={[remarkGfm]} components={markdownComponents(headingShift, (id, offset) => nextId(id, `${i}:${offset}`))} urlTransform={markdownUrl}>
               {expandVariables(seg.text, ctx, report.terms)}
             </ReactMarkdown>
           );

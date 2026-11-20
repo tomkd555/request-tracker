@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useChoiceDialog } from "../app/ChoiceDialog";
 import { textOn } from "../app/theme";
 import { displayNameOf, useSession } from "../app/SessionContext";
@@ -27,6 +27,8 @@ export function Kanban(): React.JSX.Element {
   const { issues, byKey, refreshOne } = useIssues();
   const [filter, setFilter] = useState<IssueFilter>(() => defaultFilter(project.statuses));
   const [error, setError] = useState<string | null>(null);
+  // The cards being saved: a second drop of one of them, made before the first is saved and re-read, would send the card's old stamp and be refused as another member's change.
+  const savingKeys = useRef(new Set<string>());
   const { ask, dialog } = useChoiceDialog();
   const today = todayYmd();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
@@ -39,26 +41,32 @@ export function Kanban(): React.JSX.Element {
     e.preventDefault();
     const key = e.dataTransfer.getData(ISSUE_KEY_MIME);
     const issue = byKey.get(key);
-    if (!issue || issue.status === status) return;
+    if (!issue || issue.status === status || savingKeys.current.has(key)) return;
     setError(null);
     let touched = [key];
+    savingKeys.current.add(key);
     try {
-      let answer: ParentAnswer = "only";
-      const openCount = isDoneStatus(project.statuses, status) ? openDescendants(issues, key, project.statuses).length : 0;
-      if (openCount > 0) answer = await ask(M.openDescendants(openCount), "配下も完了にする");
-      if (answer === "cancel") return;
-      const writes = completionWrites(issues, issue, status, answer, project.statuses, { updatedAt: new Date().toISOString(), updatedBy: me.username });
-      touched = writes.map((w) => w.next.key);
-      await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => markOwnSave(byKey.get(next.key) ?? issue, next, me.username));
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-    // A failed first write leaves the record on disk unchanged, so the card renders back in its original column.
-    try {
-      for (const touchedKey of touched) await refreshOne(touchedKey);
-    } catch (err) {
-      // a failed save's message stays; it names the first thing that went wrong
-      setError((shownError) => shownError ?? errorMessage(err));
+      try {
+        let answer: ParentAnswer = "only";
+        const openCount = isDoneStatus(project.statuses, status) ? openDescendants(issues, key, project.statuses).length : 0;
+        if (openCount > 0) answer = await ask(M.openDescendants(openCount), "配下も完了にする");
+        if (answer === "cancel") return;
+        const writes = completionWrites(issues, issue, status, answer, project.statuses, { updatedAt: new Date().toISOString(), updatedBy: me.username });
+        touched = writes.map((w) => w.next.key);
+        for (const touchedKey of touched) savingKeys.current.add(touchedKey);
+        await applyWrites(writes, (next, expected) => window.api.issues.put(next, expected), (next) => markOwnSave(byKey.get(next.key) ?? issue, next, me.username));
+      } catch (err) {
+        setError(errorMessage(err));
+      }
+      // A failed first write leaves the record on disk unchanged, so the card renders back in its original column.
+      try {
+        for (const touchedKey of touched) await refreshOne(touchedKey);
+      } catch (err) {
+        // a failed save's message stays; it names the first thing that went wrong
+        setError((shownError) => shownError ?? errorMessage(err));
+      }
+    } finally {
+      for (const touchedKey of touched) savingKeys.current.delete(touchedKey);
     }
   };
 

@@ -45,6 +45,7 @@ export function ProjectSettings(): React.JSX.Element {
       }
       if (!window.confirm(M.confirmReplaceSettings)) return;
       const s = parsed.settings;
+      let refreshError: string | null = null;
       try {
         await window.api.project.putStatuses(s.statuses);
         await window.api.project.put(s.categories, s.categoryColors, s.categoryTemplates);
@@ -52,10 +53,15 @@ export function ProjectSettings(): React.JSX.Element {
         await window.api.project.putFields(s.fields);
         await window.api.project.putMilestones(s.milestones);
       } finally {
-        await refreshProject();
+        // A failed refresh must not replace the import's own error or skip the reset of the sections.
+        try {
+          await refreshProject();
+        } catch (e) {
+          refreshError = errorMessage(e);
+        }
         setImportCount((n) => n + 1);
       }
-      setMessage({ text: M.settingsImported, isError: false });
+      setMessage(refreshError === null ? { text: M.settingsImported, isError: false } : { text: refreshError, isError: true });
     } catch (e) {
       setMessage({ text: errorMessage(e), isError: true });
     }

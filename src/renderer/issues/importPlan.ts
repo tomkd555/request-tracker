@@ -181,7 +181,7 @@ export function planImport(csv: string[][], ctx: ImportContext): ImportPlan {
     }
 
     if (errors.length > 0) return { ok: false, summary, errors };
-    const description = cellText(r, "詳細") || (project.categoryTemplates[category]?.body ?? "");
+    const description = cellText(r, "詳細") || ((Object.hasOwn(project.categoryTemplates, category) ? project.categoryTemplates[category]?.body : undefined) ?? "");
     return {
       ok: true,
       parent,
