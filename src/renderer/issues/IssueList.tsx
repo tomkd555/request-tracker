@@ -59,7 +59,7 @@ export function IssueList(): React.JSX.Element {
   // A match keeps its ancestors as context rows, so its level stays readable under a filter.
   const { issues: shown, context } = withAncestors(issues, matches);
   const rows = treeRows(shown, compare, collapsed);
-  // Every parent in the tree on screen, folded rows included: the targets of 全て折りたたむ / 全て展開.
+  // Parents on screen, for 全て折りたたむ / 全て展開.
   const parentKeys = [...rootedChildrenMap(shown).keys()].filter((k): k is string => k !== null);
   const isAllCollapsed = parentKeys.length > 0 && parentKeys.every((k) => collapsed.has(k));
   const isAllExpanded = parentKeys.every((k) => !collapsed.has(k));

@@ -44,7 +44,7 @@ const matchesMilestone = (issue: Issue, milestone: string | null | undefined, pr
   return milestone === "" ? hasNoMilestone : id === milestone;
 };
 
-/** Every issue without an assignee, whatever its stage: the filter behind the 担当者未登録 button. */
+/** Unassigned issues in every stage. */
 export const unassignedFilter = (statuses: StatusDef[]): IssueFilter => ({
   ...EMPTY_FILTER,
   assignee: "",

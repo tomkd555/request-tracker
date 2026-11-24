@@ -20,7 +20,7 @@ export function toggled(set: Set<string>, key: string): Set<string> {
   return next;
 }
 
-/** `set` with every key in `keys` folded (`fold` true) or unfolded (`fold` false); keys outside `keys` keep their state. */
+/** Folds (or unfolds) every key in `keys`. */
 export function withAll(set: Set<string>, keys: Iterable<string>, fold: boolean): Set<string> {
   const next = new Set(set);
   for (const key of keys) {
@@ -46,7 +46,7 @@ const readCollapsed = (): Set<string> => {
   }
 };
 
-/** The parents whose rows are folded, the toggle for one of them, and a fold or unfold of many at once; the set outlives the screen. */
+/** The parents whose rows are folded, the toggle for one of them, and a toggle for many; the set outlives the screen. */
 export function useCollapsed(): [Set<string>, (key: string) => void, (keys: Iterable<string>, fold: boolean) => void] {
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const toggle = useCallback((key: string): void => {

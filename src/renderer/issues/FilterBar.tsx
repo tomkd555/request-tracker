@@ -6,7 +6,7 @@ import { LabelPicker } from "./LabelPicker";
 // A select cannot hold null, so the two conditions that are not a milestone id take these values.
 const ALL_MILESTONES = "__all__";
 const NO_MILESTONE = "__none__";
-// The 担当者 select holds "" for すべて, so the "" that means no assignee takes this value.
+// "" is すべて in the select, so 未登録 uses this value.
 const NO_ASSIGNEE = "__none__";
 
 function milestoneToOption(milestone: string | null | undefined): string {
@@ -146,7 +146,6 @@ export function FilterBar({ filter, onChange }: Props): React.JSX.Element {
         type="button"
         className={`filter-bar__toggle${filter.assignee === "" ? " filter-bar__toggle--on" : ""}`}
         aria-pressed={filter.assignee === ""}
-        title="担当者が登録されていない課題を、状態を問わずすべて表示します"
         onClick={() => onChange(filter.assignee === "" ? defaultFilter(project.statuses) : unassignedFilter(project.statuses))}
       >
         担当者未登録
