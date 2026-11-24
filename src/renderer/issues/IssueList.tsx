@@ -9,7 +9,7 @@ import { dateRefusal, todayYmd } from "./dates";
 import { dueTone } from "./dueTone";
 import { FilterBar } from "./FilterBar";
 import { defaultFilter, filterIssues } from "./filterIssues";
-import { descendantCounts, withAncestors } from "../../shared/issueTree";
+import { descendantCounts, rootedChildrenMap, withAncestors } from "../../shared/issueTree";
 import { toggled, useCollapsed } from "./collapsed";
 import { allTreeRows, treeKeyAction, treeRows, type TreeRow } from "./groupByParent";
 import { issuesToCsv } from "./issuesToCsv";
@@ -51,7 +51,7 @@ export function IssueList(): React.JSX.Element {
   const [bulkResult, setBulkResult] = useState<BulkResult[] | null>(null);
   const today = todayYmd();
   const nameOf = (u: string | null): string => displayNameOf(users, u);
-  const [collapsed, toggleCollapsed] = useCollapsed();
+  const [collapsed, toggleCollapsed, setAllCollapsed] = useCollapsed();
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const milestones = project.milestones ?? [];
   const matches = filterIssues(issues, filter, today, me.username, project.statuses, milestones);
@@ -59,6 +59,10 @@ export function IssueList(): React.JSX.Element {
   // A match keeps its ancestors as context rows, so its level stays readable under a filter.
   const { issues: shown, context } = withAncestors(issues, matches);
   const rows = treeRows(shown, compare, collapsed);
+  // Every parent in the tree on screen, folded rows included: the targets of 全て折りたたむ / 全て展開.
+  const parentKeys = [...rootedChildrenMap(shown).keys()].filter((k): k is string => k !== null);
+  const isAllCollapsed = parentKeys.length > 0 && parentKeys.every((k) => collapsed.has(k));
+  const isAllExpanded = parentKeys.every((k) => !collapsed.has(k));
   const progressByKey = descendantCounts(issues, (i) => isDoneStatus(project.statuses, i.status));
   // The マイルストーン column sits after 期限日 and shows only while the project has a milestone.
   const afterDue = FIXED_COLUMNS.findIndex((c) => c.key === "dueDate") + 1;
@@ -166,6 +170,14 @@ export function IssueList(): React.JSX.Element {
           </div>
         )
       )}
+      <div className="form-actions issue-table__fold-actions">
+        <button type="button" disabled={isAllCollapsed} onClick={() => setAllCollapsed(parentKeys, true)}>
+          全て折りたたむ
+        </button>
+        <button type="button" disabled={isAllExpanded} onClick={() => setAllCollapsed(parentKeys, false)}>
+          全て展開
+        </button>
+      </div>
       <table className="issue-table issue-table--tree" role="treegrid" aria-label="課題">
         <thead>
           <tr>

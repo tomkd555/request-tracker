@@ -44,6 +44,13 @@ const matchesMilestone = (issue: Issue, milestone: string | null | undefined, pr
   return milestone === "" ? hasNoMilestone : id === milestone;
 };
 
+/** Every issue without an assignee, whatever its stage: the filter behind the 担当者未登録 button. */
+export const unassignedFilter = (statuses: StatusDef[]): IssueFilter => ({
+  ...EMPTY_FILTER,
+  assignee: "",
+  statuses: statuses.map((s) => s.id),
+});
+
 /**
  * `today` is YYYY-MM-DD; the due conditions compare against it. `me` is the current username for 確認待ち. `statuses` is the project's list.
  * `milestones` is the project's list; with it, an issue naming a milestone that is no longer listed counts as having none.
@@ -53,7 +60,7 @@ export function filterIssues(issues: Issue[], filter: IssueFilter, today: string
   return issues.filter(
     (i) =>
       filter.statuses.includes(i.status) &&
-      (filter.assignee === null || i.assignee === filter.assignee) &&
+      (filter.assignee === null || (filter.assignee === "" ? i.assignee === null || i.assignee === "" : i.assignee === filter.assignee)) &&
       (filter.reporter === null || i.reporter === filter.reporter) &&
       (filter.category === null || i.category === filter.category) &&
       (!filter.awaitingConfirmation || (statusKind(statuses, i.status) === "review" && i.reporter === me)) &&

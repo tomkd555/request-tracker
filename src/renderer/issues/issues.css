@@ -26,6 +26,10 @@
   border: 1px solid var(--border-panel);
 }
 
+.issue-table__fold-actions {
+  margin-bottom: var(--space-2);
+}
+
 .issue-table__header {
   text-align: left;
   color: var(--text-table-header);
