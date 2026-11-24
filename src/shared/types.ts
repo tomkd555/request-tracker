@@ -74,6 +74,7 @@ export type DueFilter = "all" | "overdue" | "week" | "none";
 
 export interface IssueFilter {
   statuses: IssueStatus[];
+  /** "" keeps unassigned issues; null keeps every issue. */
   assignee: string | null;
   reporter: string | null;
   keyword: string;

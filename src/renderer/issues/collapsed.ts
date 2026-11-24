@@ -20,6 +20,24 @@ export function toggled(set: Set<string>, key: string): Set<string> {
   return next;
 }
 
+/** Folds (or unfolds) every key in `keys`. */
+export function withAll(set: Set<string>, keys: Iterable<string>, fold: boolean): Set<string> {
+  const next = new Set(set);
+  for (const key of keys) {
+    if (fold) next.add(key);
+    else next.delete(key);
+  }
+  return next;
+}
+
+const writeCollapsed = (set: Set<string>): void => {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+  } catch {
+    // storage unavailable: the fold lasts as long as the screen
+  }
+};
+
 const readCollapsed = (): Set<string> => {
   try {
     return parseCollapsed(window.localStorage.getItem(STORAGE_KEY));
@@ -28,19 +46,22 @@ const readCollapsed = (): Set<string> => {
   }
 };
 
-/** The parents whose rows are folded, and the toggle for one of them; the set outlives the screen. */
-export function useCollapsed(): [Set<string>, (key: string) => void] {
+/** The parents whose rows are folded, the toggle for one of them, and a toggle for many; the set outlives the screen. */
+export function useCollapsed(): [Set<string>, (key: string) => void, (keys: Iterable<string>, fold: boolean) => void] {
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const toggle = useCallback((key: string): void => {
     setCollapsed((c) => {
       const next = toggled(c, key);
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-      } catch {
-        // storage unavailable: the fold lasts as long as the screen
-      }
+      writeCollapsed(next);
       return next;
     });
   }, []);
-  return [collapsed, toggle];
+  const setAll = useCallback((keys: Iterable<string>, fold: boolean): void => {
+    setCollapsed((c) => {
+      const next = withAll(c, keys, fold);
+      writeCollapsed(next);
+      return next;
+    });
+  }, []);
+  return [collapsed, toggle, setAll];
 }

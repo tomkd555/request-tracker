@@ -1,11 +1,13 @@
 import type { DueFilter, IssueFilter, IssueStatus } from "../../shared/types";
 import { categoryOptions, displayNameOf, useSession } from "../app/SessionContext";
-import { defaultFilter } from "./filterIssues";
+import { defaultFilter, unassignedFilter } from "./filterIssues";
 import { LabelPicker } from "./LabelPicker";
 
 // A select cannot hold null, so the two conditions that are not a milestone id take these values.
 const ALL_MILESTONES = "__all__";
 const NO_MILESTONE = "__none__";
+// "" is すべて in the select, so 未登録 uses this value.
+const NO_ASSIGNEE = "__none__";
 
 function milestoneToOption(milestone: string | null | undefined): string {
   if (milestone == null) return ALL_MILESTONES;
@@ -35,16 +37,17 @@ export function FilterBar({ filter, onChange }: Props): React.JSX.Element {
     const statuses = filter.statuses.includes(s) ? filter.statuses.filter((x) => x !== s) : [...filter.statuses, s];
     onChange({ ...filter, statuses });
   };
-  const renderUserSelect = (value: string | null, onSelect: (v: string | null) => void): React.JSX.Element => (
-    <select value={value ?? ""} onChange={(e) => onSelect(e.target.value || null)}>
+  const renderUserSelect = (value: string | null, onSelect: (v: string | null) => void, withUnassigned = false): React.JSX.Element => (
+    <select value={value === "" ? NO_ASSIGNEE : (value ?? "")} onChange={(e) => onSelect(e.target.value === NO_ASSIGNEE ? "" : e.target.value || null)}>
       <option value="">すべて</option>
+      {withUnassigned && <option value={NO_ASSIGNEE}>未登録</option>}
       {users.map((u) => (
         <option key={u.username} value={u.username}>
           {u.displayName}
         </option>
       ))}
       {/* A saved filter can name a member who was removed; without its own option the select would show すべて while the list stays filtered. */}
-      {value !== null && !users.some((u) => u.username === value) && <option value={value}>{displayNameOf(users, value)}</option>}
+      {value !== null && value !== "" && !users.some((u) => u.username === value) && <option value={value}>{displayNameOf(users, value)}</option>}
     </select>
   );
   const renderMineToggle = (field: "assignee" | "reporter", label: string): React.JSX.Element => {
@@ -71,7 +74,7 @@ export function FilterBar({ filter, onChange }: Props): React.JSX.Element {
       ))}
       <label className="filter-bar__field">
         担当者
-        {renderUserSelect(filter.assignee, (v) => onChange({ ...filter, assignee: v }))}
+        {renderUserSelect(filter.assignee, (v) => onChange({ ...filter, assignee: v }), true)}
       </label>
       <label className="filter-bar__field">
         登録者
@@ -139,6 +142,14 @@ export function FilterBar({ filter, onChange }: Props): React.JSX.Element {
         ))}
       {renderMineToggle("assignee", "自分の担当")}
       {renderMineToggle("reporter", "自分が登録")}
+      <button
+        type="button"
+        className={`filter-bar__toggle${filter.assignee === "" ? " filter-bar__toggle--on" : ""}`}
+        aria-pressed={filter.assignee === ""}
+        onClick={() => onChange(filter.assignee === "" ? defaultFilter(project.statuses) : unassignedFilter(project.statuses))}
+      >
+        担当者未登録
+      </button>
       <button
         type="button"
         className={`filter-bar__toggle${filter.awaitingConfirmation ? " filter-bar__toggle--on" : ""}`}
